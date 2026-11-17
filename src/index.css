@@ -1,0 +1,214 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
+@import '@fontsource-variable/inter';
+@import '@fontsource-variable/space-grotesk';
+@import '@fontsource-variable/jetbrains-mono';
+@import './styles/editor.css';
+
+/* Dark is the default theme; `.light` on <html> switches to the light theme. */
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Design tokens (PROMPT.md §2) → shadcn semantic tokens:
+ *   --bg → --background   --text → --foreground   --panel → --card / --popover / --muted
+ *   --panel-2 → --sidebar  --line → --border / --input   --muted (text) → --muted-foreground
+ *   --danger → --destructive   --faint, --success, course and syntax colors keep their names.
+ */
+@theme inline {
+  --font-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-heading: 'Space Grotesk Variable', 'Inter Variable', ui-sans-serif, sans-serif;
+  --font-mono: 'JetBrains Mono Variable', ui-monospace, SFMono-Regular, monospace;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --color-faint: var(--faint);
+  --color-link: var(--link);
+  --color-success: var(--success);
+  --color-danger: var(--danger);
+  --color-react-badge: var(--react-badge);
+  --color-react-badge-bg: var(--react-badge-bg);
+  --color-warn-badge: var(--warn-badge);
+  --color-warn-badge-bg: var(--warn-badge-bg);
+  --color-tip: var(--tip);
+  --color-tip-bg: var(--tip-bg);
+
+  /* Course colors are the same in both themes. */
+  --color-js: #f0c43f;
+  --color-react: #61dafb;
+  --color-ts: #3178c6;
+  --color-testing: #7bd88f;
+  --color-mistakes: #ff8a80;
+  --color-on-light: #12152a;
+  --color-on-dark: #ffffff;
+
+  /* Code editors stay dark in both themes. */
+  --color-ed-bg: #1c2140;
+  --color-ed-tab: #151933;
+  --color-ed-line: #2a3156;
+  --color-ed-text: #e9e7f0;
+  --color-ed-gutter: #8a90a8;
+  --color-ed-btn: #a9aecb;
+  --color-ed-hover: #262c52;
+  --color-con-bg: #0f1226;
+  --color-con-text: #d7d9e6;
+  --color-run: #2e7d32;
+  --color-run-hover: #379a3c;
+
+  --color-syn-kw: #c792ea;
+  --color-syn-fn: #82aaff;
+  --color-syn-prop: #89ddff;
+  --color-syn-str: #c3e88d;
+  --color-syn-num: #f78c6c;
+  --color-syn-tag: #f07178;
+  --color-syn-type: #ffcb6b;
+  --color-syn-cm: #7f86a8;
+
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+}
+
+/* Dark theme (default) */
+:root,
+.dark {
+  --radius: 0.625rem;
+  --background: #12152a;
+  --foreground: #f3f1ea;
+  --card: #1c2140;
+  --card-foreground: #f3f1ea;
+  --popover: #1c2140;
+  --popover-foreground: #f3f1ea;
+  --primary: #82aaff;
+  --primary-foreground: #12152a;
+  --secondary: #1c2140;
+  --secondary-foreground: #f3f1ea;
+  --muted: #1c2140;
+  --muted-foreground: #b9bed3;
+  --accent: #1f2650;
+  --accent-foreground: #f3f1ea;
+  --destructive: #ff8a80;
+  --border: #2a3156;
+  --input: #2a3156;
+  --ring: #82aaff;
+  --sidebar: #151933;
+  --sidebar-foreground: #b9bed3;
+  --sidebar-primary: #82aaff;
+  --sidebar-primary-foreground: #12152a;
+  --sidebar-accent: #1f2650;
+  --sidebar-accent-foreground: #f3f1ea;
+  --sidebar-border: #2a3156;
+  --sidebar-ring: #82aaff;
+
+  --faint: #8a90a8;
+  --link: #82aaff;
+  --success: #c3e88d;
+  --danger: #ff8a80;
+  --react-badge: #61dafb;
+  --react-badge-bg: rgb(97 218 251 / 0.12);
+  --warn-badge: #ff8a80;
+  --warn-badge-bg: rgb(255 138 128 / 0.12);
+  --tip: #f0c43f;
+  --tip-bg: rgb(240 196 63 / 0.08);
+  color-scheme: dark;
+}
+
+/* Light theme */
+.light {
+  --background: #ffffff;
+  --foreground: #171a2b;
+  --card: #ffffff;
+  --card-foreground: #171a2b;
+  --popover: #ffffff;
+  --popover-foreground: #171a2b;
+  --primary: #2457d6;
+  --primary-foreground: #ffffff;
+  --secondary: #f4f3ee;
+  --secondary-foreground: #171a2b;
+  --muted: #f4f3ee;
+  --muted-foreground: #555b72;
+  --accent: #eef3ff;
+  --accent-foreground: #2457d6;
+  --destructive: #b42318;
+  --border: #e7e5de;
+  --input: #e7e5de;
+  --ring: #2457d6;
+  --sidebar: #fafaf7;
+  --sidebar-foreground: #555b72;
+  --sidebar-primary: #2457d6;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #eef3ff;
+  --sidebar-accent-foreground: #2457d6;
+  --sidebar-border: #e7e5de;
+  --sidebar-ring: #2457d6;
+
+  /* #8A8FA3 from the reference fails 4.5:1 on white, so faint is darkened. */
+  --faint: #6b7086;
+  --link: #2457d6;
+  --success: #2e7d32;
+  --danger: #b42318;
+  --react-badge: #0b6e8a;
+  --react-badge-bg: #e6f8fd;
+  --warn-badge: #b42318;
+  --warn-badge-bg: #fdecea;
+  --tip: #6b5310;
+  --tip-bg: #fff8e1;
+  color-scheme: light;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply font-sans;
+    scroll-behavior: smooth;
+    scroll-padding-top: 88px;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-size: 16px;
+    line-height: 1.65;
+  }
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply font-heading;
+  }
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-ring;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+  }
+}
