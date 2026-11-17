@@ -1,0 +1,196 @@
+---
+id: why-typescript
+title: Why TypeScript?
+summary: See the bugs JavaScript lets through, like "5" + 1, and how TypeScript catches them in the editor before the code ever runs.
+minutes: 12
+tags: [TypeScript, types, type errors, compile time, editor, JavaScript superset]
+---
+
+JavaScript happily runs code that's obviously wrong to a human. You only find out when a user clicks the button. **TypeScript** is JavaScript plus **types**: you say what kind of value each thing is, and the editor tells you about mistakes **while you type**.
+
+<Concept name="The bug JavaScript lets through" id="the-bug">
+
+A quantity comes from an input field, so it's a **string**. Run this:
+
+<Playground file="cart.js" expected={["Total items: 51"]}>
+
+```js
+const cartQty = 5;
+const input = "1"; // what <input> gives you: always a string
+
+const total = cartQty + input;
+console.log("Total items:", total);
+```
+
+</Playground>
+
+5 + "1" is "51", not 6. No error, no warning: JavaScript just glues them together. In a real shop that's a customer ordering 51 coffees.
+
+</Concept>
+
+<Concept name="The same code in TypeScript" id="ts-version">
+
+Here's the same idea in TypeScript. Look at the red squiggle and the **Problems** panel: TypeScript spotted the bug before running anything. Hover the squiggle to read the message.
+
+<TSPlayground file="cart.ts" errors={[5]} expected={["Total items: 51"]}>
+
+```ts
+function addToCart(current: number, extra: number): number {
+  return current + extra;
+}
+
+const total = addToCart(5, "1");
+console.log("Total items:", total);
+```
+
+</TSPlayground>
+
+Now fix it: change `"1"` to `Number("1")` (or just `1`). The error disappears, and **Run** prints 6. The only new syntax is `: number`, which says "this must be a number".
+
+<Callout type="tip">
+TypeScript checks your code, then **removes the types** to produce plain JavaScript. If you press Run with a type error, the code still runs (the playground warns you). In a real project, your build and your pull request checks fail instead.
+</Callout>
+
+</Concept>
+
+<Concept name="What TypeScript gives you" id="benefits">
+
+- **Bugs caught early**: wrong types, typos in property names (`item.prise`), forgotten `null` checks, missing arguments.
+- **Autocomplete that knows your data**: type `item.` and the editor lists `id`, `name`, `price`, `qty`.
+- **Safe refactoring**: rename a property and every place that uses it is updated or flagged.
+- **Documentation that can't go stale**: a function's types say what it takes and returns.
+
+It costs a little extra typing. In practice, types pay for themselves the first time they stop a bug from reaching users, which is why almost every professional React codebase uses TypeScript.
+
+</Concept>
+
+<HowItWorks title="Compile time vs. run time">
+
+TypeScript works at **compile time**: before the code runs, the compiler (`tsc`, or your editor in the background) reads the code and checks every value against its type. Then it erases the types. At **run time**, the browser only ever sees JavaScript; types don't exist there. That's why TypeScript can't check data that arrives at run time (an API response, a form field) on its own: you describe what you *expect*, and for untrusted data you validate it (with Zod, for example).
+
+</HowItWorks>
+
+<GoDeeper title="TypeScript is a superset of JavaScript">
+
+Every JavaScript program is (almost) a valid TypeScript program: you can rename `cart.js` to `cart.ts` and add types gradually. TypeScript adds syntax only for types (`: number`, `type`, `interface`, generics…) and a few extras. All of it disappears in the compiled output. Rename a file, run the checker, fix what it finds: that's how real teams migrate.
+
+</GoDeeper>
+
+<Practice>
+
+<Predict
+  id="predict-js-coercion"
+  answer={["51", "4", "51"]}
+  explain="`+` with a string glues text together; `-` and `*` turn strings into numbers. JavaScript guesses instead of complaining, which is exactly what TypeScript stops."
+>
+
+```js
+console.log(5 + "1");
+console.log(5 - "1");
+console.log("5" + 1);
+```
+
+</Predict>
+
+<SpotTheBug
+  id="bug-ts-typo"
+  bug={6}
+  prompt="TypeScript underlines one line in this file. Click it."
+  explain="`prise` is a typo: the type says the property is `price`. JavaScript would quietly give `undefined` (and `NaN` totals); TypeScript stops it."
+>
+
+```ts
+type Item = { name: string; price: number; qty: number };
+
+const coffee: Item = { name: "Coffee", price: 4, qty: 2 };
+
+function lineTotal(item: Item): number {
+  return item.prise * item.qty;
+}
+```
+
+</SpotTheBug>
+
+<TrueFalse
+  id="tf-why-ts"
+  statements={[
+    { text: "Types exist at run time in the browser.", answer: false, explain: "They're erased when TypeScript compiles to JavaScript." },
+    { text: "TypeScript can catch a typo in a property name before you run the code.", answer: true, explain: "It knows the shape of the object from its type." },
+    { text: "Any JavaScript file can be renamed to .ts as a first step.", answer: true, explain: "TypeScript is a superset; you then fix what the checker reports." },
+    { text: "TypeScript automatically validates data coming from an API.", answer: false, explain: "It can't see run-time data. Validate untrusted input, e.g. with Zod." },
+  ]}
+/>
+
+</Practice>
+
+<TSExercise
+  id="first-types"
+  variant="fix"
+  title="Fix the order total"
+  hints={[
+    "The quantity comes in as a string. Convert it before adding: `Number(qtyText)`.",
+    "`orderTotal` should take numbers: `function orderTotal(price: number, qty: number): number`.",
+  ]}
+>
+
+`orderTotal` should take a **price** and a **quantity** and return their product, typed so that passing a string is an error. The call at the bottom passes the text from an input; convert it so the code type-checks and the total is right.
+
+```ts starter
+function orderTotal(price, qty) {
+  return price * qty;
+}
+
+const qtyText = "3"; // from an <input>
+const total = orderTotal(4, qtyText);
+```
+
+```ts types
+// a number price and quantity are fine
+const ok: number = orderTotal(4, 2);
+// @ts-expect-error a quantity must be a number, not text
+orderTotal(4, "2");
+```
+
+```js tests
+test("orderTotal multiplies price and quantity", () => {
+  expect(orderTotal(4, 3)).toBe(12);
+});
+
+test("total uses the converted quantity", () => {
+  expect(total).toBe(12);
+});
+```
+
+```ts solution
+function orderTotal(price: number, qty: number): number {
+  return price * qty;
+}
+
+const qtyText = "3"; // from an <input>
+const total = orderTotal(4, Number(qtyText));
+```
+
+</TSExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "What does TypeScript add to JavaScript?",
+      options: ["A new runtime", "Types that are checked before the code runs", "Faster execution", "A different syntax for loops"],
+      answer: 1,
+      explain: "Then the types are erased, leaving JavaScript.",
+    },
+    {
+      q: "When does TypeScript report a type error?",
+      options: ["When the user clicks", "At compile time: in the editor and when you build", "Only in production", "Never"],
+      answer: 1,
+      explain: "That's the point: you see it before users do.",
+    },
+    {
+      q: "Which are real benefits of TypeScript?",
+      options: ["Catching typos in property names", "Autocomplete for your own objects", "Validating API responses at run time by itself", "Safer renames"],
+      answer: [0, 1, 3],
+      explain: "Run-time data needs validation (Zod); TypeScript only checks your code.",
+    },
+  ]}
+/>

@@ -5,6 +5,8 @@ import { cn } from '@/lib/utils';
 import { BossChallenge } from './BossChallenge';
 import { BuildUI, ReactExercise } from './ReactExercise';
 import { ReactPlayground } from './ReactPlayground';
+import { TSExercise } from './TSExercise';
+import { TSPlayground } from './TSPlayground';
 import { Callout } from './Callout';
 import { MdxLink } from './MdxLink';
 import { CodeBlock } from './CodeBlock';
@@ -144,6 +146,8 @@ export const mdxComponents: MDXComponents = {
   ReactPlayground,
   ReactExercise,
   BuildUI,
+  TSPlayground,
+  TSExercise,
   // question types
   Practice,
   Choice,

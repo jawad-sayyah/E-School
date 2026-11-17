@@ -14,6 +14,14 @@ import { COURSES } from './courses';
 import { findMissingLessons } from './lessons';
 import { COMPONENT_KINDS } from '@/components/questions/kinds';
 import { fillBlanks, parseBlanks } from '@/questions/blanks';
+import { transpile, typeCheck } from '../../test/tsChecker';
+
+const isTs = (lang?: string | null) => lang === 'ts' || lang === 'tsx';
+/** Code that runs in the worker: TypeScript is compiled first. */
+const runnable = (block?: Node) =>
+  isTs(block?.lang)
+    ? transpile(String(block?.value ?? ''), block?.lang === 'tsx')
+    : String(block?.value ?? '');
 
 /*
  * Keeps lessons honest: every runnable example must print exactly its expected
@@ -81,7 +89,9 @@ test('every course with lessons has at least one exercise (PROMPT.md §10)', () 
       .filter((l) => l.course === course)
       .flatMap((l) => {
         const tree = parser.parse(fs.readFileSync(l.abs, 'utf8')) as Node;
-        return ['Exercise', 'ReactExercise', 'BuildUI'].flatMap((n) => findAll(tree, n));
+        return ['Exercise', 'ReactExercise', 'BuildUI', 'TSExercise'].flatMap((n) =>
+          findAll(tree, n),
+        );
       });
     expect(exercises.length, course).toBeGreaterThanOrEqual(1);
   }
@@ -188,8 +198,9 @@ describe.each(lessonFiles)('$course/$file questions', ({ abs }) => {
   test.each(predicts.map((p) => ({ p, id: String(attr(p, 'id')) })))(
     'predict $id: the answer is what the code really prints',
     async ({ p }) => {
-      const code = String(codeIn(p)[0]?.value ?? '');
-      const out = await runToEnd(code, run);
+      const block = codeIn(p)[0];
+      if (isTs(block?.lang)) expect(typeCheck(String(block?.value)).diagnostics).toEqual([]);
+      const out = await runToEnd(runnable(block), run);
       expect(out.status).toBe('done');
       expect(out.lines.map((l) => l.text)).toEqual(attr(p, 'answer'));
     },
@@ -201,7 +212,12 @@ describe.each(lessonFiles)('$course/$file questions', ({ abs }) => {
     async ({ b }) => {
       const code = String(codeIn(b)[0]?.value ?? '');
       expect(parseBlanks(code).answers.length).toBeGreaterThan(0);
-      if (attr(b, 'run') === 'false' || codeIn(b)[0]?.lang === 'jsx') return; // JSX can't run in the worker
+      const lang = codeIn(b)[0]?.lang;
+      if (isTs(lang)) {
+        expect(typeCheck(fillBlanks(code), '', lang === 'tsx').diagnostics).toEqual([]);
+        return;
+      }
+      if (attr(b, 'run') === 'false' || lang === 'jsx') return; // JSX can't run in the worker
       const out = await runToEnd(fillBlanks(code), run);
       expect(out.status).toBe('done');
       expect(out.lines.filter((l) => l.level === 'error')).toEqual([]);
@@ -220,8 +236,20 @@ describe.each(lessonFiles)('$course/$file questions', ({ abs }) => {
         expect(line).toBeGreaterThanOrEqual(1);
         expect(line).toBeLessThanOrEqual(lines);
       }
+      const buggyBlock = blocks.find((c) => !(c.meta ?? '').includes('fixed'));
+      if (isTs(buggyBlock?.lang) && attr(b, 'runtime') !== true) {
+        const errorLines = typeCheck(buggy, '', buggyBlock?.lang === 'tsx').diagnostics.map(
+          (d) => d.line,
+        );
+        const want = (Array.isArray(marked) ? marked : [marked]) as number[];
+        expect([...new Set(errorLines)].sort((x, y) => x - y)).toEqual(
+          [...want].sort((x, y) => x - y),
+        );
+      }
       const fixed = blocks.find((c) => (c.meta ?? '').includes('fixed'));
-      if (fixed && fixed.lang !== 'jsx') {
+      if (fixed && isTs(fixed.lang)) {
+        expect(typeCheck(String(fixed.value), '', fixed.lang === 'tsx').diagnostics).toEqual([]);
+      } else if (fixed && fixed.lang !== 'jsx') {
         const out = await runToEnd(String(fixed.value), run);
         expect(out.lines.filter((l) => l.level === 'error')).toEqual([]);
       }
@@ -270,4 +298,64 @@ describe.each(lessonFiles)('$course/$file questions', ({ abs }) => {
       expect((attr(t, 'steps') as unknown[]).length).toBeGreaterThanOrEqual(2);
     }
   });
+});
+
+/* ── TypeScript (PROMPT.md: TS exercises must have no type errors and pass the tests) ── */
+
+const tsLessons = lessonFiles.filter(({ abs }) =>
+  /<TS(Playground|Exercise)/.test(fs.readFileSync(abs, 'utf8')),
+);
+
+describe.each(tsLessons)('$course/$file TypeScript', ({ abs }) => {
+  const tree = parser.parse(fs.readFileSync(abs, 'utf8')) as Node;
+
+  const playgrounds = findAll(tree, 'TSPlayground');
+  test.each(playgrounds.map((p, i) => ({ p, name: String(attr(p, 'file') ?? i) })))(
+    'ts playground $name: type errors only where expected, and the expected output',
+    async ({ p }) => {
+      const file = String(attr(p, 'file') ?? 'example.ts');
+      const tsx = file.endsWith('.tsx');
+      const code = String(codeIn(p)[0]?.value ?? '');
+      const errorLines = [...new Set(typeCheck(code, '', tsx).diagnostics.map((d) => d.line))];
+      const want = ((attr(p, 'errors') as number[] | undefined) ?? [])
+        .slice()
+        .sort((a, b) => a - b);
+      expect(errorLines.sort((a, b) => a - b)).toEqual(want);
+      if (attr(p, 'checkOnly') === true || tsx) return;
+      const expected = attr(p, 'expected') as string[] | undefined;
+      expect(expected, 'a runnable TS playground needs expected output').toBeDefined();
+      const out = await runToEnd(transpile(code), run);
+      expect(out.status).toBe('done');
+      expect(out.lines.map((l) => l.text)).toEqual(expected);
+    },
+  );
+
+  const exercises = findAll(tree, 'TSExercise');
+  test.each(exercises.map((e) => ({ e, id: String(attr(e, 'id')) })))(
+    'ts exercise $id: the solution type-checks and passes; the starter does not',
+    async ({ e }) => {
+      const blocks = codeIn(e);
+      const get = (word: string) => blocks.find((b) => (b.meta ?? '').split(/\s+/).includes(word));
+      const starter = get('starter');
+      const tsx = starter?.lang === 'tsx';
+      const checks = String(get('types')?.value ?? '');
+      const tests = String(get('tests')?.value ?? '');
+      expect(checks || tests, 'needs type checks or tests').not.toBe('');
+      const solution = String(get('solution')?.value ?? '');
+
+      const solved = typeCheck(solution, checks, tsx).diagnostics;
+      expect(solved).toEqual([]);
+      if (tests && !tsx) {
+        const result = await checkExercise(transpile(solution), tests, run);
+        expect(result.problem).toBeUndefined();
+        expect(result.passed).toBe(true);
+      }
+
+      const start = String(starter?.value ?? '');
+      const starterTypeErrors = typeCheck(start, checks, tsx).diagnostics.length;
+      const starterPasses =
+        tests && !tsx ? (await checkExercise(transpile(start), tests, run)).passed : true;
+      expect(starterTypeErrors > 0 || !starterPasses, 'the starter must not pass').toBe(true);
+    },
+  );
 });

@@ -81,7 +81,7 @@ export const COURSES: CourseInfo[] = [
     color: 'ts',
     description:
       'Why TypeScript, types and inference, objects and interfaces, unions and narrowing, functions, tuples and enums.',
-    lessons: [],
+    lessons: ['why-typescript'],
     phase: 8,
   },
   {

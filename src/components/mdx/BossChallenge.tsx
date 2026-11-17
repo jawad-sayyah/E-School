@@ -6,6 +6,7 @@ import { useProgress, useProgressStore } from '@/progress/ProgressContext';
 import { lessonKey } from '@/progress/ProgressStore';
 import { Exercise } from './Exercise';
 import { BuildUI, ReactExercise } from './ReactExercise';
+import { TSExercise } from './TSExercise';
 import { useLessonRef } from './LessonContext';
 
 /**
@@ -25,7 +26,10 @@ export function BossChallenge({ children }: { children?: ReactNode }) {
       if (typeof id !== 'string') return null;
       const key = `${lesson.course}/${lesson.lesson}/${id}`;
       const done =
-        el.type === Exercise || el.type === ReactExercise || el.type === BuildUI
+        el.type === Exercise ||
+        el.type === ReactExercise ||
+        el.type === BuildUI ||
+        el.type === TSExercise
           ? Boolean(snapshot.exercises[key]?.passed)
           : Boolean(snapshot.questions[key]?.correct);
       return { id, done };

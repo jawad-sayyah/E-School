@@ -64,6 +64,7 @@ export const COMPONENT_KINDS: Record<string, QuestionKind | 'quiz'> = {
   Exercise: 'write-code',
   ReactExercise: 'write-code',
   BuildUI: 'build-ui',
+  TSExercise: 'write-code',
 };
 
 export const CODE_ICON = Code2Icon;
