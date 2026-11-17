@@ -55,7 +55,7 @@ export const COURSES: CourseInfo[] = [
     color: 'js',
     description:
       'Scope and hoisting, this, classes and prototypes, the event loop, Map and Set, generators, errors, regex, dates and modern syntax.',
-    lessons: [],
+    lessons: ['scope-hoisting', 'this', 'classes', 'prototypes'],
     phase: 4,
   },
 

@@ -1,0 +1,324 @@
+---
+id: scope-hoisting
+title: Scope & hoisting
+summary: Where a variable can be seen, why some names exist before their line, and the temporal dead zone.
+minutes: 15
+tags: [scope, block scope, function scope, scope chain, hoisting, var, let, const, temporal dead zone, shadowing]
+---
+
+**Scope** is the part of the code where a name can be used. **Hoisting** is what JavaScript does with names before your code even starts running. Together they explain a whole family of confusing bugs.
+
+<Concept name="Block scope" id="block-scope">
+
+`let` and `const` live inside the nearest `{ }` block, so the same name can mean different things inside and outside.
+
+<Playground file="block.js" expected={["inside: 50", "outside: 10"]}>
+
+```js
+const discount = 10;
+
+if (true) {
+  const discount = 50;   // a different variable, only inside this block
+  console.log("inside:", discount);
+}
+
+console.log("outside:", discount);
+```
+
+</Playground>
+</Concept>
+
+<Concept name="Function scope" id="function-scope">
+
+Variables made inside a function exist only while that function runs, and can't be seen from outside.
+
+<Playground file="function-scope.js" expected={["12", "undefined"]}>
+
+```js
+function checkout() {
+  const total = 12;
+  console.log(total);
+}
+
+checkout();
+console.log(typeof total);   // not visible out here
+```
+
+</Playground>
+</Concept>
+
+<Concept name="The scope chain" id="scope-chain" react>
+
+When a name isn't found in the current scope, JavaScript looks in the scope around it, then the one around that, up to the global scope.
+
+<Playground file="chain.js" expected={["$4.00"]}>
+
+```js
+const currency = "$";
+
+function format(n) {
+  function withSymbol() {
+    return currency + n.toFixed(2);   // n from format, currency from the top
+  }
+  return withSymbol();
+}
+
+console.log(format(4));
+```
+
+</Playground>
+
+<HowItWorks>
+
+Scopes nest like boxes. An inner function can look **outward** (it sees `n` and `currency`), but nothing can look **inward**: the top level can't see `n`. That outward-looking chain is also what makes closures work.
+
+</HowItWorks>
+</Concept>
+
+<Concept name="Function declarations are hoisted" id="function-hoisting">
+
+A `function` declaration can be called before the line where it's written, because JavaScript sets it up first.
+
+<Playground file="hoisted.js" expected={["5"]}>
+
+```js
+console.log(add(2, 3));
+
+function add(a, b) {
+  return a + b;
+}
+```
+
+</Playground>
+</Concept>
+
+<Concept name="var is hoisted as undefined" id="var-hoisting" warn>
+
+A `var` exists from the start of its function but holds `undefined` until its line runs, which hides bugs.
+
+<Playground file="var.js" expected={["undefined", "3"]}>
+
+```js
+console.log(qty);   // no error, just undefined
+var qty = 3;
+console.log(qty);
+```
+
+</Playground>
+</Concept>
+
+<Concept name="The temporal dead zone" id="tdz" warn>
+
+`let` and `const` are hoisted too, but using them before their line throws an error. That gap is the "temporal dead zone".
+
+<Playground file="tdz.js" expected={["Uncaught ReferenceError: Cannot access 'price' before initialization"]}>
+
+```js
+console.log(price);
+let price = 4;
+```
+
+</Playground>
+
+<Callout type="tip">
+The error is a feature: it points straight at the bug, where `var` would quietly give you `undefined`.
+</Callout>
+</Concept>
+
+<Concept name="var in loops" id="var-loops" warn>
+
+A `var` loop counter is shared by every iteration, while `let` gives each iteration its own copy. It matters as soon as a callback runs later.
+
+<Playground file="loops.js" expected={["var: 4", "var: 4", "var: 4", "let: 1", "let: 2", "let: 3"]}>
+
+```js
+for (var i = 1; i <= 3; i++) {
+  setTimeout(() => console.log("var:", i), 0);
+}
+
+for (let j = 1; j <= 3; j++) {
+  setTimeout(() => console.log("let:", j), 0);
+}
+```
+
+</Playground>
+</Concept>
+
+<GoDeeper title="What hoisting really is">
+
+Before running a scope's code, JavaScript does a quick **setup pass** over it and creates every name declared there:
+
+| Declaration | After setup | Before its line |
+| --- | --- | --- |
+| `function f() {}` | the whole function | works |
+| `var x = 1` | `undefined` | gives `undefined` |
+| `let x` / `const x` | uninitialized | throws (temporal dead zone) |
+| `class C {}` | uninitialized | throws |
+| `const f = () => {}` | uninitialized | throws (it's a `const`) |
+
+Nothing physically "moves to the top": the names simply exist from the start of the scope. This setup pass is also why a `let` inside a block shadows an outer one from the very first line of the block.
+
+</GoDeeper>
+
+<Practice>
+
+<Predict
+  id="predict-shadow"
+  answer={["inner", "outer"]}
+  explain="The `label` inside `show` is a new variable that shadows the outer one. The outer `label` never changes."
+>
+
+```js
+let label = "outer";
+
+function show() {
+  let label = "inner";
+  return label;
+}
+
+console.log(show());
+console.log(label);
+```
+
+</Predict>
+
+<SortBuckets
+  id="buckets-hoisting"
+  prompt="What happens if you use each name on a line BEFORE its declaration?"
+  buckets={["Works", "Gives undefined", "Throws an error"]}
+  items={[
+    ["`function add() {}`", 0],
+    ["`var total = 0`", 1],
+    ["`let qty = 1`", 2],
+    ["`const tax = 0.1`", 2],
+    ["`const add = () => {}`", 2],
+    ["`class Cart {}`", 2],
+  ]}
+  explain="Only function declarations are fully ready before their line. `var` exists but is `undefined`; `let`, `const` and `class` are in the temporal dead zone."
+/>
+
+<SpotTheBug
+  id="bug-tdz"
+  bug={2}
+  prompt="This throws a ReferenceError. Click the line that causes it."
+  explain="Line 2 reads `sum` before line 3 declares it with `const`: the temporal dead zone. Compute it first, then log it."
+>
+
+```js
+function total(cart) {
+  console.log(`Total: ${sum}`);
+  const sum = cart.reduce((s, n) => s + n, 0);
+  return sum;
+}
+
+total([1, 2]);
+```
+
+```js fixed
+function total(cart) {
+  const sum = cart.reduce((s, n) => s + n, 0);
+  console.log(`Total: ${sum}`);
+  return sum;
+}
+
+total([1, 2]);
+```
+
+</SpotTheBug>
+
+<TrueFalse
+  id="tf-scope"
+  statements={[
+    { text: "A `const` declared inside an `if` block can be used after the block.", answer: false, explain: "`let` and `const` are block-scoped." },
+    { text: "An inner function can read variables of the function around it.", answer: true, explain: "That's the scope chain, and the basis of closures." },
+    { text: "Using a `let` variable before its line gives `undefined`.", answer: false, explain: "It throws a ReferenceError (temporal dead zone). `var` is the one that gives undefined." },
+    { text: "You can call a function declaration before the line where it's written.", answer: true, explain: "Function declarations are fully hoisted." },
+  ]}
+/>
+
+</Practice>
+
+<Exercise
+  id="fix-loop-handlers"
+  variant="fix"
+  title="Fix the button handlers"
+  hints={[
+    "Every handler shares one `i`. Which keyword gives each loop round its own copy?",
+    "Change `var i` to `let i`.",
+  ]}
+>
+
+Each handler should return the label of its own button: `"Button 1"`, `"Button 2"`, `"Button 3"`. Right now they all say `"Button 4"`. Fix it.
+
+```js starter
+function makeHandlers() {
+  const handlers = [];
+  for (var i = 1; i <= 3; i++) {
+    handlers.push(() => `Button ${i}`);
+  }
+  return handlers;
+}
+
+const handlers = makeHandlers();
+console.log(handlers[0]());
+```
+
+```js tests
+test("makes three handlers", () => {
+  expect(makeHandlers()).toHaveLength(3);
+});
+
+test("the first handler says Button 1", () => {
+  expect(makeHandlers()[0]()).toBe("Button 1");
+});
+
+test("the last handler says Button 3", () => {
+  expect(makeHandlers()[2]()).toBe("Button 3");
+});
+```
+
+```js solution
+function makeHandlers() {
+  const handlers = [];
+  for (let i = 1; i <= 3; i++) {
+    handlers.push(() => `Button ${i}`);
+  }
+  return handlers;
+}
+
+const handlers = makeHandlers();
+console.log(handlers[0]());
+```
+
+</Exercise>
+
+<Quiz
+  questions={[
+    {
+      q: "What does this print?",
+      code: "console.log(typeof later);\nvar later = 1;",
+      options: ["`number`", "`undefined`", "A ReferenceError", "`null`"],
+      answer: 1,
+      explain: "`var later` exists from the start but holds `undefined`, and `typeof undefined` is \"undefined\".",
+    },
+    {
+      q: "What does this print?",
+      code: "const x = 1;\n{\n  const x = 2;\n}\nconsole.log(x);",
+      options: ["`1`", "`2`", "An error: x is declared twice", "`undefined`"],
+      answer: 0,
+      explain: "The inner `x` lives only inside its block and shadows the outer one there.",
+    },
+    {
+      q: "Why does `let` fix the classic \"all handlers print 4\" loop bug?",
+      options: ["`let` is faster", "Each loop round gets its own copy of a `let` variable", "`let` can't change", "`setTimeout` treats `let` specially"],
+      answer: 1,
+      explain: "With `let`, every iteration has a fresh binding, so each callback closes over its own value.",
+    },
+    {
+      q: "Which of these can be used before the line that declares it, without an error?",
+      options: ["`function f() {}`", "`const f = function () {}`", "`let n = 1`", "`var n = 1`"],
+      answer: [0, 3],
+      explain: "Function declarations work fully; `var` works but gives `undefined`. The others throw.",
+    },
+  ]}
+/>

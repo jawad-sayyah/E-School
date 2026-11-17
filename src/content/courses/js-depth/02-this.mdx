@@ -1,0 +1,326 @@
+---
+id: this
+title: this
+summary: What `this` points to in methods, plain functions, arrow functions and event handlers, and how to fix it with bind, call and apply.
+minutes: 15
+tags: [this, methods, bind, call, apply, arrow functions, context, new]
+---
+
+`this` is a special name that points at an object, but **which** object depends on how the function is called, not where it's written. Arrow functions are the one exception.
+
+<Concept name="this in a method" id="this-method">
+
+When you call a function as `object.method()`, `this` inside it is that object.
+
+<Playground file="method.js" expected={["2"]}>
+
+```js
+const cart = {
+  items: ["Coffee", "Tea"],
+  count() {
+    return this.items.length;
+  },
+};
+
+console.log(cart.count());
+```
+
+</Playground>
+</Concept>
+
+<Concept name="Losing this" id="losing-this" warn react>
+
+Take a method off its object and call it on its own, and `this` is no longer the object.
+
+<Playground file="lost.js" expected={["Uncaught TypeError: Cannot read properties of undefined (reading 'length')"]}>
+
+```js
+const cart = {
+  items: ["Coffee"],
+  count() {
+    return this.items.length;
+  },
+};
+
+const count = cart.count;   // just the function, no object attached
+console.log(count());
+```
+
+</Playground>
+
+<Callout type="react">
+This used to bite every React class component: `onClick={this.handleClick}` lost `this`. Function components and hooks don't use `this` at all, which is one reason they took over.
+</Callout>
+</Concept>
+
+<Concept name="bind()" id="bind">
+
+`bind` makes a new function with `this` locked to the object you give it, so it can be passed around safely.
+
+<Playground file="bind.js" expected={["1"]}>
+
+```js
+const cart = {
+  items: ["Coffee"],
+  count() {
+    return this.items.length;
+  },
+};
+
+const count = cart.count.bind(cart);
+console.log(count());
+```
+
+</Playground>
+</Concept>
+
+<Concept name="Arrow functions keep the outer this" id="arrow-this" react>
+
+Arrow functions don't have their own `this`; they use the `this` of the code around them. That's why they're perfect for callbacks inside methods.
+
+<Playground file="arrow.js" expected={["3"]}>
+
+```js
+const timer = {
+  seconds: 0,
+  start() {
+    [1, 2, 3].forEach(() => {
+      this.seconds++;   // `this` is still timer
+    });
+    console.log(this.seconds);
+  },
+};
+
+timer.start();
+```
+
+</Playground>
+</Concept>
+
+<Concept name="call() and apply()" id="call-apply">
+
+`call` and `apply` run a function right now with the `this` you choose; `call` takes arguments one by one, `apply` takes an array.
+
+<Playground file="call.js" expected={["Hi, Sara!", "Hello, Sara."]}>
+
+```js
+function greet(greeting, punctuation) {
+  return `${greeting}, ${this.name}${punctuation}`;
+}
+
+const user = { name: "Sara" };
+console.log(greet.call(user, "Hi", "!"));
+console.log(greet.apply(user, ["Hello", "."]));
+```
+
+</Playground>
+</Concept>
+
+<Concept name="this in event handlers" id="this-events">
+
+With `addEventListener` and a regular function, `this` is the element the listener is on; with an arrow function it isn't.
+
+<Playground file="events.js" browserOnly expected={["~ After clicking the button:", "add-btn"]}>
+
+```js
+const button = document.querySelector("#add-btn");
+
+button.addEventListener("click", function () {
+  console.log(this.id);   // the button
+});
+```
+
+</Playground>
+</Concept>
+
+<GoDeeper title="The four rules for this">
+
+For a regular function, check these in order:
+
+1. **`new Fn()`**: `this` is the brand-new object being created.
+2. **`fn.call(obj)`, `fn.apply(obj)` or a `bind`-ed function**: `this` is `obj`.
+3. **`obj.fn()`**: `this` is `obj` (whatever is left of the dot).
+4. **Plain `fn()`**: `this` is `undefined` in strict mode (modules, classes) or the global object in old-style scripts.
+
+Arrow functions skip all four and use the `this` of the surrounding code.
+
+<Playground file="new.js" expected={["Tea"]}>
+
+```js
+function Item(name) {
+  this.name = name;   // rule 1: `this` is the new object
+}
+
+const tea = new Item("Tea");
+console.log(tea.name);
+```
+
+</Playground>
+
+</GoDeeper>
+
+<Practice>
+
+<Predict
+  id="predict-this"
+  answer={["MiniShop", "Other"]}
+  explain="Called as `shop.regular()`, `this` is shop. With `call`, you pick `this` yourself, so it's the other object."
+>
+
+```js
+const shop = {
+  name: "MiniShop",
+  regular() {
+    return this.name;
+  },
+};
+
+console.log(shop.regular());
+const fn = shop.regular;
+console.log(fn.call({ name: "Other" }));
+```
+
+</Predict>
+
+<MatchPairs
+  id="match-this-tools"
+  prompt="Match each tool with what it does to `this`."
+  columns={["Tool", "Effect"]}
+  pairs={[
+    ["`fn.call(obj, a, b)`", "Calls now; arguments one by one"],
+    ["`fn.apply(obj, [a, b])`", "Calls now; arguments as an array"],
+    ["`fn.bind(obj)`", "Returns a new function with `this` locked"],
+    ["`() => this.x`", "Uses `this` from the surrounding code"],
+    ["`new Fn()`", "Creates a new object as `this`"],
+  ]}
+/>
+
+<FillBlanks
+  id="blanks-bind"
+  prompt="Fill in the blanks so `count()` works on its own."
+  explain="Inside the method, `this` refers to the cart; `bind` locks it so the function still works when passed around."
+>
+
+```js
+const cart = {
+  items: ["Coffee"],
+  count() {
+    return __[this]__.items.length;
+  },
+};
+
+const count = cart.count.__[bind]__(cart);
+console.log(count());
+```
+
+</FillBlanks>
+
+<TrueFalse
+  id="tf-this"
+  statements={[
+    { text: "`this` depends on how a function is called, not where it's written.", answer: true, explain: "For regular functions, yes. Arrow functions are the exception." },
+    { text: "Arrow functions have their own `this`.", answer: false, explain: "They use the `this` of the surrounding code." },
+    { text: "`bind` calls the function immediately.", answer: false, explain: "It returns a new function; `call` and `apply` call immediately." },
+    { text: "In `obj.method()`, `this` is `obj`.", answer: true, explain: "Whatever is left of the dot." },
+  ]}
+/>
+
+</Practice>
+
+<Exercise
+  id="fix-lost-this"
+  variant="fix"
+  title="Fix the lost this"
+  hints={[
+    "`runTwice` calls `fn()` on its own, so `this` inside `increment` isn't `counter`.",
+    "Pass a function that keeps `this`: `counter.increment.bind(counter)`, or `() => counter.increment()`.",
+  ]}
+>
+
+`clickTwice()` should call `counter.increment` twice and return `2`, but it returns `NaN`. Fix `clickTwice` (leave `counter` and `runTwice` as they are).
+
+```js starter
+const counter = {
+  count: 0,
+  increment() {
+    this.count++;
+    return this.count;
+  },
+};
+
+function runTwice(fn) {
+  fn();
+  return fn();
+}
+
+function clickTwice() {
+  return runTwice(counter.increment);
+}
+
+console.log(clickTwice());
+```
+
+```js tests
+test("returns 2", () => {
+  counter.count = 0;
+  expect(clickTwice()).toBe(2);
+});
+
+test("updates the counter itself", () => {
+  counter.count = 0;
+  clickTwice();
+  expect(counter.count).toBe(2);
+});
+```
+
+```js solution
+const counter = {
+  count: 0,
+  increment() {
+    this.count++;
+    return this.count;
+  },
+};
+
+function runTwice(fn) {
+  fn();
+  return fn();
+}
+
+function clickTwice() {
+  return runTwice(counter.increment.bind(counter));
+}
+
+console.log(clickTwice());
+```
+
+</Exercise>
+
+<Quiz
+  questions={[
+    {
+      q: "What is `this` inside a regular function called as `cart.total()`?",
+      options: ["The global object", "`cart`", "`undefined`", "The function itself"],
+      answer: 1,
+      explain: "For a method call, `this` is the object left of the dot.",
+    },
+    {
+      q: "Why does `setTimeout(this.tick, 1000)` inside a method lose `this`?",
+      options: ["setTimeout clears this", "It passes the function without its object, so it's called on its own", "Timers only accept arrow functions", "It doesn't lose this"],
+      answer: 1,
+      explain: "Only the function is passed. Use `() => this.tick()` or `this.tick.bind(this)`.",
+    },
+    {
+      q: "Which fixes a callback that needs the outer `this`?",
+      options: ["An arrow function", "`.bind(this)`", "A regular `function` callback", "`.call()` inside the callback"],
+      answer: [0, 1],
+      explain: "Arrow functions use the outer `this`, and `bind` locks it. A regular function callback gets its own `this`.",
+    },
+    {
+      q: "What's the difference between `call` and `apply`?",
+      options: ["None", "`apply` takes the arguments as an array", "`call` returns a new function", "`apply` only works on arrow functions"],
+      answer: 1,
+      explain: "Both call right away; `call(obj, a, b)` vs `apply(obj, [a, b])`.",
+    },
+  ]}
+/>

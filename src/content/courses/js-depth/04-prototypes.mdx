@@ -1,0 +1,292 @@
+---
+id: prototypes
+title: Prototypes
+summary: How objects inherit from other objects through the prototype chain, and how classes are built on it.
+minutes: 14
+tags: [prototypes, prototype chain, Object.create, inheritance, instanceof, Object.hasOwn, classes]
+---
+
+Every object has a hidden link to another object, its **prototype**. When a property isn't on the object itself, JavaScript follows that link and looks there. Classes, array methods and `instanceof` are all built on this.
+
+<Concept name="Every object has a prototype" id="object-prototype">
+
+A plain object's prototype is `Object.prototype`, which is where methods like `toString` come from.
+
+<Playground file="prototype.js" expected={["true", "[object Object]"]}>
+
+```js
+const item = { name: "Tea" };
+
+console.log(Object.getPrototypeOf(item) === Object.prototype);
+console.log(item.toString());   // not on item: found on the prototype
+```
+
+</Playground>
+</Concept>
+
+<Concept name="The prototype chain" id="prototype-chain">
+
+`Object.create(proto)` makes an object whose prototype is `proto`, so it can use everything `proto` has without copying it.
+
+<Playground file="chain.js" expected={["Hi from Sara", "false"]}>
+
+```js
+const base = {
+  greet() {
+    return `Hi from ${this.name}`;
+  },
+};
+
+const user = Object.create(base);
+user.name = "Sara";
+
+console.log(user.greet());                // found on base
+console.log(Object.hasOwn(user, "greet")); // not user's own property
+```
+
+</Playground>
+</Concept>
+
+<Concept name="Classes are prototypes underneath" id="classes-prototypes">
+
+A class is a function, and its methods live on `Class.prototype`, shared by every object it creates.
+
+<Playground file="class-proto.js" expected={["function", "true", "true"]}>
+
+```js
+class Cart {
+  add() {}
+}
+
+const cart = new Cart();
+console.log(typeof Cart);
+console.log(Object.getPrototypeOf(cart) === Cart.prototype);
+console.log(Object.hasOwn(Cart.prototype, "add"));
+```
+
+</Playground>
+</Concept>
+
+<Concept name="instanceof" id="instanceof">
+
+`instanceof` checks whether a class's prototype is anywhere in an object's chain.
+
+<Playground file="instanceof.js" expected={["true true false"]}>
+
+```js
+class Product {}
+class Sale extends Product {}
+
+const sale = new Sale();
+console.log(sale instanceof Sale, sale instanceof Product, sale instanceof Array);
+```
+
+</Playground>
+</Concept>
+
+<Concept name="Array methods live on Array.prototype" id="array-prototype">
+
+Your arrays don't each carry a copy of `map`; they all find it on `Array.prototype`.
+
+<Playground file="array-proto.js" expected={["false", "true"]}>
+
+```js
+const prices = [1, 2];
+
+console.log(Object.hasOwn(prices, "map"));
+console.log(prices.map === Array.prototype.map);
+```
+
+</Playground>
+
+<Callout type="warn">
+Never add methods to built-in prototypes like `Array.prototype`: every array in the app (and in every library) gets them, and names can clash with future JavaScript features.
+</Callout>
+</Concept>
+
+<HowItWorks title="Following the chain">
+
+For `user.toString()`, JavaScript checks `user` itself, then `base` (user's prototype), then `Object.prototype` (base's prototype), where it finds `toString`. If it reached the end (`null`) without finding it, the result would be `undefined`.
+
+</HowItWorks>
+
+<GoDeeper title="Own properties vs inherited ones">
+
+Some tools only look at an object's **own** properties, others follow the chain:
+
+<Playground file="own.js" expected={["[ 'name' ]", "true", "false", "true"]}>
+
+```js
+const base = { greet() {} };
+const user = Object.create(base);
+user.name = "Sara";
+
+console.log(Object.keys(user));            // own, enumerable keys only
+console.log("greet" in user);              // `in` follows the chain
+console.log(Object.hasOwn(user, "greet")); // own only
+console.log(Object.hasOwn(user, "name"));
+```
+
+</Playground>
+
+`JSON.stringify`, spread and `Object.keys` only copy own properties, which is why a class instance loses its methods when you spread it into a plain object.
+
+</GoDeeper>
+
+<Practice>
+
+<Predict
+  id="predict-prototype"
+  answer={["meow ...", "[ 'sound' ]"]}
+  explain={"`cat` has its own `sound`, so it shadows the prototype's. `fish` has none, so it finds `\"...\"` on `animal`. `Object.keys` lists only own properties."}
+>
+
+```js
+const animal = {
+  sound: "...",
+  speak() {
+    return this.sound;
+  },
+};
+
+const cat = Object.create(animal);
+cat.sound = "meow";
+const fish = Object.create(animal);
+
+console.log(cat.speak(), fish.speak());
+console.log(Object.keys(cat));
+```
+
+</Predict>
+
+<TraceState
+  id="trace-lookup"
+  track="where JavaScript finds the property (`cat`, `animal`, `Object.prototype`, or `not found`)"
+  steps={[
+    { action: "`cat.sound`", answer: ["cat"] },
+    { action: "`cat.speak`", answer: ["animal"] },
+    { action: "`cat.toString`", answer: ["Object.prototype"] },
+    { action: "`cat.fly`", answer: ["not found", "undefined"] },
+  ]}
+  explain="The lookup goes cat → animal → Object.prototype → null. The first object that has the property wins."
+  hint="Start at `cat` and follow the prototype links outwards."
+>
+
+```js
+const animal = { speak() {} };
+const cat = Object.create(animal);
+cat.sound = "meow";
+```
+
+</TraceState>
+
+<SortBuckets
+  id="buckets-own"
+  prompt="`const arr = [1, 2]`. Is each property arr's own, or inherited from a prototype?"
+  buckets={["Own property", "Inherited"]}
+  items={[
+    ["`arr.length`", 0],
+    ["`arr[0]`", 0],
+    ["`arr.map`", 1],
+    ["`arr.push`", 1],
+    ["`arr.toString`", 1],
+  ]}
+  explain="The items and `length` live on the array itself; methods come from `Array.prototype` (and `Object.prototype` above it)."
+/>
+
+<TrueFalse
+  id="tf-prototypes"
+  statements={[
+    { text: "Every object created with `{}` has `Object.prototype` as its prototype.", answer: true, explain: "That's where `toString` and `hasOwnProperty` come from." },
+    { text: "Class methods are copied onto every object the class creates.", answer: false, explain: "They live once on `Class.prototype` and are shared." },
+    { text: "`Object.keys` includes inherited properties.", answer: false, explain: "Only own, enumerable ones." },
+    { text: "`instanceof` checks the prototype chain.", answer: true, explain: "It asks whether `Class.prototype` appears in the chain." },
+  ]}
+/>
+
+</Practice>
+
+<Exercise
+  id="shared-methods"
+  title="Share a method through a prototype"
+  hints={[
+    "Put `label()` on `productProto`; inside it, use `this.name` and `this.price`.",
+    "In `makeProduct`, create the object with `Object.create(productProto)`, then set `name` and `price` on it.",
+  ]}
+>
+
+Give every product a `label()` method without copying it onto each object. Fill in `productProto` and `makeProduct(name, price)`; `label()` returns text like `"Tea: $2.00"`.
+
+```js starter
+const productProto = {};
+
+function makeProduct(name, price) {
+  return { name, price };
+}
+
+console.log(makeProduct("Tea", 2).label());
+```
+
+```js tests
+test("label() formats the product", () => {
+  expect(makeProduct("Tea", 2).label()).toBe("Tea: $2.00");
+});
+
+test("label is inherited, not copied", () => {
+  const p = makeProduct("Tea", 2);
+  expect(Object.hasOwn(p, "label")).toBe(false);
+});
+
+test("all products share one label function", () => {
+  expect(makeProduct("A", 1).label).toBe(makeProduct("B", 2).label);
+});
+```
+
+```js solution
+const productProto = {
+  label() {
+    return `${this.name}: $${this.price.toFixed(2)}`;
+  },
+};
+
+function makeProduct(name, price) {
+  const product = Object.create(productProto);
+  product.name = name;
+  product.price = price;
+  return product;
+}
+
+console.log(makeProduct("Tea", 2).label());
+```
+
+</Exercise>
+
+<Quiz
+  questions={[
+    {
+      q: "Where does `[1, 2].map` come from?",
+      options: ["The array itself", "`Array.prototype`", "A global `map` function", "`Object.prototype`"],
+      answer: 1,
+      explain: "Every array finds `map` on `Array.prototype`.",
+    },
+    {
+      q: "What does `Object.create(base)` make?",
+      options: ["A deep copy of base", "A new empty object whose prototype is base", "A class", "A copy of base's own properties"],
+      answer: 1,
+      explain: "The new object is empty but inherits everything from base.",
+    },
+    {
+      q: "What does this print?",
+      code: "class A {}\nclass B extends A {}\nconsole.log(new B() instanceof A);",
+      options: ["`true`", "`false`", "An error", "`undefined`"],
+      answer: 0,
+      explain: "`A.prototype` is in the chain of every B object.",
+    },
+    {
+      q: "Why is adding methods to `Array.prototype` a bad idea?",
+      options: ["It's a syntax error", "Every array everywhere gets it, and names can clash", "It slows down the method", "Arrays don't have prototypes"],
+      answer: 1,
+      explain: "Changing built-ins affects all code on the page, including libraries.",
+    },
+  ]}
+/>
