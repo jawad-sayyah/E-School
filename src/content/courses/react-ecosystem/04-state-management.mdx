@@ -1,0 +1,370 @@
+---
+id: state-management
+title: "State management: Context, Zustand or Redux Toolkit?"
+summary: Build the same cart three ways, with Context and a reducer, with a Zustand store and with Redux Toolkit, and learn when each one is the right choice.
+minutes: 22
+tags: [state management, Context, Zustand, Redux Toolkit, createSlice, useSelector, selectors, global state]
+---
+
+Some client state is needed all over the app: the cart, the signed-in user, preferences. You've already met one way to share it: **Context** with a reducer. This lesson compares it with the two most popular libraries, **Zustand** and **Redux Toolkit**, on the same cart.
+
+<Concept name="Option 1: Context + useReducer" id="context">
+
+No library. You built this in the Hooks course:
+
+```jsx file=CartContext.jsx
+const CartContext = createContext(null);
+
+export function CartProvider({ children }) {
+  const [cart, dispatch] = useReducer(cartReducer, []);
+  return <CartContext value={{ cart, dispatch }}>{children}</CartContext>;
+}
+export const useCart = () => useContext(CartContext);
+```
+
+**Good:** built in, simple, fine for values that change rarely (theme, user, language) or small apps.
+**Watch out:** every component that reads the context re-renders on **any** change to its value, even if it only uses one piece.
+
+</Concept>
+
+<Concept name="Option 2: Zustand" id="zustand">
+
+A **store** is a hook. Components **select** just the slice they need and only re-render when that slice changes. No provider needed.
+
+<ReactPlayground height={420} console>
+
+```jsx file=/App.js
+import { useCartStore } from "./cartStore";
+
+function Badge() {
+  const count = useCartStore((s) => s.lines.reduce((n, l) => n + l.qty, 0));
+  console.log("render Badge");
+  return <span className="badge">{count}</span>;
+}
+
+function Note() {
+  const note = useCartStore((s) => s.note);
+  const setNote = useCartStore((s) => s.setNote);
+  console.log("render Note");
+  return <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Order note" />;
+}
+
+function Menu() {
+  const add = useCartStore((s) => s.add);
+  return ["Coffee", "Tea"].map((name) => (
+    <button key={name} onClick={() => add(name)}>Add {name}</button>
+  ));
+}
+
+export default function App() {
+  return (
+    <>
+      <header>MiniShop <Badge /></header>
+      <Menu />
+      <p><Note /></p>
+    </>
+  );
+}
+```
+
+```js file=/cartStore.js
+import { create } from "zustand";
+
+export const useCartStore = create((set) => ({
+  lines: [],
+  note: "",
+  add: (name) =>
+    set((state) => {
+      const line = state.lines.find((l) => l.name === name);
+      return {
+        lines: line
+          ? state.lines.map((l) => (l === line ? { ...l, qty: l.qty + 1 } : l))
+          : [...state.lines, { name, qty: 1 }],
+      };
+    }),
+  setNote: (note) => set({ note }),
+}));
+```
+
+```css file=/styles.css
+body { font-family: system-ui, sans-serif; padding: 16px; }
+.badge { background: #61dafb; border-radius: 999px; padding: 2px 10px; margin-left: 6px; }
+button { margin-right: 8px; }
+```
+
+</ReactPlayground>
+
+Type in the note and watch the console: only `Note` re-renders; `Badge` doesn't, because its selected count didn't change.
+
+- `create((set) => ({ ...state, ...actions }))` builds the store; `set` merges a partial update (immutably).
+- `useCartStore((s) => s.something)` subscribes to just that value.
+- The store also works outside React: `useCartStore.getState().add("Tea")`.
+
+**Good:** tiny, almost no boilerplate, precise re-renders. A great default for app-wide client state.
+
+</Concept>
+
+<Concept name="Option 3: Redux Toolkit" id="redux">
+
+Redux keeps all app state in one store, changed only by **dispatching actions** to **reducers**. Redux Toolkit (RTK) is the modern, official way to write it: `createSlice` generates the actions and lets you write "mutating" code that Immer turns into immutable updates.
+
+```js file=cartSlice.js
+import { configureStore, createSlice } from "@reduxjs/toolkit";
+
+const cartSlice = createSlice({
+  name: "cart",
+  initialState: { lines: [] },
+  reducers: {
+    added(state, action) {
+      const line = state.lines.find((l) => l.name === action.payload);
+      if (line) line.qty++;                  // looks like mutation; Immer makes it safe
+      else state.lines.push({ name: action.payload, qty: 1 });
+    },
+    emptied(state) {
+      state.lines = [];
+    },
+  },
+});
+
+export const { added, emptied } = cartSlice.actions;
+export const store = configureStore({ reducer: { cart: cartSlice.reducer } });
+```
+
+```jsx file=App.jsx
+import { Provider, useDispatch, useSelector } from "react-redux";
+
+function Badge() {
+  const count = useSelector((state) => state.cart.lines.reduce((n, l) => n + l.qty, 0));
+  return <span>{count}</span>;
+}
+
+function AddCoffee() {
+  const dispatch = useDispatch();
+  return <button onClick={() => dispatch(added("Coffee"))}>Add Coffee</button>;
+}
+
+<Provider store={store}><App /></Provider>
+```
+
+**Good:** strict structure for big teams, excellent DevTools (time-travel through every action), middleware, and RTK Query for server data.
+**Cost:** more concepts and more code than Zustand.
+
+</Concept>
+
+<HowItWorks title="Choosing">
+
+| Situation | Reach for |
+| --- | --- |
+| State used by one component or a few close ones | `useState` / lift it up |
+| Data from a server | TanStack Query (or your router's loaders) |
+| Rarely changing app-wide values (theme, user, locale) | Context |
+| Frequently changing client state shared widely (cart, editor, filters) | Zustand |
+| A large app or team that wants strict conventions and DevTools history | Redux Toolkit |
+
+Most apps need far less "global state" than they think once server data lives in TanStack Query. Start local, and move state up only when you need to.
+
+</HowItWorks>
+
+<GoDeeper title="Selectors and re-renders">
+
+Both Zustand and Redux compare the selector's **result** between store changes (with `Object.is`). A selector that returns a **new object or array** every time (`(s) => ({ a: s.a, b: s.b })`) looks changed on every update and re-renders every time. Select primitives separately, or use the library's shallow-compare helper (`useShallow` in Zustand, `shallowEqual` in react-redux).
+
+</GoDeeper>
+
+<Practice>
+
+<SortBuckets
+  id="buckets-where-state-lives"
+  prompt="Where should each piece of state live?"
+  buckets={["useState", "TanStack Query", "Context", "Zustand / Redux"]}
+  items={[
+    ["Whether one dropdown is open", 0],
+    ["The product catalog from the API", 1],
+    ["The current language (changes rarely)", 2],
+    ["The cart, updated from many places", 3],
+    ["A user's order history from the server", 1],
+    ["What's typed in a single search input", 0],
+  ]}
+  explain="Local UI state stays local, server data goes to a data library, rare app-wide values suit Context, and busy shared client state suits a store."
+/>
+
+<SpotTheBug
+  id="bug-selector-object"
+  bug={2}
+  prompt="The header re-renders every time anything in the store changes, even the order note. Click the buggy line."
+  explain="The selector returns a new object on every store update, so it always looks changed. Select each value separately, or wrap the selector with `useShallow`."
+>
+
+```jsx
+function Header() {
+  const { count, user } = useStore((s) => ({ count: s.lines.length, user: s.user }));
+  return <header>{user.name} · {count}</header>;
+}
+```
+
+</SpotTheBug>
+
+<MatchPairs
+  id="match-state-libs"
+  prompt="Match each API with its library."
+  columns={["API", "Library"]}
+  pairs={[
+    ["`create((set) => ({ … }))`", "Zustand"],
+    ["`createSlice({ name, initialState, reducers })`", "Redux Toolkit"],
+    ["`createContext(null)`", "React (built in)"],
+    ["`useQuery({ queryKey, queryFn })`", "TanStack Query"],
+  ]}
+/>
+
+</Practice>
+
+<ReactExercise
+  id="zustand-cart"
+  title="A Zustand cart store"
+  hints={[
+    "`export const useCartStore = create((set) => ({ items: [], add: (name) => set((s) => ({ items: [...s.items, name] })), clear: () => set({ items: [] }) }));`",
+    "In `Badge`, select the count: `useCartStore((s) => s.items.length)`.",
+    "In `Controls`, select the actions: `useCartStore((s) => s.add)` and `useCartStore((s) => s.clear)`.",
+  ]}
+>
+
+Write the store in `cartStore.js` with Zustand: `items` (an array of names), `add(name)` and `clear()`. Then connect `Badge` (shows the number of items) and `Controls` (the two buttons). They're far apart and get no props.
+
+```jsx starter file=/cartStore.js
+import { create } from "zustand";
+
+export const useCartStore = create(() => ({}));
+```
+
+```jsx starter file=/App.js
+import { useCartStore } from "./cartStore";
+
+function Badge() {
+  const count = 0;
+  return <span aria-label="Items in cart">{count}</span>;
+}
+
+function Controls() {
+  return (
+    <>
+      <button>Add coffee</button>
+      <button>Empty cart</button>
+    </>
+  );
+}
+
+export default function App() {
+  return (
+    <>
+      <header>MiniShop <Badge /></header>
+      <main>
+        <Controls />
+      </main>
+    </>
+  );
+}
+```
+
+```jsx tests file=/App.test.js
+import { act, fireEvent, render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import App from "./App";
+import { useCartStore } from "./cartStore";
+
+beforeEach(() => {
+  act(() => useCartStore.getState().clear?.());
+});
+
+test("Add coffee updates the badge", () => {
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "Add coffee" }));
+  fireEvent.click(screen.getByRole("button", { name: "Add coffee" }));
+  expect(screen.getByLabelText("Items in cart")).toHaveTextContent("2");
+});
+
+test("Empty cart resets it", () => {
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "Add coffee" }));
+  fireEvent.click(screen.getByRole("button", { name: "Empty cart" }));
+  expect(screen.getByLabelText("Items in cart")).toHaveTextContent("0");
+});
+
+test("the store works outside React too", () => {
+  render(<App />);
+  act(() => useCartStore.getState().add("Tea"));
+  expect(screen.getByLabelText("Items in cart")).toHaveTextContent("1");
+  expect(useCartStore.getState().items).toEqual(["Tea"]);
+});
+```
+
+```jsx solution file=/cartStore.js
+import { create } from "zustand";
+
+export const useCartStore = create((set) => ({
+  items: [],
+  add: (name) => set((state) => ({ items: [...state.items, name] })),
+  clear: () => set({ items: [] }),
+}));
+```
+
+```jsx solution file=/App.js
+import { useCartStore } from "./cartStore";
+
+function Badge() {
+  const count = useCartStore((s) => s.items.length);
+  return <span aria-label="Items in cart">{count}</span>;
+}
+
+function Controls() {
+  const add = useCartStore((s) => s.add);
+  const clear = useCartStore((s) => s.clear);
+  return (
+    <>
+      <button onClick={() => add("Coffee")}>Add coffee</button>
+      <button onClick={clear}>Empty cart</button>
+    </>
+  );
+}
+
+export default function App() {
+  return (
+    <>
+      <header>MiniShop <Badge /></header>
+      <main>
+        <Controls />
+      </main>
+    </>
+  );
+}
+```
+
+</ReactExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "Why can Zustand re-render less than a Context holding the same state?",
+      options: ["It uses Web Workers", "Components subscribe to a selected slice and only re-render when that slice changes", "It skips rendering entirely", "It doesn't use React"],
+      answer: 1,
+      explain: "Context re-renders every reader whenever the value changes.",
+    },
+    {
+      q: "In Redux Toolkit's `createSlice`, why is `state.lines.push(item)` allowed?",
+      options: ["Redux allows mutation", "Immer records the changes and produces a new immutable state", "It's a bug", "Only in development"],
+      answer: 1,
+      explain: "You write mutating code; Immer returns a new state object.",
+    },
+    {
+      q: "Where should a product catalog fetched from an API usually live?",
+      options: ["Redux", "Zustand", "TanStack Query (server state)", "Context"],
+      answer: 2,
+      explain: "It's server state: caching and refetching are the hard parts.",
+    },
+    {
+      q: "Which are good reasons to pick Redux Toolkit?",
+      options: ["A large team that wants strict conventions", "Time-travel debugging of every action", "Storing one boolean for a dropdown", "Middleware for logging or side effects"],
+      answer: [0, 1, 3],
+      explain: "A single dropdown flag belongs in `useState`.",
+    },
+  ]}
+/>

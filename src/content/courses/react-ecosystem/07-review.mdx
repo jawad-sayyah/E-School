@@ -1,0 +1,106 @@
+---
+id: review
+title: "Review: The React Ecosystem"
+summary: Mixed questions on React Router, TanStack Query, React Hook Form with Zod, state management, accessibility and performance.
+minutes: 15
+kind: review
+tags: [review, React Router, TanStack Query, React Hook Form, Zod, Zustand, Redux Toolkit, accessibility, performance]
+---
+
+The libraries real React teams use every day, in one review. The lesson names in brackets tell you where to look.
+
+<Practice title="Pick the tool">
+
+<MatchPairs
+  id="match-review-ecosystem"
+  prompt="Match each job with the tool for it."
+  columns={["Job", "Tool"]}
+  pairs={[
+    ["Pages with their own URLs", "React Router"],
+    ["Fetching, caching and refetching server data", "TanStack Query"],
+    ["Big forms with validation", "React Hook Form + Zod"],
+    ["App-wide client state with precise re-renders", "Zustand"],
+    ["Strict, action-based global state with time-travel DevTools", "Redux Toolkit"],
+    ["Finding which component renders too much", "React DevTools Profiler"],
+  ]}
+/>
+
+<SortBuckets
+  id="buckets-review-ecosystem"
+  prompt="Which of these are mistakes? (all lessons)"
+  buckets={["Good practice", "Mistake"]}
+  items={[
+    ["`<Link to=\"/cart\">` for an in-app link", 0],
+    ["`<a href=\"/cart\">` for an in-app link", 1],
+    ["`queryKey: [\"product\", id]`", 0],
+    ["`queryKey: [\"product\"]` for a query that depends on `id`", 1],
+    ["A Zod schema shared by the form and the server", 0],
+    ["Storing the server's product list in Redux by hand", 1],
+    ["A `<div onClick>` used as a button", 1],
+    ["Profiling a production build before optimizing", 0],
+  ]}
+  explain="Use Link, complete query keys, shared schemas, a data library for server state, real buttons, and measure before optimizing."
+/>
+
+<SpotTheBug
+  id="bug-review-ecosystem"
+  bug={[4, 9]}
+  prompt="This page has two problems. Click either one. (TanStack Query, Accessibility)"
+  explain="Line 4: the query key ignores `category`, so every category shares one cached result. Line 9: an icon-only button with no accessible name; add `aria-label`."
+>
+
+```jsx
+function Products({ category }) {
+  const add = useCartStore((s) => s.add);
+  const { data = [] } = useQuery({
+    queryKey: ["products"],
+    queryFn: () => fetchProducts(category),
+  });
+  return data.map((p) => (
+    <p key={p.id}>
+      {p.name} <button onClick={() => add(p)}><PlusIcon /></button>
+    </p>
+  ));
+}
+```
+
+</SpotTheBug>
+
+<Choice
+  id="choice-review-ecosystem"
+  q="A checkout form has 15 fields, rules that depend on each other, and must not lag while typing. What's the best setup? (Forms)"
+  options={["One `useState` per field", "React Hook Form with a Zod schema", "Redux Toolkit for the field values", "A context per field"]}
+  answer={1}
+  explain="RHF keeps inputs uncontrolled (fast) and Zod describes all the rules in one place, including cross-field ones with `.refine`."
+/>
+
+</Practice>
+
+<Quiz
+  questions={[
+    {
+      q: "What does `<Outlet />` render? (React Router)",
+      options: ["The whole app", "The child route matching the current URL", "A link", "The 404 page"],
+      answer: 1,
+      explain: "Layouts render once; the outlet swaps.",
+    },
+    {
+      q: "After a mutation creates a review, how should the list refresh? (TanStack Query)",
+      options: ["`window.location.reload()`", "Invalidate the reviews query so it refetches", "Copy the review into Redux", "Set `staleTime: 0` everywhere"],
+      answer: 1,
+      explain: "`queryClient.invalidateQueries({ queryKey: [\"reviews\", id] })`.",
+    },
+    {
+      q: "Which state usually doesn't need a global store at all? (State management)",
+      options: ["Server data (use a data library)", "Whether one menu is open (use local state)", "The cart, updated from many places", "Form field values (use the form library)"],
+      answer: [0, 1, 3],
+      explain: "Many apps only need a small store for things like the cart.",
+    },
+    {
+      q: "What makes a component easier to test with Testing Library AND to use with a screen reader? (Accessibility)",
+      options: ["Real roles and accessible names", "Lots of `data-testid`s", "Inline styles", "Class components"],
+      answer: 0,
+      explain: "Both read the accessibility tree.",
+    },
+  ]}
+/>

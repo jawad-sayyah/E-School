@@ -1,0 +1,306 @@
+---
+id: accessibility
+title: Accessibility
+summary: Make components that work with a keyboard and a screen reader, using semantic elements, labels, alt text, focus management and live regions, and catch problems with tooling.
+minutes: 20
+tags: [accessibility, a11y, semantic HTML, ARIA, keyboard, focus, screen reader, alt text, aria-live, jsx-a11y]
+---
+
+About one in six people lives with a disability, and everyone is sometimes "temporarily disabled": a broken arm, bright sunlight, a baby on one arm. An **accessible** shop works with a keyboard alone, with a screen reader, zoomed in, and without relying on color. In React, most of it comes down to using the right elements.
+
+<Concept name="Use the right element" id="semantic">
+
+Native elements come with keyboard support, focus and a role screen readers understand, for free.
+
+<Compare
+  wrong="A div pretending to be a button: no keyboard, no focus, no role"
+  right="A real button: Tab, Enter and Space work, and it's announced as a button"
+  wrongFile="AddButton.jsx"
+  rightFile="AddButton.jsx"
+>
+
+```jsx
+<div className="btn" onClick={add}>
+  Add to cart
+</div>
+```
+
+```jsx
+<button className="btn" onClick={add}>
+  Add to cart
+</button>
+```
+
+</Compare>
+
+| Need | Use |
+| --- | --- |
+| an action | `<button>` (with `type="button"` inside forms unless it submits) |
+| going to another page | `<a href>` / `<Link>` |
+| a field | `<input>` with a `<label>` |
+| page regions | `<header>`, `<nav>`, `<main>`, `<footer>` |
+| headings | `<h1>`…`<h6>` in order, no skipping for looks |
+| a list of things | `<ul>`/`<ol>` with `<li>` |
+
+**ARIA** (`role`, `aria-*` attributes) fills gaps that HTML can't express. The first rule of ARIA: don't use it when a native element does the job.
+
+</Concept>
+
+<Concept name="Names, labels and images" id="names">
+
+Every interactive element needs an **accessible name**, and every meaningful image needs **alt text**.
+
+```jsx file=ProductCard.jsx
+<img src="/coffee.jpg" alt="A flat white in a blue cup" />  {/* describes the content */}
+<img src="/divider.svg" alt="" />                          {/* decorative: empty alt */}
+
+<label htmlFor="qty">Quantity</label>
+<input id="qty" type="number" />
+
+<button aria-label="Save Coffee to favorites">
+  <HeartIcon aria-hidden="true" />                         {/* icon-only: name it */}
+</button>
+```
+
+Don't rely on color alone ("fields in red are required"): add text or an icon. Keep text contrast at least 4.5:1.
+
+</Concept>
+
+<Concept name="Focus and announcements" id="focus">
+
+- When a dialog opens, move focus into it; when it closes, return focus to the button that opened it. Keep focus visible (never `outline: none` without a replacement).
+- When something changes that the user can't see happen, like "Added to cart" or a form error after submit, **announce** it with a live region:
+
+<ReactPlayground height={300}>
+
+```jsx file=/App.js
+import { useState } from "react";
+
+export default function App() {
+  const [message, setMessage] = useState("");
+  return (
+    <>
+      <h2>Coffee</h2>
+      <button onClick={() => setMessage("Coffee added to your cart.")}>Add to cart</button>
+      {/* Screen readers read changes to a role="status" region aloud */}
+      <p role="status" className="status">{message}</p>
+    </>
+  );
+}
+```
+
+```css file=/styles.css
+body { font-family: system-ui, sans-serif; padding: 16px; }
+button:focus-visible { outline: 3px solid #0e7490; outline-offset: 2px; }
+.status { color: #1e7e34; min-height: 1.5em; }
+```
+
+</ReactPlayground>
+
+Press Tab to reach the button and Enter to press it: everything works without a mouse. The status paragraph is always in the page (empty at first), so screen readers are already watching it when the text appears.
+
+</Concept>
+
+<HowItWorks title="The accessibility tree">
+
+Browsers build an **accessibility tree** next to the DOM: each node has a **role** (button, link, heading, textbox), a **name** (from its text, its `<label>`, `alt` or `aria-label`) and a **state** (checked, expanded, disabled). Screen readers, voice control and switch devices read this tree, not your CSS. That's also exactly what Testing Library's `getByRole("button", { name: "Add to cart" })` queries, so accessible components are easier to test, and tests written that way catch accessibility bugs.
+
+</HowItWorks>
+
+<GoDeeper title="Tools that catch problems">
+
+- **eslint-plugin-jsx-a11y** flags missing `alt`, click handlers on divs, labels without inputs, as you type.
+- **axe** (browser extension, or `jest-axe` in tests; Testing course) scans a rendered page for violations.
+- **Lighthouse** in Chrome DevTools gives an accessibility score.
+- Nothing replaces trying it: unplug the mouse, and turn on your OS screen reader (VoiceOver, Narrator, NVDA) for five minutes.
+
+</GoDeeper>
+
+<Practice>
+
+<SortBuckets
+  id="buckets-a11y"
+  prompt="Accessible or not?"
+  buckets={["Accessible", "Problem"]}
+  items={[
+    ["`<button>Checkout</button>`", 0],
+    ["`<div onClick={checkout}>Checkout</div>`", 1],
+    ["`<img src=\"cup.jpg\" alt=\"A latte with heart-shaped foam\" />`", 0],
+    ["`<img src=\"cup.jpg\" />`", 1],
+    ["An icon-only button with `aria-label=\"Close\"`", 0],
+    ["A placeholder as the only label for an input", 1],
+    ["Required fields marked only by red text color", 1],
+  ]}
+  explain="Use real buttons, describe images, name icon buttons, give inputs real labels (placeholders disappear when you type), and don't rely on color alone."
+/>
+
+<SpotTheBug
+  id="bug-icon-button"
+  bug={3}
+  prompt="A screen reader announces this as just 'button'. Click the line that needs fixing."
+  explain={"An icon-only button has no text, so it has no accessible name. Add `aria-label=\"Remove Coffee from cart\"` to the button, and `aria-hidden` to the icon."}
+>
+
+```jsx
+function RemoveButton({ onRemove }) {
+  return (
+    <button onClick={onRemove}>
+      <TrashIcon />
+    </button>
+  );
+}
+```
+
+</SpotTheBug>
+
+<MatchPairs
+  id="match-a11y-fixes"
+  prompt="Match each problem with its fix."
+  columns={["Problem", "Fix"]}
+  pairs={[
+    ["A clickable div", "Use a `<button>`"],
+    ["An input with only a placeholder", "Add a `<label>`"],
+    ["A product photo without description", "Add meaningful `alt` text"],
+    ["\"Added to cart\" appears silently", "Put it in a `role=\"status\"` region"],
+    ["Focus is lost after closing a dialog", "Return focus to the opening button"],
+  ]}
+/>
+
+</Practice>
+
+<ReactExercise
+  id="a11y-card"
+  variant="fix"
+  title="Make the product card accessible"
+  hints={[
+    "Replace the clickable `<div>` with a `<button>` that says `Add to cart`.",
+    "Give the image `alt=\"A cup of coffee\"`, and connect the quantity input to a `<label>` (wrap it, or use `htmlFor`/`id`).",
+    "The heart button needs `aria-label=\"Save to favorites\"`, and the confirmation needs `role=\"status\"`.",
+  ]}
+>
+
+This card works with a mouse, but not with a keyboard or a screen reader. Fix it:
+
+- the **Add to cart** control must be a real button,
+- the image needs the alt text **A cup of coffee**,
+- the quantity input needs the label **Quantity**,
+- the heart button needs the name **Save to favorites**,
+- the confirmation must be announced: put it in a `role="status"` element.
+
+```jsx starter file=/App.js
+import { useState } from "react";
+
+export default function App() {
+  const [added, setAdded] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  return (
+    <article className="card">
+      <img src="https://picsum.photos/seed/coffee/200/120" />
+      <h2>Coffee</h2>
+      <input type="number" defaultValue={1} min={1} placeholder="Quantity" />
+      <div className="btn" onClick={() => setAdded(true)}>
+        Add to cart
+      </div>
+      <button onClick={() => setSaved(!saved)}>{saved ? "♥" : "♡"}</button>
+      <p>{added ? "Coffee added to your cart." : ""}</p>
+    </article>
+  );
+}
+```
+
+```css starter file=/styles.css
+body { font-family: system-ui, sans-serif; padding: 16px; }
+.card { border: 1px solid #ddd; border-radius: 12px; padding: 12px; max-width: 220px; }
+.btn { display: inline-block; background: #61dafb; border: 0; border-radius: 8px; padding: 6px 12px; cursor: pointer; font: inherit; }
+img { width: 100%; border-radius: 8px; }
+```
+
+```jsx tests file=/App.test.js
+import { fireEvent, render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import App from "./App";
+
+test("Add to cart is a real button", () => {
+  render(<App />);
+  expect(screen.getByRole("button", { name: "Add to cart" })).toBeInTheDocument();
+});
+
+test("the image has alt text", () => {
+  render(<App />);
+  expect(screen.getByRole("img", { name: "A cup of coffee" })).toBeInTheDocument();
+});
+
+test("the quantity input has a label", () => {
+  render(<App />);
+  expect(screen.getByLabelText("Quantity")).toHaveValue(1);
+});
+
+test("the heart button has a name", () => {
+  render(<App />);
+  expect(screen.getByRole("button", { name: "Save to favorites" })).toBeInTheDocument();
+});
+
+test("the confirmation is announced in a status region", () => {
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "Add to cart" }));
+  expect(screen.getByRole("status")).toHaveTextContent("Coffee added to your cart.");
+});
+```
+
+```jsx solution file=/App.js
+import { useState } from "react";
+
+export default function App() {
+  const [added, setAdded] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  return (
+    <article className="card">
+      <img src="https://picsum.photos/seed/coffee/200/120" alt="A cup of coffee" />
+      <h2>Coffee</h2>
+      <label>
+        Quantity <input type="number" defaultValue={1} min={1} />
+      </label>
+      <button className="btn" onClick={() => setAdded(true)}>
+        Add to cart
+      </button>
+      <button aria-label="Save to favorites" aria-pressed={saved} onClick={() => setSaved(!saved)}>
+        <span aria-hidden="true">{saved ? "♥" : "♡"}</span>
+      </button>
+      <p role="status">{added ? "Coffee added to your cart." : ""}</p>
+    </article>
+  );
+}
+```
+
+</ReactExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "What's the first rule of ARIA?",
+      options: ["Add `role` to every element", "Don't use ARIA when a native element does the job", "Always use `aria-label`", "ARIA replaces HTML"],
+      answer: 1,
+      explain: "A `<button>` beats `<div role=\"button\" tabIndex={0} onKeyDown={…}>` every time.",
+    },
+    {
+      q: "What alt text should a purely decorative image have?",
+      options: ["The file name", "`alt=\"\"` (empty)", "`alt=\"image\"`", "No alt attribute at all"],
+      answer: 1,
+      explain: "Empty alt tells screen readers to skip it; a missing alt makes some read the file name.",
+    },
+    {
+      q: "How do you make \"Added to cart\" heard by screen reader users?",
+      options: ["Make it bold", "Put it in an element with `role=\"status\"` (a live region) that's already on the page", "Use an alert() box", "Change its color"],
+      answer: 1,
+      explain: "Live regions announce their changes.",
+    },
+    {
+      q: "Why does `getByRole(\"button\", { name: \"Add\" })` help accessibility?",
+      options: ["It doesn't", "It queries the accessibility tree, so the test fails if the button has no role or name", "It adds ARIA automatically", "It runs axe"],
+      answer: 1,
+      explain: "Tests written like users interact catch missing roles and names.",
+    },
+  ]}
+/>

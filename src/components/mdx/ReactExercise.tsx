@@ -145,6 +145,7 @@ export function ReactExercise({
           >
             <LiveExercise
               version={version}
+              dependencyFiles={{ ...starter, ...solution }}
               files={files}
               hiddenFiles={tests}
               height={height}

@@ -1,0 +1,258 @@
+---
+id: performance
+title: Performance profiling
+summary: Measure before you optimize with the React DevTools Profiler and the Profiler API, then apply the fixes that matter most, from moving state down to virtualizing long lists.
+minutes: 18
+tags: [performance, React DevTools, Profiler, Web Vitals, INP, LCP, virtualization, code splitting, move state down]
+---
+
+"React is slow" almost always means "this component renders too much, or does too much work when it renders". The skill isn't knowing every optimization; it's **finding** the one spot that matters, then picking the simplest fix.
+
+<Concept name="Measure first: the Profiler" id="profiler">
+
+The **React DevTools** browser extension has a **Profiler** tab: press record, use the page, stop. It shows every commit, which components rendered, how long each took, and (with "Record why each component rendered" enabled in its settings) **why**: props changed, state changed, parent rendered, or a hook changed.
+
+You can also measure in code with the `<Profiler>` component. Type in the box and watch the console:
+
+<ReactPlayground height={380} console>
+
+```jsx file=/App.js
+import { Profiler, useState } from "react";
+
+function SlowList({ query }) {
+  const items = [];
+  for (let i = 0; i < 300; i++) {
+    const start = performance.now();
+    while (performance.now() - start < 0.5) {} // fake work
+    items.push(<li key={i}>{query} #{i}</li>);
+  }
+  return <ul className="list">{items}</ul>;
+}
+
+function onRender(id, phase, actualDuration) {
+  console.log(`${id} ${phase}: ${actualDuration.toFixed(1)} ms`);
+}
+
+export default function App() {
+  const [query, setQuery] = useState("");
+  return (
+    <>
+      <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Type…" />
+      <Profiler id="SlowList" onRender={onRender}>
+        <SlowList query={query} />
+      </Profiler>
+    </>
+  );
+}
+```
+
+```css file=/styles.css
+body { font-family: system-ui, sans-serif; padding: 16px; }
+.list { height: 240px; overflow: auto; font-size: 12px; }
+```
+
+</ReactPlayground>
+
+Anything over about **16 ms** per commit can drop frames; over 100–200 ms after an interaction feels sluggish. Measure in a **production build** for real numbers: development mode (and StrictMode's double render) is much slower.
+
+</Concept>
+
+<Concept name="The fixes, from simplest to most effort" id="fixes">
+
+1. **Move state down.** If typing in a search box re-renders a whole page, move the box's state into a small `SearchBox` component; the rest of the page is no longer below the changing state.
+2. **Lift content up (children).** A component that owns state but wraps expensive children can take them as `children`: elements created by the parent don't re-render when the wrapper's state changes.
+3. **Memoize** what's left: `memo` for components, `useMemo` for expensive calculations, `useCallback`/`useMemo` for props of memoized children (or let the React Compiler do it).
+4. **Defer** non-urgent work with `useDeferredValue` / `useTransition`.
+5. **Virtualize** long lists: render only the ~20 rows on screen instead of 5,000 (TanStack Virtual, react-window).
+6. **Split code** with `lazy` so the first page downloads less JavaScript.
+
+</Concept>
+
+<HowItWorks title="Web Vitals: what users feel">
+
+Google's **Core Web Vitals** measure the experience, not the code:
+
+- **LCP** (Largest Contentful Paint): how fast the main content appears. Helped by less JavaScript up front, code splitting, optimized images and server rendering.
+- **INP** (Interaction to Next Paint): how fast the page responds to clicks and typing. Helped by doing less work per render, transitions and deferred values.
+- **CLS** (Cumulative Layout Shift): how much things jump around. Helped by reserving space for images and late content.
+
+Lighthouse (in Chrome DevTools) and the `web-vitals` library measure them.
+
+</HowItWorks>
+
+<GoDeeper title="Lifting content up, in code">
+
+```jsx file=Layout.jsx
+// ❌ Sidebar's open state re-renders the expensive page on every toggle
+function Layout() {
+  const [open, setOpen] = useState(false);
+  return <Shell open={open} onToggle={() => setOpen(!open)}><ExpensivePage /></Shell>;
+}
+
+// ✅ The state moves into a wrapper; ExpensivePage is created by the parent
+function CollapsibleShell({ children }) {
+  const [open, setOpen] = useState(false);
+  return <Shell open={open} onToggle={() => setOpen(!open)}>{children}</Shell>;
+}
+function Layout() {
+  return <CollapsibleShell><ExpensivePage /></CollapsibleShell>;
+}
+```
+
+When `CollapsibleShell`'s state changes, React re-renders it, but `children` is the same element object `Layout` created earlier, so React skips `ExpensivePage`. No `memo` needed.
+
+</GoDeeper>
+
+<Practice>
+
+<OrderLines
+  id="order-perf-workflow"
+  prompt="Order a sensible performance workflow."
+  explain="Reproduce and measure first, find the cause, apply the simplest fix, then measure again to confirm."
+>
+
+```js
+// Reproduce the slow interaction in a production build
+// Record it with the React DevTools Profiler
+// Find which component renders too often or too slowly, and why
+// Apply the simplest fix (move state down, memoize, virtualize…)
+// Record again to confirm it's faster
+```
+
+</OrderLines>
+
+<MatchPairs
+  id="match-perf-fixes"
+  prompt="Match each symptom with the best first fix."
+  columns={["Symptom", "Fix"]}
+  pairs={[
+    ["Typing in a header search re-renders the whole page", "Move the search state down into its own component"],
+    ["A 10,000-row table scrolls slowly", "Virtualize the list"],
+    ["The first visit downloads a huge chart library", "Lazy-load the chart"],
+    ["Sorting 20,000 orders runs on every unrelated render", "`useMemo` the sorted list"],
+  ]}
+/>
+
+<TrueFalse
+  id="tf-perf-profiling"
+  statements={[
+    { text: "Development builds give accurate timing numbers.", answer: false, explain: "Dev mode adds checks and StrictMode double renders. Profile a production build." },
+    { text: "The Profiler can show why a component rendered.", answer: true, explain: "Enable \"Record why each component rendered\" in its settings." },
+    { text: "Wrapping every component in `memo` is the first thing to try.", answer: false, explain: "Measure first; structural fixes like moving state down are often simpler and better." },
+  ]}
+/>
+
+</Practice>
+
+<ReactExercise
+  id="move-state-down"
+  title="Move the state down"
+  hints={[
+    "The `query` state is only used by the input. Create a `SearchBox` component that owns it.",
+    "Move `const [query, setQuery] = useState(\"\");` and the `<input>` into `SearchBox`.",
+    "`App` then renders `<SearchBox />` and `<ProductGrid />` and has no state at all. No `memo` needed.",
+  ]}
+>
+
+Typing in the search box re-renders the slow `ProductGrid` on every keystroke, because the search state lives in `App`. Fix it **without `memo`**: move the state down into a new `SearchBox` component. Keep the `renders` counter in `ProductGrid.js`; the tests use it.
+
+```jsx starter file=/App.js
+import { useState } from "react";
+import ProductGrid from "./ProductGrid";
+
+export default function App() {
+  const [query, setQuery] = useState("");
+  return (
+    <>
+      <input aria-label="Search" value={query} onChange={(e) => setQuery(e.target.value)} />
+      <ProductGrid />
+    </>
+  );
+}
+```
+
+```jsx starter file=/ProductGrid.js
+export const renders = { count: 0 };
+
+export default function ProductGrid() {
+  renders.count++;
+  return (
+    <ul>
+      <li>Coffee</li>
+      <li>Tea</li>
+      <li>Bagel</li>
+    </ul>
+  );
+}
+```
+
+```jsx tests file=/App.test.js
+import { fireEvent, render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import App from "./App";
+import { renders } from "./ProductGrid";
+
+test("typing doesn't re-render the product grid", () => {
+  render(<App />);
+  const before = renders.count;
+  fireEvent.change(screen.getByLabelText("Search"), { target: { value: "c" } });
+  fireEvent.change(screen.getByLabelText("Search"), { target: { value: "co" } });
+  expect(renders.count).toBe(before);
+});
+
+test("the search box still works", () => {
+  render(<App />);
+  fireEvent.change(screen.getByLabelText("Search"), { target: { value: "tea" } });
+  expect(screen.getByLabelText("Search")).toHaveValue("tea");
+});
+```
+
+```jsx solution file=/App.js
+import { useState } from "react";
+import ProductGrid from "./ProductGrid";
+
+function SearchBox() {
+  const [query, setQuery] = useState("");
+  return <input aria-label="Search" value={query} onChange={(e) => setQuery(e.target.value)} />;
+}
+
+export default function App() {
+  return (
+    <>
+      <SearchBox />
+      <ProductGrid />
+    </>
+  );
+}
+```
+
+</ReactExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "What should you do before optimizing a slow screen?",
+      options: ["Add `memo` everywhere", "Measure it with the Profiler, in a production build", "Rewrite it in another framework", "Remove all state"],
+      answer: 1,
+      explain: "Find the real cause first.",
+    },
+    {
+      q: "Why does moving state into a smaller component help?",
+      options: ["Smaller components are always faster", "Only that component and its children re-render when the state changes", "It disables re-rendering", "It caches the DOM"],
+      answer: 1,
+      explain: "Siblings and parents aren't below the changing state anymore.",
+    },
+    {
+      q: "Which Web Vital measures how quickly the page responds to a click?",
+      options: ["LCP", "INP", "CLS", "TTFB"],
+      answer: 1,
+      explain: "Interaction to Next Paint.",
+    },
+    {
+      q: "A list of 5,000 products scrolls slowly. What's the most effective fix?",
+      options: ["Virtualize it: render only the visible rows", "`useCallback` on the scroll handler", "Use index keys", "Add more CSS"],
+      answer: 0,
+      explain: "Rendering 20 rows instead of 5,000 beats any micro-optimization.",
+    },
+  ]}
+/>

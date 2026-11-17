@@ -1,0 +1,314 @@
+---
+id: forms-rhf-zod
+title: Forms with React Hook Form and Zod
+summary: Build bigger forms with less code using React Hook Form, and describe the valid data once with a Zod schema that validates and types it.
+minutes: 20
+tags: [React Hook Form, useForm, register, handleSubmit, Zod, schema validation, zodResolver, errors]
+---
+
+Hand-written forms with one `useState` per field get long fast: values, touched flags, errors, validation rules, submit state. **React Hook Form** (RHF) handles the mechanics with uncontrolled inputs (fast: typing doesn't re-render the whole form), and **Zod** describes what valid data looks like, in one schema you can also reuse on the server.
+
+<Concept name="A Zod schema" id="zod">
+
+A schema is a description of data that can **check** a value and explain what's wrong:
+
+<Playground file="schema.js" browserOnly expected={[]}>
+
+```js
+import { z } from "zod";
+
+const signUpSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  email: z.email("Enter a valid email"),
+  password: z.string().min(8, "At least 8 characters"),
+});
+
+const result = signUpSchema.safeParse({ name: "", email: "ada@", password: "123" });
+console.log(result.success); // false
+console.log(result.error.issues.map((i) => `${i.path}: ${i.message}`));
+// [ 'name: Name is required', 'email: Enter a valid email', 'password: At least 8 characters' ]
+```
+
+</Playground>
+
+- `z.string()`, `z.number()`, `z.boolean()`, `z.email()`, `z.enum(["S", "M", "L"])`, `z.array(...)`, `z.object({...})` describe shapes.
+- `.min()`, `.max()`, `.optional()`, `.refine(fn, message)` add rules; the string argument is the error message.
+- `safeParse` returns `{ success, data }` or `{ success: false, error }`; `parse` throws instead.
+- In TypeScript, `z.infer<typeof signUpSchema>` gives you the type for free (TypeScript track).
+
+</Concept>
+
+<Concept name="React Hook Form + Zod" id="rhf">
+
+<ReactPlayground height={480}>
+
+```jsx file=/App.js
+import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+
+const schema = z.object({
+  name: z.string().min(1, "Name is required"),
+  email: z.email("Enter a valid email"),
+  size: z.enum(["small", "medium", "large"]),
+  notes: z.string().max(60, "Keep notes under 60 characters").optional(),
+});
+
+export default function App() {
+  const [order, setOrder] = useState(null);
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm({ resolver: zodResolver(schema), defaultValues: { size: "medium" } });
+
+  async function onSubmit(data) {
+    await new Promise((r) => setTimeout(r, 600)); // pretend to send it
+    setOrder(data);
+  }
+
+  return (
+    <form onSubmit={handleSubmit(onSubmit)} noValidate>
+      <label>Name <input {...register("name")} aria-invalid={!!errors.name} /></label>
+      {errors.name && <p className="error">{errors.name.message}</p>}
+
+      <label>Email <input {...register("email")} aria-invalid={!!errors.email} /></label>
+      {errors.email && <p className="error">{errors.email.message}</p>}
+
+      <label>
+        Size
+        <select {...register("size")}>
+          <option value="small">Small</option>
+          <option value="medium">Medium</option>
+          <option value="large">Large</option>
+        </select>
+      </label>
+
+      <label>Notes <input {...register("notes")} /></label>
+      {errors.notes && <p className="error">{errors.notes.message}</p>}
+
+      <button disabled={isSubmitting}>{isSubmitting ? "Ordering…" : "Order"}</button>
+      {order && <pre>{JSON.stringify(order, null, 2)}</pre>}
+    </form>
+  );
+}
+```
+
+```css file=/styles.css
+body { font-family: system-ui, sans-serif; padding: 16px; }
+form { display: grid; gap: 6px; max-width: 280px; }
+label { display: grid; gap: 4px; font-size: 14px; }
+input, select { padding: 6px; border: 1px solid #ccc; border-radius: 6px; }
+input[aria-invalid="true"] { border-color: #c0392b; }
+.error { color: #c0392b; font-size: 13px; margin: 0; }
+pre { background: #f4f4f4; padding: 8px; border-radius: 6px; }
+```
+
+</ReactPlayground>
+
+- **`register("name")`** returns the `name`, `ref`, `onChange` and `onBlur` props an input needs; spread them onto it.
+- **`handleSubmit(onSubmit)`** validates first, and only calls `onSubmit(data)` with clean, parsed data when everything passes.
+- **`formState.errors`** holds one entry per invalid field, each with a `message` (from the schema).
+- **`isSubmitting`** is true while an async `onSubmit` runs.
+- `noValidate` turns off the browser's built-in bubbles, since Zod gives better messages.
+
+</Concept>
+
+<HowItWorks title="Why uncontrolled inputs are fast">
+
+With controlled inputs, every keystroke updates state and re-renders the form. RHF instead keeps values in the DOM inputs (through the `ref` that `register` provides) and in its own internal store, and only re-renders the parts that **subscribe** to something that changed: an error appearing, `isSubmitting` flipping. A 50-field form stays smooth. When you need a live value (to show a character counter, say), `watch("notes")` subscribes to just that field.
+
+</HowItWorks>
+
+<Practice>
+
+<FillBlanks
+  id="blanks-zod"
+  prompt="Fill in the blanks to require a quantity of at least 1."
+  explain="`z.number()` describes a number and `.min(1, message)` adds the rule; `safeParse` checks a value without throwing."
+  run="false"
+>
+
+```js
+const schema = z.object({
+  qty: z.__[number]__().__[min]__(1, "Order at least one"),
+});
+const result = schema.__[safeParse]__({ qty: 0 });
+```
+
+</FillBlanks>
+
+<MatchPairs
+  id="match-rhf"
+  prompt="Match each React Hook Form API with its job."
+  columns={["API", "Job"]}
+  pairs={[
+    ["`register(\"email\")`", "Connects an input to the form"],
+    ["`handleSubmit(fn)`", "Validates, then calls `fn` with the data"],
+    ["`formState.errors`", "The validation message for each field"],
+    ["`zodResolver(schema)`", "Lets a Zod schema do the validation"],
+    ["`watch(\"notes\")`", "Subscribes to one field's live value"],
+  ]}
+/>
+
+<SpotTheBug
+  id="bug-register-name"
+  bug={3}
+  prompt="Submitting always says Email is required, even when it's filled in. Click the buggy line."
+  explain={"The input isn't registered: it has a `name` but none of the props from `register`, so the form never sees its value. Use `<input {...register(\"email\")} />`."}
+>
+
+```jsx
+<form onSubmit={handleSubmit(onSubmit)}>
+  <input {...register("name")} />
+  <input name="email" />
+  <button>Sign up</button>
+</form>
+```
+
+</SpotTheBug>
+
+</Practice>
+
+<ReactExercise
+  id="signup-form"
+  title="Validate the sign-up form"
+  hints={[
+    "Pass the resolver: `useForm({ resolver: zodResolver(schema) })`.",
+    "Under each input, show `{errors.name && <p>{errors.name.message}</p>}` (and the same for email and password).",
+    "The messages come from the schema, which is already written.",
+  ]}
+>
+
+The schema is ready, but the form isn't using it. Connect it with `zodResolver`, and show each field's error message under it. When everything is valid, the form already shows **Welcome, Ada!**
+
+```jsx starter file=/App.js
+import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+
+const schema = z.object({
+  name: z.string().min(1, "Name is required"),
+  email: z.email("Enter a valid email"),
+  password: z.string().min(8, "At least 8 characters"),
+});
+
+export default function App() {
+  const [welcome, setWelcome] = useState("");
+  const { register, handleSubmit } = useForm();
+
+  return (
+    <form onSubmit={handleSubmit((data) => setWelcome(data.name))} noValidate>
+      <label>Name <input {...register("name")} /></label>
+      <label>Email <input {...register("email")} /></label>
+      <label>Password <input type="password" {...register("password")} /></label>
+      <button>Create account</button>
+      {welcome && <p>Welcome, {welcome}!</p>}
+    </form>
+  );
+}
+```
+
+```jsx tests file=/App.test.js
+import { act, fireEvent, render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import App from "./App";
+
+const wait = (ms) => act(async () => {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+});
+const type = (label, value) => fireEvent.change(screen.getByLabelText(label), { target: { value } });
+const submit = () => fireEvent.click(screen.getByRole("button", { name: "Create account" }));
+
+test("an empty form shows every message", async () => {
+  render(<App />);
+  submit();
+  await wait(50);
+  expect(screen.getByText("Name is required")).toBeInTheDocument();
+  expect(screen.getByText("Enter a valid email")).toBeInTheDocument();
+  expect(screen.getByText("At least 8 characters")).toBeInTheDocument();
+});
+
+test("a short password is rejected", async () => {
+  render(<App />);
+  type("Name", "Ada");
+  type("Email", "ada@example.com");
+  type("Password", "1234");
+  submit();
+  await wait(50);
+  expect(screen.getByText("At least 8 characters")).toBeInTheDocument();
+  expect(screen.queryByText("Welcome, Ada!")).not.toBeInTheDocument();
+});
+
+test("valid data creates the account", async () => {
+  render(<App />);
+  type("Name", "Ada");
+  type("Email", "ada@example.com");
+  type("Password", "correct-horse");
+  submit();
+  await wait(50);
+  expect(screen.getByText("Welcome, Ada!")).toBeInTheDocument();
+});
+```
+
+```jsx solution file=/App.js
+import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+
+const schema = z.object({
+  name: z.string().min(1, "Name is required"),
+  email: z.email("Enter a valid email"),
+  password: z.string().min(8, "At least 8 characters"),
+});
+
+export default function App() {
+  const [welcome, setWelcome] = useState("");
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm({ resolver: zodResolver(schema) });
+
+  return (
+    <form onSubmit={handleSubmit((data) => setWelcome(data.name))} noValidate>
+      <label>Name <input {...register("name")} /></label>
+      {errors.name && <p>{errors.name.message}</p>}
+      <label>Email <input {...register("email")} /></label>
+      {errors.email && <p>{errors.email.message}</p>}
+      <label>Password <input type="password" {...register("password")} /></label>
+      {errors.password && <p>{errors.password.message}</p>}
+      <button>Create account</button>
+      {welcome && <p>Welcome, {welcome}!</p>}
+    </form>
+  );
+}
+```
+
+</ReactExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "What does `handleSubmit(onSubmit)` do before calling `onSubmit`?",
+      options: ["Nothing", "Validates the form, and only calls `onSubmit` with the data if it's valid", "Resets the form", "Sends the data to a server"],
+      answer: 1,
+      explain: "Invalid forms fill `formState.errors` instead.",
+    },
+    {
+      q: "Why describe validation with a Zod schema?",
+      options: ["One description of valid data, reusable on the client and the server (and as a TypeScript type)", "It's required by React", "It makes inputs controlled", "It styles the errors"],
+      answer: 0,
+      explain: "`z.infer<typeof schema>` even gives you the type.",
+    },
+    {
+      q: "Why are React Hook Form forms fast?",
+      options: ["They use Web Workers", "Inputs are uncontrolled, and only parts that subscribe to a change re-render", "They skip validation", "They don't use React"],
+      answer: 1,
+      explain: "Typing doesn't re-render the whole form.",
+    },
+  ]}
+/>

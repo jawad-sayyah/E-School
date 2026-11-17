@@ -1,0 +1,313 @@
+---
+id: tanstack-query
+title: Data fetching with TanStack Query
+summary: Replace hand-written fetch effects with useQuery for loading, error and cached data, and update the server with useMutation and query invalidation.
+minutes: 20
+tags: [TanStack Query, React Query, useQuery, useMutation, queryKey, caching, staleTime, invalidateQueries]
+---
+
+In the Hooks course you fetched data in an effect, and had to handle loading, errors and race conditions yourself. Real apps also want **caching** (don't refetch the menu on every visit), **refetching** when data may be stale, **retries**, and **sharing** one request between components. **TanStack Query** (formerly React Query) does all of that.
+
+<Concept name="useQuery" id="use-query">
+
+You give `useQuery` a **query key** (an array that identifies the data) and a **query function** (returns a promise). It gives back the state of that data.
+
+<ReactPlayground height={420}>
+
+```jsx file=/App.js
+import { useState } from "react";
+import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
+import { fetchProducts } from "./api";
+
+function ProductList({ category }) {
+  const { data, isPending, isError, error, isFetching } = useQuery({
+    queryKey: ["products", category],        // a different key = a different cache entry
+    queryFn: () => fetchProducts(category),
+    staleTime: 30_000,                        // fresh for 30 s: no refetch when switching back
+  });
+
+  if (isPending) return <p>Loading {category}…</p>;
+  if (isError) return <p className="error">Error: {error.message}</p>;
+  return (
+    <ul style={{ opacity: isFetching ? 0.6 : 1 }}>
+      {data.map((p) => (
+        <li key={p}>{p}</li>
+      ))}
+    </ul>
+  );
+}
+
+export default function App() {
+  const [queryClient] = useState(() => new QueryClient());
+  const [category, setCategory] = useState("hot");
+  return (
+    <QueryClientProvider client={queryClient}>
+      <button onClick={() => setCategory("hot")}>Hot drinks</button>{" "}
+      <button onClick={() => setCategory("cold")}>Cold drinks</button>{" "}
+      <button onClick={() => setCategory("broken")}>Broken category</button>
+      <ProductList category={category} />
+    </QueryClientProvider>
+  );
+}
+```
+
+```js file=/api.js
+const DATA = { hot: ["Coffee", "Tea", "Hot chocolate"], cold: ["Iced coffee", "Lemonade"] };
+
+export function fetchProducts(category) {
+  return new Promise((resolve, reject) =>
+    setTimeout(() => {
+      if (DATA[category]) resolve(DATA[category]);
+      else reject(new Error(`No category called "${category}"`));
+    }, 800),
+  );
+}
+```
+
+```css file=/styles.css
+body { font-family: system-ui, sans-serif; padding: 16px; }
+.error { color: #c0392b; }
+```
+
+</ReactPlayground>
+
+Click **Cold drinks**, then **Hot drinks** again: the hot list appears **instantly** from the cache. Try **Broken category**: TanStack Query retries a few times before showing the error.
+
+- **`isPending`**: no data yet (first load). **`isFetching`**: a request is in flight, including background refetches.
+- **`isError`** / **`error`**: the query function threw or rejected.
+- The **query key** is the cache key. Put every variable the query depends on in it (`["products", category]`), like an effect's dependencies.
+- One `QueryClient` holds the cache for the whole app; `QueryClientProvider` makes it available.
+
+</Concept>
+
+<Concept name="useMutation: changing data" id="use-mutation">
+
+Reading is a query; creating, updating or deleting is a **mutation**. After a mutation succeeds, tell the cache which queries are now out of date, and TanStack Query refetches them:
+
+```jsx file=AddReview.jsx
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+
+function AddReview({ productId }) {
+  const queryClient = useQueryClient();
+  const mutation = useMutation({
+    mutationFn: (text) => postReview(productId, text),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["reviews", productId] });
+    },
+  });
+
+  return (
+    <form action={(formData) => mutation.mutate(formData.get("text"))}>
+      <input name="text" />
+      <button disabled={mutation.isPending}>{mutation.isPending ? "Posting…" : "Post"}</button>
+      {mutation.isError && <p>Couldn't post: {mutation.error.message}</p>}
+    </form>
+  );
+}
+```
+
+</Concept>
+
+<HowItWorks title="Stale-while-revalidate">
+
+TanStack Query treats cached data as **fresh** for `staleTime` (default 0: immediately stale). When a component asks for stale data, it gets the cached copy **at once** and a background refetch starts; when the new data arrives, components re-render. It also refetches stale queries when the window regains focus or the network reconnects. Unused data is garbage-collected after `gcTime` (5 minutes by default). Several components using the same key share **one** request and one cache entry, so there's no need to lift fetched data into context.
+
+</HowItWorks>
+
+<GoDeeper title="Server state vs. client state">
+
+TanStack Query manages **server state**: data that lives on a server, that others can change, and that you only have a copy of. It isn't a general state manager. UI state (is the menu open, what's typed, the cart before checkout) still belongs in `useState`, context or a store like Zustand (two lessons from now). Separating the two removes most of what people used to put in Redux.
+
+</GoDeeper>
+
+<Practice>
+
+<MatchPairs
+  id="match-query-fields"
+  prompt="Match each `useQuery` field with its meaning."
+  columns={["Field", "Meaning"]}
+  pairs={[
+    ["`data`", "The last successfully fetched result"],
+    ["`isPending`", "There's no data yet"],
+    ["`isFetching`", "A request is running, even in the background"],
+    ["`isError`", "The query function failed"],
+    ["`refetch`", "A function to fetch again now"],
+  ]}
+/>
+
+<SpotTheBug
+  id="bug-query-key"
+  bug={3}
+  prompt="Switching from Hot to Cold still shows the hot drinks. Click the buggy line."
+  explain={"The query key doesn't include `category`, so both categories share one cache entry and the query never refetches. Use `queryKey: [\"products\", category]`."}
+>
+
+```jsx
+function ProductList({ category }) {
+  const { data } = useQuery({
+    queryKey: ["products"],
+    queryFn: () => fetchProducts(category),
+  });
+  return <List items={data} />;
+}
+```
+
+</SpotTheBug>
+
+<SortBuckets
+  id="buckets-server-client"
+  prompt="Server state (TanStack Query) or client state (useState, context, a store)?"
+  buckets={["Server state", "Client state"]}
+  items={[
+    ["The product catalog", 0],
+    ["A product's reviews", 0],
+    ["The user's order history", 0],
+    ["Whether the filter panel is open", 1],
+    ["The text typed into the search box", 1],
+    ["The dark mode setting", 1],
+  ]}
+  explain="If it lives on a server and you only hold a copy, it's server state. If only this browser tab knows it, it's client state."
+/>
+
+</Practice>
+
+<ReactExercise
+  id="use-query-menu"
+  title="Load the menu with useQuery"
+  hints={[
+    "Replace the effect and the two `useState`s with `const { data, isPending, isError } = useQuery({ queryKey: [\"menu\"], queryFn: fetchMenu });`.",
+    "Return `<p>Loading menu…</p>` while `isPending`, and `<p>Couldn't load the menu.</p>` when `isError`.",
+    "Otherwise map `data` to list items.",
+  ]}
+>
+
+`Menu` fetches with an effect and never handles errors, so a failed request leaves **Loading menu…** on screen forever. Rewrite it with `useQuery` so it shows **Loading menu…**, then the items, or **Couldn't load the menu.** when the request fails. (The tests pass a failing `fetchMenu` to check the error state; retries are already turned off.)
+
+```jsx starter file=/App.js
+import { useEffect, useState } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { fetchMenu as defaultFetchMenu } from "./api";
+
+function Menu({ fetchMenu }) {
+  const [items, setItems] = useState(null);
+  useEffect(() => {
+    fetchMenu().then(setItems);
+  }, [fetchMenu]);
+
+  if (!items) return <p>Loading menu…</p>;
+  return (
+    <ul>
+      {items.map((item) => (
+        <li key={item}>{item}</li>
+      ))}
+    </ul>
+  );
+}
+
+export default function App({ fetchMenu = defaultFetchMenu }) {
+  const [client] = useState(
+    () => new QueryClient({ defaultOptions: { queries: { retry: false } } }),
+  );
+  return (
+    <QueryClientProvider client={client}>
+      <Menu fetchMenu={fetchMenu} />
+    </QueryClientProvider>
+  );
+}
+```
+
+```js starter file=/api.js
+export function fetchMenu() {
+  return new Promise((resolve) => setTimeout(() => resolve(["Coffee", "Tea", "Bagel"]), 100));
+}
+```
+
+```jsx tests file=/App.test.js
+import { act, render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import App from "./App";
+
+const wait = (ms) => act(async () => {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+});
+
+test("shows a loading message first", () => {
+  render(<App />);
+  expect(screen.getByText("Loading menu…")).toBeInTheDocument();
+});
+
+test("shows the menu items", async () => {
+  render(<App />);
+  await wait(300);
+  expect(screen.getAllByRole("listitem").map((li) => li.textContent)).toEqual(["Coffee", "Tea", "Bagel"]);
+});
+
+test("shows an error when the request fails", async () => {
+  const failing = () => Promise.reject(new Error("Server down"));
+  render(<App fetchMenu={failing} />);
+  await wait(100);
+  expect(screen.getByText("Couldn't load the menu.")).toBeInTheDocument();
+});
+```
+
+```jsx solution file=/App.js
+import { useState } from "react";
+import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
+import { fetchMenu as defaultFetchMenu } from "./api";
+
+function Menu({ fetchMenu }) {
+  const { data, isPending, isError } = useQuery({ queryKey: ["menu"], queryFn: fetchMenu });
+
+  if (isPending) return <p>Loading menu…</p>;
+  if (isError) return <p>Couldn't load the menu.</p>;
+  return (
+    <ul>
+      {data.map((item) => (
+        <li key={item}>{item}</li>
+      ))}
+    </ul>
+  );
+}
+
+export default function App({ fetchMenu = defaultFetchMenu }) {
+  const [client] = useState(
+    () => new QueryClient({ defaultOptions: { queries: { retry: false } } }),
+  );
+  return (
+    <QueryClientProvider client={client}>
+      <Menu fetchMenu={fetchMenu} />
+    </QueryClientProvider>
+  );
+}
+```
+
+</ReactExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "What is the query key for?",
+      options: ["Authentication", "Identifying the data in the cache, so different inputs get different entries", "Sorting results", "Naming the component"],
+      answer: 1,
+      explain: "Include every variable the query depends on.",
+    },
+    {
+      q: "Two components call `useQuery` with the same key at the same time. How many requests are made?",
+      options: ["Two", "One, shared by both", "None", "It depends on the browser"],
+      answer: 1,
+      explain: "Queries with the same key are de-duplicated and share the cache.",
+    },
+    {
+      q: "After a mutation adds a review, how do you make the reviews list update?",
+      options: ["Reload the page", "`queryClient.invalidateQueries({ queryKey: [\"reviews\", id] })`", "Call `useQuery` again", "Set `staleTime` to 0"],
+      answer: 1,
+      explain: "Invalidated queries are refetched by the components that use them.",
+    },
+    {
+      q: "What's the difference between `isPending` and `isFetching`?",
+      options: ["None", "`isPending`: no data yet; `isFetching`: any request in flight, including background refetches", "`isFetching` is only for mutations", "`isPending` is for errors"],
+      answer: 1,
+      explain: "Show a spinner for `isPending`, maybe a subtle hint for `isFetching`.",
+    },
+  ]}
+/>

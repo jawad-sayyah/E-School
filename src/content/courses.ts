@@ -204,7 +204,15 @@ export const COURSES: CourseInfo[] = [
     color: 'react',
     description:
       'React Router, TanStack Query, React Hook Form with Zod, Zustand and Redux Toolkit, accessibility and performance.',
-    lessons: [],
+    lessons: [
+      'react-router',
+      'tanstack-query',
+      'forms-rhf-zod',
+      'state-management',
+      'accessibility',
+      'performance',
+      'review',
+    ],
     phase: 7,
   },
   {

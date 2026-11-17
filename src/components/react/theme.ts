@@ -32,12 +32,3 @@ export const sandpackTheme: SandpackTheme = {
     lineHeight: '22px',
   },
 };
-
-/** Packages every React sandbox gets: React 19 plus Testing Library for tests. */
-export const SANDBOX_DEPENDENCIES: Record<string, string> = {
-  react: '^19.0.0',
-  'react-dom': '^19.0.0',
-  '@testing-library/react': '^16.0.0',
-  '@testing-library/dom': '^10.0.0',
-  '@testing-library/jest-dom': '^6.0.0',
-};

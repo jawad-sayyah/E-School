@@ -10,6 +10,8 @@ import remarkMdx from 'remark-mdx';
 import remarkFrontmatter from 'remark-frontmatter';
 
 const ROOT = path.resolve('src/content/courses');
+const PACKAGES = JSON.parse(fs.readFileSync('src/components/react/packages.json', 'utf8'));
+const KNOWN = new Set([...Object.keys(PACKAGES.base), ...Object.keys(PACKAGES.optional)]);
 const OUT = path.resolve('test/react-exercises');
 const parser = unified().use(remarkParse).use(remarkMdx).use(remarkFrontmatter, ['yaml']);
 
@@ -34,7 +36,21 @@ function fileName(block, fallback = '/App.js') {
 /** Sandpack files are .js with JSX inside; Vite wants .jsx for that. */
 const jsx = (file) => file.replace(/\.js$/, '.jsx');
 
+/** Sandpack can only install the packages in packages.json, so lessons may import nothing else. */
+function checkImports(where, files) {
+  for (const [file, code] of Object.entries(files)) {
+    for (const m of code.matchAll(/(?:\bfrom\s*|\bimport\s*\(?\s*)["']([^"'./][^"']*)["']/g)) {
+      const parts = m[1].split('/');
+      const name = m[1].startsWith('@') ? parts.slice(0, 2).join('/') : parts[0];
+      if (!KNOWN.has(name)) {
+        throw new Error(`${where} ${file}: "${name}" isn't in src/components/react/packages.json`);
+      }
+    }
+  }
+}
+
 function write(dir, files) {
+  checkImports(path.basename(dir), files);
   fs.mkdirSync(dir, { recursive: true });
   for (const [file, code] of Object.entries(files)) {
     fs.writeFileSync(path.join(dir, jsx(file).slice(1)), code);

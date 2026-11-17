@@ -10,7 +10,8 @@ import {
   type SandpackFiles,
 } from '@codesandbox/sandpack-react';
 import { summarizeSpecs, type SpecResult, type SpecSummary } from './specs';
-import { SANDBOX_DEPENDENCIES, sandpackTheme } from './theme';
+import { dependenciesFor } from './packages';
+import { sandpackTheme } from './theme';
 
 /*
  * Everything that imports Sandpack lives in this file, so the Sandpack bundle (and its
@@ -50,8 +51,6 @@ function toSandpackFiles(
   return out;
 }
 
-const setup = { dependencies: SANDBOX_DEPENDENCIES };
-
 /** Editor + live preview (+ optional console). */
 export function LivePlayground({
   template = 'react',
@@ -60,12 +59,16 @@ export function LivePlayground({
   height = 340,
   showConsole = false,
 }: LiveProps & { showConsole?: boolean }) {
+  // Read once: a new setup object would make Sandpack restart the bundler.
+  const [setup] = useState(() =>
+    template === 'react' ? { dependencies: dependenciesFor(files) } : undefined,
+  );
   return (
     <SandpackProvider
       template={template}
       theme={sandpackTheme}
       files={toSandpackFiles(files)}
-      customSetup={template === 'react' ? setup : undefined}
+      customSetup={setup}
       options={{ activeFile, recompileMode: 'delayed', recompileDelay: 400 }}
     >
       <SandpackLayout>
@@ -101,9 +104,18 @@ export function LiveExercise({
   height = 340,
   version = 0,
   onResult,
-}: LiveProps & { version?: number; onResult: (summary: SpecSummary) => void }) {
-  // The provider only reads its files once; later changes go through SyncFiles.
+  dependencyFiles,
+}: LiveProps & {
+  version?: number;
+  /** All the code the exercise may use (starter, solution, tests), to work out its npm packages. */
+  dependencyFiles?: Record<string, string>;
+  onResult: (summary: SpecSummary) => void;
+}) {
+  // The provider only reads its files and setup once; later changes go through SyncFiles.
   const [initial] = useState(() => toSandpackFiles(files, hiddenFiles));
+  const [setup] = useState(() => ({
+    dependencies: dependenciesFor({ ...files, ...hiddenFiles, ...dependencyFiles }),
+  }));
   return (
     <SandpackProvider
       template="react"
@@ -131,6 +143,7 @@ export function LiveExercise({
 
 /** A read-only preview of finished code (the target for "Build the UI"). */
 export function LiveTarget({ files, height = 260 }: LiveProps) {
+  const [setup] = useState(() => ({ dependencies: dependenciesFor(files) }));
   return (
     <SandpackProvider
       template="react"

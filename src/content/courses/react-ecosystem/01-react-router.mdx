@@ -1,0 +1,373 @@
+---
+id: react-router
+title: Routing with React Router
+summary: Turn one page into many with React Router, using routes, links, URL parameters, nested layouts with Outlet, programmatic navigation and search params.
+minutes: 20
+tags: [React Router, routes, Link, NavLink, useParams, Outlet, useNavigate, useSearchParams, loaders]
+---
+
+A real shop has pages: home, products, a product's details, the cart. Each has its own **URL** you can bookmark and share, and the Back button works. React has no router built in; **React Router** is the most widely used one (this site runs on it).
+
+<Concept name="Routes, links and layouts" id="routes">
+
+You describe the pages as a tree of **routes**: each maps a URL `path` to an `element`. A parent route renders an **`<Outlet />`** where its matching child goes, so the header and navigation are written once.
+
+<ReactPlayground height={440}>
+
+```jsx file=/App.js
+import { useState } from "react";
+import { createMemoryRouter, RouterProvider, Link, NavLink, Outlet, useLocation, useParams } from "react-router";
+
+const PRODUCTS = [
+  { id: "coffee", name: "Coffee", price: 4 },
+  { id: "tea", name: "Tea", price: 2 },
+];
+
+function Layout() {
+  const { pathname } = useLocation();
+  return (
+    <>
+      <p className="url">URL: {pathname}</p>
+      <nav>
+        <NavLink to="/" end>Home</NavLink> <NavLink to="/products">Products</NavLink>
+      </nav>
+      <Outlet /> {/* the matching child route renders here */}
+    </>
+  );
+}
+
+function Home() {
+  return <h2>Welcome to MiniShop</h2>;
+}
+
+function Products() {
+  return (
+    <ul>
+      {PRODUCTS.map((p) => (
+        <li key={p.id}><Link to={`/products/${p.id}`}>{p.name}</Link></li>
+      ))}
+    </ul>
+  );
+}
+
+function ProductPage() {
+  const { id } = useParams(); // "coffee" for /products/coffee
+  const product = PRODUCTS.find((p) => p.id === id);
+  if (!product) return <p>Product not found.</p>;
+  return <h2>{product.name} · ${product.price}</h2>;
+}
+
+const routes = [
+  {
+    path: "/",
+    element: <Layout />,
+    children: [
+      { index: true, element: <Home /> },
+      { path: "products", element: <Products /> },
+      { path: "products/:id", element: <ProductPage /> },
+      { path: "*", element: <p>Page not found.</p> },
+    ],
+  },
+];
+
+export default function App() {
+  // In a real app: createBrowserRouter(routes), which uses the browser's address bar
+  const [router] = useState(() => createMemoryRouter(routes));
+  return <RouterProvider router={router} />;
+}
+```
+
+```css file=/styles.css
+body { font-family: system-ui, sans-serif; padding: 12px 16px; }
+.url { font-family: monospace; background: #f2f2f2; padding: 4px 8px; border-radius: 6px; font-size: 13px; }
+nav a { margin-right: 12px; color: #0e7490; }
+nav a.active { font-weight: 700; text-decoration: none; }
+```
+
+</ReactPlayground>
+
+- **`<Link to="/products">`** navigates without reloading the page. Never use `<a href>` for in-app links: it reloads everything and loses state.
+- **`<NavLink>`** is a Link that knows when it's active (it gets an `active` class), perfect for menus. `end` makes `/` match only exactly.
+- **`:id`** in a path is a **URL parameter**; `useParams()` reads it.
+- **`index: true`** is the child shown at the parent's own URL; **`path: "*"`** catches everything else (a 404 page).
+
+</Concept>
+
+<Concept name="Navigating in code, and search params" id="navigate">
+
+```jsx file=Checkout.jsx
+import { useNavigate, useSearchParams } from "react-router";
+
+function CheckoutButton() {
+  const navigate = useNavigate();
+  async function checkout() {
+    const orderId = await placeOrder();
+    navigate(`/orders/${orderId}`);   // after an action, not on render
+  }
+  return <button onClick={checkout}>Place order</button>;
+}
+
+function ProductFilters() {
+  // /products?sort=price&hot=1 : state that lives in the URL, so it can be shared
+  const [params, setParams] = useSearchParams();
+  const sort = params.get("sort") ?? "name";
+  return (
+    <select value={sort} onChange={(e) => setParams({ sort: e.target.value })}>
+      <option value="name">Name</option>
+      <option value="price">Price</option>
+    </select>
+  );
+}
+```
+
+Filters, sorting, pagination and the open tab are good candidates for **search params**: they survive a reload and can be shared as a link.
+
+</Concept>
+
+<HowItWorks title="How client-side routing works">
+
+The router listens to the URL. A `<Link>` click is intercepted: instead of asking the server for a new page, the router calls `history.pushState` to change the address bar, then re-renders `<RouterProvider>` with the new location. It **matches** the URL against your route tree (most specific match wins), and renders the matching route elements from the outermost layout down, each one's `<Outlet />` showing the next. The Back button fires a `popstate` event, and the router re-matches. The server only needs to send `index.html` for every URL (the deploy step of the MiniShop project sets that up).
+
+</HowItWorks>
+
+<GoDeeper title="Loaders: fetch data before the page renders">
+
+React Router's data APIs let each route declare a `loader` that runs **before** its page renders, and the page reads the result with `useLoaderData()`. Navigation waits for the data (and `useNavigation().state` tells you it's loading), so pages never flash an empty state:
+
+```jsx file=routes.jsx
+{
+  path: "products/:id",
+  loader: async ({ params }) => fetchProduct(params.id),
+  element: <ProductPage />,
+}
+
+function ProductPage() {
+  const product = useLoaderData();
+  return <h2>{product.name}</h2>;
+}
+```
+
+Loaders, `action`s for forms, and lazy routes turn the router into a small data framework. TanStack Query (next lesson) is the other popular way to load data, and the two combine well.
+
+</GoDeeper>
+
+<Practice>
+
+<MatchPairs
+  id="match-router-apis"
+  prompt="Match each React Router API with its job."
+  columns={["API", "Job"]}
+  pairs={[
+    ["`<Link to>`", "Navigate on click without a page reload"],
+    ["`<NavLink>`", "A link that knows when its route is active"],
+    ["`<Outlet />`", "Where a layout renders the matching child route"],
+    ["`useParams()`", "Read `:id` and other URL parameters"],
+    ["`useNavigate()`", "Navigate from code, e.g. after saving"],
+    ["`useSearchParams()`", "Read and set `?sort=price` style state"],
+  ]}
+/>
+
+<SpotTheBug
+  id="bug-a-href"
+  bug={4}
+  prompt="Clicking a product reloads the whole app and empties the cart. Click the buggy line."
+  explain="A plain `<a href>` makes the browser load a new page from the server, which restarts the app and loses state. Use `<Link to={...}>` for links inside the app."
+>
+
+```jsx
+function ProductLink({ product }) {
+  return (
+    <li>
+      <a href={`/products/${product.id}`}>{product.name}</a>
+    </li>
+  );
+}
+```
+
+</SpotTheBug>
+
+<Choice
+  id="choice-url-state"
+  q="Which state belongs in the URL's search params rather than in `useState`?"
+  options={["Whether a dropdown is open", "The product list's sort order and page number", "The text being typed in a comment box", "A hover effect"]}
+  answer={1}
+  explain="Sort and page should survive a reload and be shareable as a link. Short-lived UI details can stay in component state."
+/>
+
+<TraceState
+  id="trace-route-match"
+  track="what renders inside the Outlet"
+  steps={[
+    { action: "Visit `/`", answer: "Home" },
+    { action: "Visit `/products`", answer: "Products" },
+    { action: "Visit `/products/tea`", answer: "ProductPage" },
+    { action: "Visit `/cart/old`", answer: "Page not found" },
+  ]}
+  explain="The index route matches the parent's own URL, `products/:id` matches any id, and `*` catches the rest."
+  hint="Use the routes in the playground above."
+/>
+
+</Practice>
+
+<ReactExercise
+  id="product-route"
+  title="Add the product page route"
+  hints={[
+    "Add a child route: `{ path: \"products/:id\", element: <ProductPage /> }`.",
+    "In `ProductPage`, read the id with `const { id } = useParams();` and find the product.",
+    "If there's no product with that id, return `<p>Product not found.</p>`.",
+  ]}
+>
+
+The product list links to `/products/coffee` and `/products/tea`, but there's no route for them yet. Add a `products/:id` route whose page shows the product's **name as a heading** and its **price**, shows **Product not found.** for an unknown id, and has a **Back to menu** link.
+
+```jsx starter file=/App.js
+import { useState } from "react";
+import { createMemoryRouter, RouterProvider, Link } from "react-router";
+
+export const PRODUCTS = [
+  { id: "coffee", name: "Coffee", price: 4 },
+  { id: "tea", name: "Tea", price: 2 },
+];
+
+function Menu() {
+  return (
+    <ul>
+      {PRODUCTS.map((p) => (
+        <li key={p.id}>
+          <Link to={`/products/${p.id}`}>{p.name}</Link>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function ProductPage() {
+  return <h2>Product</h2>;
+}
+
+const routes = [{ path: "/", element: <Menu /> }];
+
+export default function App({ initialPath = "/" }) {
+  const [router] = useState(() => createMemoryRouter(routes, { initialEntries: [initialPath] }));
+  return <RouterProvider router={router} />;
+}
+```
+
+```jsx tests file=/App.test.js
+import { act, fireEvent, render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import App from "./App";
+
+const flush = () => act(async () => {});
+
+test("the menu links to each product", async () => {
+  render(<App />);
+  await flush();
+  expect(screen.getByRole("link", { name: "Tea" })).toHaveAttribute("href", "/products/tea");
+});
+
+test("clicking a product opens its page", async () => {
+  render(<App />);
+  await flush();
+  fireEvent.click(screen.getByRole("link", { name: "Tea" }));
+  await flush();
+  expect(screen.getByRole("heading", { name: "Tea" })).toBeInTheDocument();
+  expect(screen.getByText("$2")).toBeInTheDocument();
+});
+
+test("an unknown product shows a message", async () => {
+  render(<App initialPath="/products/cake" />);
+  await flush();
+  expect(screen.getByText("Product not found.")).toBeInTheDocument();
+});
+
+test("Back to menu returns to the list", async () => {
+  render(<App initialPath="/products/coffee" />);
+  await flush();
+  fireEvent.click(screen.getByRole("link", { name: "Back to menu" }));
+  await flush();
+  expect(screen.getByRole("link", { name: "Coffee" })).toBeInTheDocument();
+});
+```
+
+```jsx solution file=/App.js
+import { useState } from "react";
+import { createMemoryRouter, RouterProvider, Link, useParams } from "react-router";
+
+export const PRODUCTS = [
+  { id: "coffee", name: "Coffee", price: 4 },
+  { id: "tea", name: "Tea", price: 2 },
+];
+
+function Menu() {
+  return (
+    <ul>
+      {PRODUCTS.map((p) => (
+        <li key={p.id}>
+          <Link to={`/products/${p.id}`}>{p.name}</Link>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function ProductPage() {
+  const { id } = useParams();
+  const product = PRODUCTS.find((p) => p.id === id);
+  return (
+    <>
+      {product ? (
+        <>
+          <h2>{product.name}</h2>
+          <p>${product.price}</p>
+        </>
+      ) : (
+        <p>Product not found.</p>
+      )}
+      <Link to="/">Back to menu</Link>
+    </>
+  );
+}
+
+const routes = [
+  { path: "/", element: <Menu /> },
+  { path: "/products/:id", element: <ProductPage /> },
+];
+
+export default function App({ initialPath = "/" }) {
+  const [router] = useState(() => createMemoryRouter(routes, { initialEntries: [initialPath] }));
+  return <RouterProvider router={router} />;
+}
+```
+
+</ReactExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "Why use `<Link>` instead of `<a href>` for links inside your app?",
+      options: ["It's shorter", "It changes the URL without reloading the page, so state is kept", "`<a>` doesn't work in React", "It's required for styling"],
+      answer: 1,
+      explain: "A real `<a href>` asks the server for a new page and restarts the app.",
+    },
+    {
+      q: "What does `<Outlet />` do in a layout route?",
+      options: ["Exits the app", "Renders the child route that matches the URL", "Renders all child routes at once", "Links to the parent"],
+      answer: 1,
+      explain: "The layout (header, nav) stays; only the outlet's content changes.",
+    },
+    {
+      q: "For the route `products/:id` and the URL `/products/tea`, what does `useParams()` return?",
+      options: ["`\"tea\"`", "`{ id: \"tea\" }`", "`[\"tea\"]`", "`{ products: \"tea\" }`"],
+      answer: 1,
+      explain: "An object with one key per parameter.",
+    },
+    {
+      q: "Which belong in the URL rather than in component state?",
+      options: ["The current page", "The selected product id", "Search filters and sort order", "Whether a tooltip is visible"],
+      answer: [0, 1, 2],
+      explain: "Anything a user might bookmark, share or expect after a reload.",
+    },
+  ]}
+/>
