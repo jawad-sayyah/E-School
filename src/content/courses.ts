@@ -184,8 +184,17 @@ export const COURSES: CourseInfo[] = [
     title: 'React 19',
     badge: '⚛',
     color: 'react',
-    description: 'Actions, use, useActionState, useOptimistic, useFormStatus and form actions.',
-    lessons: [],
+    description:
+      'Actions, form actions, useFormStatus, useActionState, useOptimistic, use, document metadata and the other React 19 upgrades.',
+    lessons: [
+      'actions',
+      'form-actions',
+      'use-action-state',
+      'use-optimistic',
+      'use',
+      'metadata-and-more',
+      'review',
+    ],
     phase: 6,
   },
   {

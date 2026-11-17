@@ -29,13 +29,24 @@ interface LiveProps {
   height?: number;
 }
 
+/**
+ * Sandpack's test runner renders into jsdom but exposes the browser's own FormData, which
+ * rejects jsdom forms, so React 19 form actions would fail. Hidden test files get this line
+ * first, making the global FormData jsdom's. (Harmless where they're already the same.)
+ */
+export const TEST_PRELUDE =
+  'if (typeof document !== "undefined" && document.defaultView && document.defaultView.FormData !== FormData) globalThis.FormData = document.defaultView.FormData;\n';
+
 function toSandpackFiles(
   files: Record<string, string>,
   hidden: Record<string, string> = {},
 ): SandpackFiles {
   const out: SandpackFiles = {};
   for (const [path, code] of Object.entries(files)) out[path] = { code };
-  for (const [path, code] of Object.entries(hidden)) out[path] = { code, hidden: true };
+  for (const [path, code] of Object.entries(hidden)) {
+    const prelude = /\.test\.[jt]sx?$/.test(path) ? TEST_PRELUDE : '';
+    out[path] = { code: prelude + code, hidden: true };
+  }
   return out;
 }
 

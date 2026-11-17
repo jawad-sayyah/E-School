@@ -157,11 +157,16 @@ React code can't run in the worker, so React lessons use Sandpack components. Ev
 | `<ReactPlayground template="vanilla">` | Plain HTML + JS: `/index.js` (main, `import "./styles.css"` for styles), `/index.html` (body markup and `<script src="index.js">`), `/styles.css`. |
 | `<ReactExercise id title hints? variant?>` | A React exercise. Blocks marked `starter`, `tests` and `solution`, each with `file=`. Hidden Testing Library tests run in Sandpack; passing saves progress. `variant="fix"` labels it "Fix the bug". |
 | `<BuildUI id title hints?>` | "Build the UI": a ReactExercise that also shows the finished solution as a live target preview. |
+| `<StateTimeline frames title? file?>` | "State is a snapshot": frames `{ render, snapshot: { name: value }, queue?: [{ update, result? }], screen?, line?, out?, note? }` show a render's fixed values, the update queue and the next render. |
+| `<EffectTimeline frames title? file?>` | The `useEffect` timeline: frames `{ stage, log?, deps?: [{ name, prev?, next }], screen?, line?, out?, note? }`, with `stage` one of `render`, `commit`, `paint`, `cleanup`, `effect`, `unmount`; `log` lines build up a timeline and `deps` shows React's dependency check. |
 | `<RenderCycle frames title? file?>` | Steps through trigger → render → commit over a component tree. Frames: `{ phase, tree: [{ name, depth, state?, status? }], screen?, line?, note? }`, with `status` one of `rendering`, `rendered`, `skipped`, `updated`. An optional fenced block shows the code, with `line` highlighted. |
 
 Rules for React exercise tests:
 
 - Import from `@testing-library/react` and `@testing-library/jest-dom`, use `test` and `expect` as globals, and simulate users with **`fireEvent`**. `@testing-library/user-event` v14 crashes Sandpack's test runner, so the generator rejects it.
+- Hidden test files get a one-line prelude in Sandpack (`TEST_PRELUDE` in `src/components/react/LiveSandpack.tsx`): Sandpack's runner renders into jsdom but exposes the browser's own `FormData`, which rejects jsdom forms and breaks React 19 form actions.
+- For async code, wrap waits in `act`: `const wait = (ms) => act(async () => { await new Promise((r) => setTimeout(r, ms)); });`. A component that suspends on first render must be rendered inside an async `act` (`await act(async () => { render(<App />); })`), or React 19 won't retry it when the promise resolves.
+- To check solutions inside real Sandpack (its runner differs from Vitest), run `LESSONS=hooks/use-context,react/forms npx playwright test e2e/solutions.spec.ts`.
 - Prefer queries by role, label and text (`getByRole`, `getByLabelText`); give elements an `aria-label` when the task needs a stable handle.
 - `npm test` first runs `scripts/gen-react-tests.mjs`, which turns every React exercise (solution + tests) and every playground (a "renders without crashing" smoke test, or a "runs" test for vanilla ones) into Vitest + Testing Library tests under `test/react-exercises/` (git-ignored). So a solution that fails its own tests fails the build.
 - Question components (`SpotTheBug`, `FillBlanks`, `Choice`, `TraceState`, `CodeReview`, `Compare`) show a ````jsx```` block as JSX. JSX blanks and `fixed` blocks aren't run in the worker; `Predict` must stay plain JavaScript, because its answer is checked by running it.

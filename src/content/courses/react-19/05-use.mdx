@@ -1,0 +1,254 @@
+---
+id: use
+title: "use: read promises and context"
+summary: Read a promise's value during render with use, let Suspense show the loading state and an error boundary the error, and read context conditionally.
+minutes: 16
+tags: [React 19, use, promises, Suspense, error boundary, context, data fetching]
+---
+
+`use` is an unusual API: it reads the value of a **resource**, a promise or a context, during render. With a promise, the component **suspends** until it resolves, so the nearest `<Suspense>` shows its fallback in the meantime. Unlike hooks, `use` can be called inside conditions and loops.
+
+<Concept name="use(promise)" id="use-promise">
+
+<ReactPlayground height={360}>
+
+```jsx file=/App.js
+import { Suspense, use, useState } from "react";
+import { fetchReviews } from "./api";
+
+function Reviews({ reviewsPromise }) {
+  const reviews = use(reviewsPromise); // suspends until the promise resolves
+  return (
+    <ul>
+      {reviews.map((r) => (
+        <li key={r.id}>{"★".repeat(r.stars)} {r.text}</li>
+      ))}
+    </ul>
+  );
+}
+
+export default function App() {
+  const [reviewsPromise, setReviewsPromise] = useState(null);
+  return (
+    <>
+      <h2>Coffee</h2>
+      <button onClick={() => setReviewsPromise(fetchReviews("coffee"))}>Load reviews</button>
+      {reviewsPromise && (
+        <Suspense fallback={<p>Loading reviews…</p>}>
+          <Reviews reviewsPromise={reviewsPromise} />
+        </Suspense>
+      )}
+    </>
+  );
+}
+```
+
+```js file=/api.js
+export function fetchReviews(product) {
+  return new Promise((resolve) =>
+    setTimeout(
+      () => resolve([
+        { id: 1, stars: 5, text: "Best in town" },
+        { id: 2, stars: 4, text: "Great, but the line is long" },
+      ]),
+      1000,
+    ),
+  );
+}
+```
+
+</ReactPlayground>
+
+- The **promise is created outside** the component that reads it: in an event handler here, or by a framework or data library. A promise created during render would be a new promise on every render, and `use` would suspend forever.
+- While pending, the nearest `<Suspense>` shows its fallback.
+- If the promise **rejects**, the nearest **error boundary** shows its fallback.
+
+</Concept>
+
+<Concept name="use(context)" id="use-context">
+
+`use(SomeContext)` does what `useContext(SomeContext)` does, but because `use` isn't bound by the Rules of Hooks' "no conditions" rule, it can be read after an early return or inside an `if`:
+
+```jsx file=Price.jsx
+function Price({ amount, showCurrency }) {
+  if (!showCurrency) return <span>{amount.toFixed(2)}</span>;
+  const currency = use(CurrencyContext); // fine: use can be conditional
+  return <span>{currency.symbol}{amount.toFixed(2)}</span>;
+}
+```
+
+It must still be called during render of a component or hook, not in an event handler or effect, and not inside `try`/`catch`.
+
+</Concept>
+
+<HowItWorks title="How use suspends">
+
+When `use(promise)` sees a pending promise, it throws a special signal that React catches: "this component is waiting". React shows the nearest Suspense fallback and attaches a callback to the promise. When it settles, React renders the component again; this time `use` finds the value already attached to the promise and returns it (or throws the error for the error boundary). That's why the **same** promise object must be passed on every render: React stores the result on it.
+
+</HowItWorks>
+
+<GoDeeper title="Where promises come from in real apps">
+
+Creating and caching promises correctly (one per request, reused between renders, refetched when needed) is hard, which is why you'll mostly meet `use` through:
+
+- **Server Components** passing promises down to Client Components,
+- **framework loaders** (React Router, Next.js),
+- **data libraries** like TanStack Query (`useSuspenseQuery`).
+
+You'll fetch data that way in the React Ecosystem course. Knowing how `use` + Suspense + error boundaries fit together makes those tools much less magical.
+
+</GoDeeper>
+
+<Practice>
+
+<SpotTheBug
+  id="bug-use-new-promise"
+  bug={2}
+  prompt="The page shows Loading… forever and keeps refetching. Click the buggy line."
+  explain="`fetchUser(id)` creates a new promise on every render, so `use` always gets a fresh pending promise and suspends again. Create the promise outside render (in a handler, a cache, a loader, or a parent's state) and pass it in."
+>
+
+```jsx
+function Profile({ id }) {
+  const user = use(fetchUser(id));
+  return <h2>{user.name}</h2>;
+}
+```
+
+</SpotTheBug>
+
+<MatchPairs
+  id="match-use-states"
+  prompt="Match each promise state with what the user sees."
+  columns={["Promise", "User sees"]}
+  pairs={[
+    ["Pending", "The nearest Suspense fallback"],
+    ["Fulfilled", "The component, rendered with the value"],
+    ["Rejected", "The nearest error boundary's fallback"],
+  ]}
+/>
+
+<TrueFalse
+  id="tf-use"
+  statements={[
+    { text: "`use` can be called inside an `if`.", answer: true, explain: "Unlike hooks, `use` may be conditional." },
+    { text: "`use` can be called in an event handler.", answer: false, explain: "Only during render of a component or hook." },
+    { text: "`use(MyContext)` reads context like `useContext(MyContext)`.", answer: true, explain: "With the added flexibility of being callable conditionally." },
+  ]}
+/>
+
+</Practice>
+
+<ReactExercise
+  id="use-promise"
+  title="Read a promise with use"
+  hints={[
+    "In `Menu`, call `const items = use(menuPromise);` (import `use` from \"react\").",
+    "In `App`, wrap `<Menu menuPromise={menuPromise} />` in `<Suspense fallback={<p>Loading menu…</p>}>`.",
+  ]}
+>
+
+`App` already creates the promise once (outside render). Make `Menu` read it with `use`, and show **Loading menu…** while it's pending.
+
+```jsx starter file=/App.js
+import { useState } from "react";
+import { fetchMenu } from "./api";
+
+function Menu({ menuPromise }) {
+  const items = []; // read the promise here
+  return (
+    <ul>
+      {items.map((item) => (
+        <li key={item}>{item}</li>
+      ))}
+    </ul>
+  );
+}
+
+export default function App() {
+  const [menuPromise] = useState(() => fetchMenu());
+  return <Menu menuPromise={menuPromise} />;
+}
+```
+
+```js starter file=/api.js
+export function fetchMenu() {
+  return new Promise((resolve) => setTimeout(() => resolve(["Coffee", "Tea", "Bagel"]), 100));
+}
+```
+
+```jsx tests file=/App.test.js
+import { act, render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import App from "./App";
+
+// Rendering inside an async act lets React retry suspended components when their promise resolves
+const renderApp = () => act(async () => {
+  render(<App />);
+});
+const wait = (ms) => act(async () => {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+});
+
+test("shows a loading message while the menu loads", async () => {
+  await renderApp();
+  expect(screen.getByText("Loading menu…")).toBeInTheDocument();
+});
+
+test("shows the menu when the promise resolves", async () => {
+  await renderApp();
+  await wait(500);
+  expect(screen.getByText("Bagel")).toBeInTheDocument();
+  expect(screen.getAllByRole("listitem")).toHaveLength(3);
+});
+```
+
+```jsx solution file=/App.js
+import { Suspense, use, useState } from "react";
+import { fetchMenu } from "./api";
+
+function Menu({ menuPromise }) {
+  const items = use(menuPromise);
+  return (
+    <ul>
+      {items.map((item) => (
+        <li key={item}>{item}</li>
+      ))}
+    </ul>
+  );
+}
+
+export default function App() {
+  const [menuPromise] = useState(() => fetchMenu());
+  return (
+    <Suspense fallback={<p>Loading menu…</p>}>
+      <Menu menuPromise={menuPromise} />
+    </Suspense>
+  );
+}
+```
+
+</ReactExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "What does `use(promise)` do while the promise is pending?",
+      options: ["Returns `undefined`", "Suspends the component, so the nearest Suspense shows its fallback", "Blocks the whole page", "Throws an error to the error boundary"],
+      answer: 1,
+      explain: "When the promise resolves, React renders the component again with the value.",
+    },
+    {
+      q: "Where should the promise passed to `use` be created?",
+      options: ["Inside the component's render", "Outside render: a handler, a cache, a loader, or a parent's state", "In a `useEffect`", "Anywhere"],
+      answer: 1,
+      explain: "Creating it during render makes a new promise every time.",
+    },
+    {
+      q: "How is `use` different from hooks?",
+      options: ["It can be called conditionally", "It can be called in event handlers", "It works in class components", "It doesn't need React"],
+      answer: 0,
+      explain: "It still must be called during render.",
+    },
+  ]}
+/>

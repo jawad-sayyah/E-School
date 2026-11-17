@@ -1,0 +1,261 @@
+---
+id: use-optimistic
+title: useOptimistic
+summary: Show the result of an Action immediately, before the server answers, and let React fall back to the real state when it finishes or fails.
+minutes: 15
+tags: [React 19, useOptimistic, optimistic UI, Actions, rollback]
+---
+
+When you tap "Like" in a good app, the heart fills **instantly**, even though the server takes a moment. That's an **optimistic update**: show what you expect to happen, and correct it if the server disagrees. `useOptimistic` makes that safe and simple.
+
+<Concept name="The hook" id="the-hook">
+
+```jsx file=Likes.jsx
+const [optimisticValue, addOptimistic] = useOptimistic(value, updateFn);
+```
+
+- `value` is the **real** state (from props or `useState`).
+- While an Action is running, calling `addOptimistic(input)` shows `updateFn(currentValue, input)` instead.
+- When the Action finishes, the optimistic value is thrown away and `optimisticValue` goes back to following `value`, which by then should hold the real result.
+
+<ReactPlayground height={400}>
+
+```jsx file=/App.js
+import { useOptimistic, useState, startTransition } from "react";
+import { sendReview } from "./api";
+
+export default function App() {
+  const [reviews, setReviews] = useState(["Great coffee!"]);
+  const [shown, addOptimisticReview] = useOptimistic(reviews, (current, text) => [
+    ...current,
+    text + " (sending…)",
+  ]);
+
+  function submit(formData) {
+    const text = formData.get("text");
+    startTransition(async () => {
+      addOptimisticReview(text);          // shows instantly
+      const saved = await sendReview(text); // takes 1.5 s
+      setReviews((r) => [...r, saved]);   // the real list
+    });
+  }
+
+  return (
+    <>
+      <ul>
+        {shown.map((r, i) => (
+          <li key={i}>{r}</li>
+        ))}
+      </ul>
+      <form action={submit}>
+        <input name="text" placeholder="Write a review" required />
+        <button>Post</button>
+      </form>
+    </>
+  );
+}
+```
+
+```js file=/api.js
+export function sendReview(text) {
+  return new Promise((resolve) => setTimeout(() => resolve(text), 1500));
+}
+```
+
+</ReactPlayground>
+
+Post a review: it appears immediately with "(sending…)", then is replaced by the real one when the fake server answers.
+
+</Concept>
+
+<Concept name="Rollback for free" id="rollback">
+
+If the Action **fails** (throws, or simply doesn't update `value`), the optimistic value disappears when the Action ends and the UI shows the real state again. You don't write any "undo" code; you only have to tell the user what happened:
+
+```jsx file=LikeButton.jsx
+function LikeButton({ likes, onLike }) {
+  const [optimisticLikes, addLike] = useOptimistic(likes, (n) => n + 1);
+  const [error, setError] = useState(null);
+
+  function like() {
+    startTransition(async () => {
+      addLike();
+      try {
+        await onLike();          // the parent updates `likes` on success
+      } catch {
+        setError("Couldn't save your like.");  // the count falls back by itself
+      }
+    });
+  }
+  return <button onClick={like}>♥ {optimisticLikes}</button>;
+}
+```
+
+</Concept>
+
+<HowItWorks title="Optimistic state lives only during an Action">
+
+`useOptimistic` keeps a list of pending optimistic updates. On each render it applies them, in order, on top of the latest real `value`. When the transition that added them finishes, React drops them. So the optimistic value can never get "stuck": it's always derived from the real state plus whatever is still in flight. That's also why `addOptimistic` must be called **inside** an Action (a transition or a form action); outside one, React warns and the update vanishes immediately.
+
+</HowItWorks>
+
+<Practice>
+
+<OrderLines
+  id="order-optimistic"
+  prompt="Order the steps of an optimistic like."
+  explain="The optimistic value shows first, then the request, then the real state updates and the optimistic layer is dropped."
+>
+
+```js
+// The user clicks Like
+// addOptimistic() runs inside the Action: the heart fills at once
+// The request is sent to the server
+// The server answers and the real likes state is updated
+// The Action ends; React drops the optimistic value and shows the real one
+```
+
+</OrderLines>
+
+<SortBuckets
+  id="buckets-optimistic"
+  prompt="Is an optimistic update a good idea here?"
+  buckets={["Good fit", "Better to wait"]}
+  items={[
+    ["Liking a product", 0],
+    ["Adding an item to the cart", 0],
+    ["Posting a comment", 0],
+    ["Charging the customer's card", 1],
+    ["Confirming an order is placed", 1],
+  ]}
+  explain="Optimistic UI suits cheap, likely-to-succeed, easy-to-correct actions. For money and confirmations, show a pending state and wait for the real answer."
+/>
+
+<TrueFalse
+  id="tf-optimistic"
+  statements={[
+    { text: "If the Action fails, you must manually undo the optimistic value.", answer: false, explain: "When the Action ends, the optimistic layer is dropped and the real state shows." },
+    { text: "`addOptimistic` must be called inside an Action.", answer: true, explain: "Inside a transition or a form action." },
+    { text: "`useOptimistic` replaces the real state.", answer: false, explain: "It layers a temporary value on top of the real state while an Action runs." },
+  ]}
+/>
+
+</Practice>
+
+<ReactExercise
+  id="optimistic-cart"
+  title="An optimistic Add to cart"
+  hints={[
+    "`const [optimisticCount, addOptimistic] = useOptimistic(count, (c) => c + 1);`",
+    "In the click handler: `startTransition(async () => { addOptimistic(); const next = await addToCart(); setCount(next); });`",
+    "Render `optimisticCount` in the badge instead of `count`.",
+  ]}
+>
+
+The server takes a moment to add to the cart, so the badge feels slow. Make it optimistic: the badge must go up **immediately** on click, and show the server's real count when it answers.
+
+```jsx starter file=/App.js
+import { useState } from "react";
+import { addToCart } from "./api";
+
+export default function App() {
+  const [count, setCount] = useState(0);
+
+  async function handleAdd() {
+    const next = await addToCart();
+    setCount(next);
+  }
+
+  return (
+    <>
+      <span aria-label="Items in cart">{count}</span>
+      <button onClick={handleAdd}>Add to cart</button>
+    </>
+  );
+}
+```
+
+```js starter file=/api.js
+let serverCount = 0;
+
+export function addToCart() {
+  return new Promise((resolve) => setTimeout(() => resolve(++serverCount), 200));
+}
+```
+
+```jsx tests file=/App.test.js
+import { act, fireEvent, render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import App from "./App";
+
+const wait = (ms) => act(async () => {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+});
+
+test("the badge goes up immediately, before the server answers", async () => {
+  render(<App />);
+  const before = Number(screen.getByLabelText("Items in cart").textContent);
+  fireEvent.click(screen.getByRole("button", { name: "Add to cart" }));
+  await wait(20);
+  expect(screen.getByLabelText("Items in cart")).toHaveTextContent(String(before + 1));
+  await wait(300);
+});
+
+test("after the server answers, the real count is shown", async () => {
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "Add to cart" }));
+  await wait(300);
+  const shown = Number(screen.getByLabelText("Items in cart").textContent);
+  expect(shown).toBeGreaterThan(0);
+});
+```
+
+```jsx solution file=/App.js
+import { startTransition, useOptimistic, useState } from "react";
+import { addToCart } from "./api";
+
+export default function App() {
+  const [count, setCount] = useState(0);
+  const [optimisticCount, addOptimistic] = useOptimistic(count, (c) => c + 1);
+
+  function handleAdd() {
+    startTransition(async () => {
+      addOptimistic();
+      const next = await addToCart();
+      setCount(next);
+    });
+  }
+
+  return (
+    <>
+      <span aria-label="Items in cart">{optimisticCount}</span>
+      <button onClick={handleAdd}>Add to cart</button>
+    </>
+  );
+}
+```
+
+</ReactExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "What does `useOptimistic` show while an Action is running?",
+      options: ["The real state only", "The real state with the optimistic updates applied on top", "A spinner", "Nothing"],
+      answer: 1,
+      explain: "`updateFn(current, input)` runs on top of the latest real value.",
+    },
+    {
+      q: "What happens to the optimistic value when the Action finishes?",
+      options: ["It becomes the real state", "It's dropped; the UI shows the real state", "It stays until the next click", "It's saved to the server"],
+      answer: 1,
+      explain: "If the Action updated the real state, the UI now shows that; if it failed, it falls back.",
+    },
+    {
+      q: "Which actions suit optimistic UI?",
+      options: ["Liking a post", "Adding to a cart", "Paying for an order", "Sending a chat message"],
+      answer: [0, 1, 3],
+      explain: "Payments should wait for the real confirmation.",
+    },
+  ]}
+/>

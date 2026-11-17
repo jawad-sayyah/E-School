@@ -1,0 +1,296 @@
+---
+id: use-action-state
+title: useActionState
+summary: Keep the result of a form Action (a success message or validation errors) in state, with a pending flag, using one hook.
+minutes: 16
+tags: [React 19, useActionState, form validation, server errors, pending state, previous state]
+---
+
+Most forms end with a **result**: "Order placed", "That coupon expired", or a list of field errors. `useActionState` wraps an Action and keeps its latest result as state, along with whether it's running.
+
+<Concept name="The hook" id="the-hook">
+
+```jsx file=Coupon.jsx
+const [state, formAction, isPending] = useActionState(action, initialState);
+```
+
+- `action(previousState, formData)` is your function. **Whatever it returns becomes the new `state`.**
+- `formAction` is what you pass to `<form action={formAction}>` (or call yourself inside a transition).
+- `isPending` is true while the action runs.
+
+<ReactPlayground height={400}>
+
+```jsx file=/App.js
+import { useActionState } from "react";
+import { checkCoupon } from "./api";
+
+async function applyCoupon(previousState, formData) {
+  const code = String(formData.get("code")).trim().toUpperCase();
+  if (!code) return { error: "Enter a code first." };
+  const discount = await checkCoupon(code);
+  if (!discount) return { error: `"${code}" isn't a valid code.`, tries: previousState.tries + 1 };
+  return { applied: code, discount, tries: previousState.tries };
+}
+
+export default function App() {
+  const [state, formAction, isPending] = useActionState(applyCoupon, { tries: 0 });
+
+  return (
+    <form action={formAction}>
+      <label>
+        Coupon <input name="code" placeholder="Try SAVE10" />
+      </label>
+      <button disabled={isPending}>{isPending ? "Checking…" : "Apply"}</button>
+      {state.error && <p className="error">{state.error}</p>}
+      {state.applied && <p className="ok">{state.applied}: {state.discount}% off!</p>}
+      {state.tries > 0 && <p className="hint">Failed attempts: {state.tries}</p>}
+    </form>
+  );
+}
+```
+
+```js file=/api.js
+const CODES = { SAVE10: 10, WELCOME: 15 };
+
+export function checkCoupon(code) {
+  return new Promise((resolve) => setTimeout(() => resolve(CODES[code] ?? 0), 600));
+}
+```
+
+```css file=/styles.css
+body { font-family: system-ui, sans-serif; padding: 16px; }
+input { padding: 6px; margin: 0 8px; }
+.error { color: #c0392b; } .ok { color: #1e7e34; font-weight: 600; } .hint { color: #888; font-size: 13px; }
+```
+
+</ReactPlayground>
+
+The action receives the **previous state** first, so it can build on it (here, counting failed attempts). Returning early with `{ error }` is the usual way to report validation problems.
+
+</Concept>
+
+<Concept name="Returning field errors" id="field-errors">
+
+For a bigger form, return an object of errors keyed by field, and show each next to its input:
+
+```jsx file=Checkout.jsx
+async function checkoutAction(prev, formData) {
+  const errors = {};
+  if (!formData.get("name")) errors.name = "Required";
+  if (!String(formData.get("email")).includes("@")) errors.email = "Enter a valid email";
+  if (Object.keys(errors).length) return { errors };
+
+  const orderId = await placeOrder(Object.fromEntries(formData));
+  return { orderId };
+}
+
+// …
+{state.errors?.email && <p id="email-error">{state.errors.email}</p>}
+```
+
+One catch: React resets uncontrolled fields after **every** action that finishes, including one that returns errors, so the user would have to retype everything. Return the submitted values along with the errors and use them as each input's `defaultValue` (the reset restores inputs to their default), or keep the inputs that matter controlled.
+
+</Concept>
+
+<HowItWorks title="Queued submissions">
+
+If the user submits again while an action is still running, React **queues** the second call and runs it after the first, passing it the first call's result as `previousState`. Actions from one `useActionState` therefore never overlap or race, and the final state always reflects every submission in order. (For "ignore everything but the latest", disable the button while `isPending`.)
+
+</HowItWorks>
+
+<GoDeeper title="Server Functions">
+
+In frameworks that support React Server Components (like Next.js), `useActionState` really shines: the action can be a **Server Function** that runs on the server, and the form works even before JavaScript has loaded (progressive enhancement). The third argument, a permalink, tells the browser which page to show if the form is submitted before hydration. In a client-only app like this one, the hook works exactly the same, just with client functions.
+
+</GoDeeper>
+
+<Practice>
+
+<Predict
+  id="predict-action-state"
+  answer={["{ count: 1 }", "{ count: 3 }"]}
+  explain="Each call gets the previous result as its first argument. That's how `useActionState` chains submissions."
+>
+
+```js
+function addAction(prev, amount) {
+  return { count: prev.count + amount };
+}
+
+let state = { count: 0 };
+state = addAction(state, 1);
+console.log(state);
+state = addAction(state, 2);
+console.log(state);
+```
+
+</Predict>
+
+<MatchPairs
+  id="match-action-state"
+  prompt="Match each part of `const [state, formAction, isPending] = useActionState(fn, init)`."
+  columns={["Part", "Is"]}
+  pairs={[
+    ["`state`", "What `fn` returned last time (or `init` at first)"],
+    ["`formAction`", "What you pass to `<form action>`"],
+    ["`isPending`", "True while `fn` is running"],
+    ["`fn(prev, formData)`", "Your action: receives the previous state first"],
+  ]}
+/>
+
+<SpotTheBug
+  id="bug-action-args"
+  bug={1}
+  prompt="`formData.get` throws: `formData.get is not a function`. Click the buggy line."
+  explain="With `useActionState`, the action's first argument is the previous state; the FormData comes second. Write `async function signUp(prev, formData)`."
+>
+
+```jsx
+async function signUp(formData) {
+  const email = formData.get("email");
+  if (!email) return { error: "Email is required" };
+  await createAccount(email);
+  return { ok: true };
+}
+
+const [state, formAction] = useActionState(signUp, {});
+```
+
+</SpotTheBug>
+
+</Practice>
+
+<ReactExercise
+  id="action-state-coupon"
+  title="Validate a gift card with useActionState"
+  hints={[
+    "Write `async function redeem(prev, formData)` that reads `formData.get(\"code\")`.",
+    "Return `{ error: \"Enter a code.\" }` for an empty code; otherwise `const amount = await checkGiftCard(code);` and return `{ error: \"Unknown card.\" }` or `{ balance: amount }`.",
+    "In the component: `const [state, formAction, isPending] = useActionState(redeem, {});` and `<form action={formAction}>`.",
+  ]}
+>
+
+Use `useActionState` for the gift card form:
+
+- an empty code shows **Enter a code.** (without calling the API),
+- an unknown code shows **Unknown card.**,
+- a valid code shows **Balance: $25**,
+- while checking, the button says **Checking…** and is disabled.
+
+```jsx starter file=/App.js
+import { checkGiftCard } from "./api";
+
+export default function App() {
+  return (
+    <form>
+      <label>
+        Gift card <input name="code" />
+      </label>
+      <button>Redeem</button>
+    </form>
+  );
+}
+```
+
+```js starter file=/api.js
+const CARDS = { GIFT25: 25 };
+
+export function checkGiftCard(code) {
+  return new Promise((resolve) => setTimeout(() => resolve(CARDS[code] ?? 0), 150));
+}
+```
+
+```jsx tests file=/App.test.js
+import { act, fireEvent, render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import App from "./App";
+
+const wait = (ms) => act(async () => {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+});
+
+function redeem(code) {
+  render(<App />);
+  fireEvent.change(screen.getByLabelText("Gift card"), { target: { value: code } });
+  fireEvent.click(screen.getByRole("button"));
+}
+
+test("an empty code asks for one", async () => {
+  redeem("");
+  await wait(50);
+  expect(screen.getByText("Enter a code.")).toBeInTheDocument();
+});
+
+test("checking shows a pending button", async () => {
+  redeem("GIFT25");
+  await wait(30);
+  expect(screen.getByRole("button")).toHaveTextContent("Checking…");
+  expect(screen.getByRole("button")).toBeDisabled();
+  await wait(250);
+});
+
+test("an unknown code is rejected", async () => {
+  redeem("NOPE");
+  await wait(250);
+  expect(screen.getByText("Unknown card.")).toBeInTheDocument();
+});
+
+test("a valid code shows the balance", async () => {
+  redeem("GIFT25");
+  await wait(250);
+  expect(screen.getByText("Balance: $25")).toBeInTheDocument();
+});
+```
+
+```jsx solution file=/App.js
+import { useActionState } from "react";
+import { checkGiftCard } from "./api";
+
+async function redeem(prev, formData) {
+  const code = String(formData.get("code")).trim();
+  if (!code) return { error: "Enter a code." };
+  const amount = await checkGiftCard(code);
+  if (!amount) return { error: "Unknown card." };
+  return { balance: amount };
+}
+
+export default function App() {
+  const [state, formAction, isPending] = useActionState(redeem, {});
+
+  return (
+    <form action={formAction}>
+      <label>
+        Gift card <input name="code" />
+      </label>
+      <button disabled={isPending}>{isPending ? "Checking…" : "Redeem"}</button>
+      {state.error && <p>{state.error}</p>}
+      {state.balance && <p>Balance: ${state.balance}</p>}
+    </form>
+  );
+}
+```
+
+</ReactExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "What becomes the new `state` in `useActionState`?",
+      options: ["The FormData", "Whatever the action returns", "The initial state, always", "The event"],
+      answer: 1,
+      explain: "Return `{ error }`, `{ ok: true }`, or anything else you want to render.",
+    },
+    {
+      q: "What are the action's arguments?",
+      options: ["`(formData)`", "`(previousState, formData)`", "`(event, formData)`", "`(state, setState)`"],
+      answer: 1,
+      explain: "The previous state comes first.",
+    },
+    {
+      q: "The user submits twice quickly. What does React do?",
+      options: ["Runs both at once", "Queues them, running the second after the first with its result", "Ignores the second", "Throws an error"],
+      answer: 1,
+      explain: "Submissions through one `useActionState` run in order.",
+    },
+  ]}
+/>

@@ -1,0 +1,113 @@
+---
+id: review
+title: "Review: React 19"
+summary: Mixed questions on Actions, form actions, useFormStatus, useActionState, useOptimistic, use and the other React 19 upgrades.
+minutes: 15
+kind: review
+tags: [review, React 19, Actions, useActionState, useOptimistic, useFormStatus, use, metadata]
+---
+
+A quick check on everything new in React 19. The lesson names in brackets tell you where to look.
+
+<Practice title="What's new">
+
+<MatchPairs
+  id="match-review-19"
+  prompt="Match each API with what it's for."
+  columns={["API", "For"]}
+  pairs={[
+    ["`startTransition(async () => …)`", "An Action with a pending state"],
+    ["`<form action={fn}>`", "Submitting a form straight to a function with FormData"],
+    ["`useFormStatus()`", "A child of a form reading whether it's submitting"],
+    ["`useActionState(fn, init)`", "Keeping an Action's latest result as state"],
+    ["`useOptimistic(value, fn)`", "Showing the expected result before the server answers"],
+    ["`use(promise)`", "Reading async data during render, with Suspense"],
+    ["`<title>` in a component", "Setting document metadata"],
+  ]}
+/>
+
+<SpotTheBug
+  id="bug-review-19"
+  bug={[1, 9]}
+  prompt="This form has two React 19 mistakes. Click either one. (useActionState, useFormStatus)"
+  explain="Line 1: an action used with `useActionState` receives `(previousState, formData)`, so `formData` here is really the previous state. Line 9: `useFormStatus` is called in the component that renders the form, so it never sees it pending; move the button into a child component."
+>
+
+```jsx
+async function joinAction(formData) {
+  const email = formData.get("email");
+  if (!email) return { error: "Email required" };
+  await join(email);
+  return { joined: email };
+}
+
+function JoinForm() {
+  const { pending } = useFormStatus();
+  const [state, formAction] = useActionState(joinAction, {});
+  return (
+    <form action={formAction}>
+      <input name="email" />
+      <button disabled={pending}>Join</button>
+      {state.error && <p>{state.error}</p>}
+    </form>
+  );
+}
+```
+
+</SpotTheBug>
+
+<SortBuckets
+  id="buckets-review-19-pick"
+  prompt="Which tool fits? (all lessons)"
+  buckets={["useOptimistic", "useActionState", "use"]}
+  items={[
+    ["Show a new chat message instantly while it sends", 0],
+    ["Show \"Wrong password\" returned by a login action", 1],
+    ["Read a promise of reviews passed down by a loader", 2],
+    ["Fill the like heart before the server confirms", 0],
+    ["Show field errors from a sign-up action", 1],
+    ["Read a context after an early return", 2],
+  ]}
+  explain="Optimistic for instant feedback, useActionState for an action's result, `use` for promises and conditional context."
+/>
+
+<TrueFalse
+  id="tf-review-19"
+  statements={[
+    { text: "A form action receives the submit event and must call `preventDefault`.", answer: false, explain: "It receives a FormData; React handles the event. (Form actions)" },
+    { text: "Optimistic values are dropped automatically when the Action finishes.", answer: true, explain: "The UI then shows the real state. (useOptimistic)" },
+    { text: "The promise passed to `use` should be created during render.", answer: false, explain: "It would be a new promise every render. Create it outside render. (use)" },
+    { text: "React 19 lets a ref callback return a cleanup function.", answer: true, explain: "It runs when the element is removed. (Document metadata and more)" },
+  ]}
+/>
+
+</Practice>
+
+<Quiz
+  questions={[
+    {
+      q: "Which React 19 feature removes the need for a separate `isSubmitting` state in a form?",
+      options: ["`useFormStatus` or `useActionState`'s `isPending`", "`useRef`", "`useId`", "`memo`"],
+      answer: 0,
+      explain: "Both expose the pending state of the Action.",
+    },
+    {
+      q: "What does React do with uncontrolled inputs after a form action finishes?",
+      options: ["Keeps their values", "Resets them", "Disables them", "Converts them to controlled inputs"],
+      answer: 1,
+      explain: "Return the values with any errors if users need to keep them. (useActionState)",
+    },
+    {
+      q: "A rejected promise read with `use` shows…",
+      options: ["The Suspense fallback forever", "The nearest error boundary's fallback", "Nothing", "A browser alert"],
+      answer: 1,
+      explain: "Pending → Suspense; rejected → error boundary. (use)",
+    },
+    {
+      q: "Which are good candidates for optimistic UI?",
+      options: ["Adding to a cart", "Liking a product", "Paying for an order", "Posting a review"],
+      answer: [0, 1, 3],
+      explain: "Wait for the real answer when money is involved. (useOptimistic)",
+    },
+  ]}
+/>

@@ -1,0 +1,287 @@
+---
+id: actions
+title: Actions and async transitions
+summary: Run async work inside startTransition, get a pending state for free, handle errors, and see why React 19 calls these functions Actions.
+minutes: 16
+tags: [React 19, Actions, async transition, useTransition, isPending, startTransition, error handling]
+---
+
+Almost every app does this dance: the user clicks Save, you show "Saving…", call the server, then show the result or an error, and you make sure a double-click doesn't send twice. React 19 builds that into **Actions**: async functions run inside a transition.
+
+<Concept name="Before: managing pending state by hand" id="before">
+
+```jsx file=SaveName.jsx
+function SaveName() {
+  const [name, setName] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState(null);
+
+  async function handleSave() {
+    setIsSaving(true);
+    const err = await updateName(name);
+    setIsSaving(false);
+    if (err) setError(err);
+  }
+  // …
+}
+```
+
+Three pieces of state, and it's easy to forget to reset one (an early `return`, an exception…).
+
+</Concept>
+
+<Concept name="After: an async transition" id="after">
+
+In React 19, `startTransition` accepts an **async** function. Everything inside is an **Action**, and `isPending` is true from the moment it starts until it finishes, including the awaits.
+
+<ReactPlayground height={360}>
+
+```jsx file=/App.js
+import { useState, useTransition } from "react";
+import { updateName } from "./api";
+
+export default function App() {
+  const [name, setName] = useState("");
+  const [saved, setSaved] = useState("");
+  const [error, setError] = useState(null);
+  const [isPending, startTransition] = useTransition();
+
+  function handleSave() {
+    startTransition(async () => {
+      const err = await updateName(name);
+      if (err) {
+        setError(err);
+        return;
+      }
+      setError(null);
+      setSaved(name);
+    });
+  }
+
+  return (
+    <>
+      <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Name on the cup" />
+      <button onClick={handleSave} disabled={isPending}>
+        {isPending ? "Saving…" : "Save"}
+      </button>
+      {error && <p className="error">{error}</p>}
+      {saved && <p>Saved: {saved}</p>}
+    </>
+  );
+}
+```
+
+```js file=/api.js
+// A fake server: takes a second, rejects empty names
+export function updateName(name) {
+  return new Promise((resolve) =>
+    setTimeout(() => resolve(name.trim() ? null : "Please enter a name."), 1000),
+  );
+}
+```
+
+```css file=/styles.css
+body { font-family: system-ui, sans-serif; padding: 16px; }
+.error { color: #c0392b; }
+input { padding: 6px; margin-right: 8px; }
+```
+
+</ReactPlayground>
+
+- No `isSaving` state: `isPending` covers it, from the first line of the Action to the last.
+- The button is disabled while pending, so double-clicks can't send twice.
+- One caveat: state updates made **after an `await`** aren't automatically marked as part of the transition (a JavaScript limitation React plans to lift with AsyncContext). They still apply, and `isPending` still covers the whole function. If those later updates must be transitions too (for example, so they don't show a Suspense fallback), wrap them in another `startTransition`.
+
+</Concept>
+
+<Concept name="What counts as an Action" id="what-is-action">
+
+By convention, a function that starts a transition is called an Action, and props that accept one are named `action` or end in `Action` (`submitAction`, `onSaveAction`). React 19 builds several features on top of Actions:
+
+| Feature | What it adds |
+| --- | --- |
+| `<form action={fn}>` | the form calls `fn(formData)` as an Action on submit |
+| `useActionState` | the Action's result as state, plus `isPending` |
+| `useFormStatus` | the parent form's pending state, readable from a child |
+| `useOptimistic` | show the expected result instantly while the Action runs |
+
+The next lessons take them one at a time.
+
+</Concept>
+
+<HowItWorks title="Why a transition?">
+
+Transitions were built for non-urgent updates that React can render in the background (the Hooks course). An async request is the same idea stretched over time: the UI should stay responsive, show the old content (perhaps dimmed) until the new content is ready, and know when it's pending. Making the whole async function a transition gives all of that, plus **ordering**: when several Actions finish, React applies their updates in sequence, and `isPending` stays true until the last one is done.
+
+</HowItWorks>
+
+<Practice>
+
+<TrueFalse
+  id="tf-actions"
+  statements={[
+    { text: "In React 19, `startTransition` accepts an async function.", answer: true, explain: "That function is an Action, and `isPending` covers its whole duration." },
+    { text: "You still need your own `isSaving` state when using `useTransition` for a save.", answer: false, explain: "`isPending` is true until the Action finishes." },
+    { text: "Disabling the button while `isPending` prevents double submissions.", answer: true, explain: "A common, simple safeguard." },
+  ]}
+/>
+
+<OrderLines
+  id="order-action"
+  prompt="Order the lines of a save handler that uses an async transition."
+  explain="Start the transition with an async function, await the request, handle the error case first, then update the saved value."
+>
+
+```jsx
+function handleSave() {
+  startTransition(async () => {
+    const err = await updateName(name);
+    if (err) return setError(err);
+    setSaved(name);
+  });
+}
+```
+
+</OrderLines>
+
+<MatchPairs
+  id="match-action-features"
+  prompt="Match each React 19 feature with what it gives you."
+  columns={["Feature", "Gives you"]}
+  pairs={[
+    ["Async `startTransition`", "A pending state for the whole async function"],
+    ["`<form action={fn}>`", "Submit handling that calls `fn` with the FormData"],
+    ["`useActionState`", "The last result of an Action, as state"],
+    ["`useFormStatus`", "The pending state of the form a component is inside"],
+    ["`useOptimistic`", "A temporary value shown until the Action finishes"],
+  ]}
+/>
+
+</Practice>
+
+<ReactExercise
+  id="async-transition"
+  title="Save with an async transition"
+  hints={[
+    "Get `const [isPending, startTransition] = useTransition();` from React.",
+    "In `handleSave`, call `startTransition(async () => { await saveNote(note); setSaved(note); });`.",
+    "Use `isPending` for the button: `disabled={isPending}` and the label `isPending ? \"Saving…\" : \"Save\"`.",
+  ]}
+>
+
+Make **Save** use an async transition: while `saveNote` is running, the button must say **Saving…** and be disabled; when it finishes, show **Saved: …** with the note. Don't add any new `useState` for the pending state.
+
+```jsx starter file=/App.js
+import { useState } from "react";
+import { saveNote } from "./api";
+
+export default function App() {
+  const [note, setNote] = useState("");
+  const [saved, setSaved] = useState("");
+
+  async function handleSave() {
+    await saveNote(note);
+    setSaved(note);
+  }
+
+  return (
+    <>
+      <label>
+        Note <input value={note} onChange={(e) => setNote(e.target.value)} />
+      </label>
+      <button onClick={handleSave}>Save</button>
+      {saved && <p>Saved: {saved}</p>}
+    </>
+  );
+}
+```
+
+```js starter file=/api.js
+export function saveNote(note) {
+  return new Promise((resolve) => setTimeout(resolve, 200));
+}
+```
+
+```jsx tests file=/App.test.js
+import { act, fireEvent, render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import App from "./App";
+
+const wait = (ms) => act(async () => {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+});
+
+test("shows Saving… and disables the button while saving", async () => {
+  render(<App />);
+  fireEvent.change(screen.getByLabelText("Note"), { target: { value: "Oat milk" } });
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  await wait(50);
+  const button = screen.getByRole("button", { name: "Saving…" });
+  expect(button).toBeDisabled();
+  await wait(300);
+});
+
+test("shows the saved note when done", async () => {
+  render(<App />);
+  fireEvent.change(screen.getByLabelText("Note"), { target: { value: "Oat milk" } });
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  await wait(300);
+  expect(screen.getByText("Saved: Oat milk")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
+});
+```
+
+```jsx solution file=/App.js
+import { useState, useTransition } from "react";
+import { saveNote } from "./api";
+
+export default function App() {
+  const [note, setNote] = useState("");
+  const [saved, setSaved] = useState("");
+  const [isPending, startTransition] = useTransition();
+
+  function handleSave() {
+    startTransition(async () => {
+      await saveNote(note);
+      setSaved(note);
+    });
+  }
+
+  return (
+    <>
+      <label>
+        Note <input value={note} onChange={(e) => setNote(e.target.value)} />
+      </label>
+      <button onClick={handleSave} disabled={isPending}>
+        {isPending ? "Saving…" : "Save"}
+      </button>
+      {saved && <p>Saved: {saved}</p>}
+    </>
+  );
+}
+```
+
+</ReactExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "What is an Action in React 19?",
+      options: ["A Redux action object", "A function run inside a transition, often async", "A browser event", "A server endpoint"],
+      answer: 1,
+      explain: "React tracks its pending state and applies its updates as a transition.",
+    },
+    {
+      q: "When is `isPending` from `useTransition` true for an async Action?",
+      options: ["Only for the first line", "From the start of the Action until it finishes, including awaits", "Only while rendering", "Never for async functions"],
+      answer: 1,
+      explain: "That's what removes the need for a separate `isSaving` state.",
+    },
+    {
+      q: "Which React 19 features are built on Actions?",
+      options: ["`<form action>`", "`useActionState`", "`useOptimistic`", "`useRef`"],
+      answer: [0, 1, 2],
+      explain: "Refs have nothing to do with Actions.",
+    },
+  ]}
+/>

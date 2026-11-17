@@ -1,0 +1,245 @@
+---
+id: metadata-and-more
+title: Document metadata and other React 19 upgrades
+summary: Render title and meta tags from any component, load stylesheets and scripts with less code, preload resources, and use ref cleanups and the other quality-of-life changes in React 19.
+minutes: 15
+tags: [React 19, title, meta, document metadata, stylesheet precedence, preload, preinit, ref cleanup]
+---
+
+React 19 also brings a set of smaller upgrades that remove whole libraries and workarounds from typical apps.
+
+<Concept name="Title and meta tags from any component" id="metadata">
+
+Render `<title>`, `<meta>` and `<link>` anywhere in your tree; React **hoists** them into the document's `<head>`. The page that knows its product can set its own title, with no effect and no helper library.
+
+<ReactPlayground height={320}>
+
+```jsx file=/App.js
+import { useState } from "react";
+
+function ProductPage({ product }) {
+  return (
+    <article>
+      <title>{`${product.name} · MiniShop`}</title>
+      <meta name="description" content={`Order ${product.name} online for $${product.price}.`} />
+      <h2>{product.name}</h2>
+      <p>${product.price}</p>
+    </article>
+  );
+}
+
+const PRODUCTS = [
+  { id: 1, name: "Coffee", price: 4 },
+  { id: 2, name: "Tea", price: 2 },
+];
+
+export default function App() {
+  const [product, setProduct] = useState(PRODUCTS[0]);
+  return (
+    <>
+      {PRODUCTS.map((p) => (
+        <button key={p.id} onClick={() => setProduct(p)}>{p.name}</button>
+      ))}
+      <ProductPage product={product} />
+      <p className="hint">The preview's tab title is now: {product.name} · MiniShop</p>
+    </>
+  );
+}
+```
+
+</ReactPlayground>
+
+Pass `<title>` a **single string** (a template literal), not mixed text and expressions: `<title>{name} · Shop</title>` would give the title element several children, which React warns about.
+
+</Concept>
+
+<Concept name="Stylesheets, scripts and preloading" id="resources">
+
+- **Stylesheets:** `<link rel="stylesheet" href="/product.css" precedence="default" />` inside a component. React inserts it once, orders stylesheets by `precedence`, and waits for it to load before showing content that depends on it (with Suspense).
+- **Async scripts:** `<script async src="https://maps.example.com/sdk.js" />` anywhere; React de-duplicates it, even if many components render it.
+- **Resource hints** from `react-dom`: `preconnect(url)`, `prefetchDNS(url)`, `preload(url, { as })` and `preinit(url, { as })` tell the browser what it will need soon, so it can start early.
+
+```jsx file=Checkout.jsx
+import { preconnect, preinit } from "react-dom";
+
+function Checkout() {
+  preconnect("https://payments.example.com");
+  preinit("https://payments.example.com/widget.js", { as: "script" });
+  // …
+}
+```
+
+</Concept>
+
+<Concept name="Smaller upgrades you'll use" id="small-upgrades">
+
+| Before React 19 | React 19 |
+| --- | --- |
+| `forwardRef((props, ref) => …)` | `ref` is a regular prop of function components |
+| `<ThemeContext.Provider value={…}>` | `<ThemeContext value={…}>` |
+| ref callbacks called with `null` on unmount | ref callbacks can **return a cleanup function** |
+| vague hydration errors | one error with a diff of what didn't match |
+| custom elements with limited prop support | full support for custom elements (Web Components) |
+
+A ref callback with a cleanup looks like an effect:
+
+```jsx file=Video.jsx
+<video
+  ref={(node) => {
+    const observer = new IntersectionObserver(([e]) => (e.isIntersecting ? node.play() : node.pause()));
+    observer.observe(node);
+    return () => observer.disconnect(); // runs when the element is removed
+  }}
+/>
+```
+
+</Concept>
+
+<HowItWorks title="Why hoisting and de-duplication matter">
+
+Before React 19, a component couldn't put anything into `<head>` without a library (react-helmet) or an effect that wrote `document.title`, which flickered and didn't work for server rendering. Now the component that owns the data owns its metadata, and React makes sure it ends up in the right place, once, in the right order. It's the same idea as everything else in React: describe what you need, and React handles where and when.
+
+</HowItWorks>
+
+<Practice>
+
+<SortBuckets
+  id="buckets-react19-new"
+  prompt="Is this new in React 19, or did it already exist?"
+  buckets={["New in React 19", "Already existed"]}
+  items={[
+    ["`<title>` rendered from any component goes into `<head>`", 0],
+    ["`ref` as a prop for function components", 0],
+    ["Ref callbacks returning a cleanup", 0],
+    ["`<Context value>` as a provider", 0],
+    ["`useEffect`", 1],
+    ["`React.memo`", 1],
+    ["`<Suspense>` for lazy components", 1],
+  ]}
+  explain="React 19 added metadata hoisting, ref as a prop, ref cleanups, Context as a provider, Actions and the new hooks. Effects, memo and Suspense with lazy are older."
+/>
+
+<SpotTheBug
+  id="bug-title-children"
+  bug={3}
+  prompt="React warns that `<title>` received an array of children, and the tab title looks wrong. Click the buggy line."
+  explain="`{name} · MiniShop` gives `<title>` several children. Pass a single string instead, built with a template literal inside the braces."
+>
+
+```jsx
+function Page({ name }) {
+  return (
+    <>
+      <title>{name} · MiniShop</title>
+      <h1>{name}</h1>
+    </>
+  );
+}
+```
+
+</SpotTheBug>
+
+<MatchPairs
+  id="match-resource-apis"
+  prompt="Match each react-dom API with what it tells the browser."
+  columns={["API", "Tells the browser"]}
+  pairs={[
+    ["`prefetchDNS(url)`", "Look up this domain's address early"],
+    ["`preconnect(url)`", "Open a connection to this server early"],
+    ["`preload(url, { as })`", "Download this file early, I'll use it soon"],
+    ["`preinit(url, { as })`", "Download and run (or apply) this script or stylesheet now"],
+  ]}
+/>
+
+</Practice>
+
+<ReactExercise
+  id="page-metadata"
+  title="Give the product page its metadata"
+  hints={[
+    "Add a `<title>` element whose only child is one string, built with a template literal from `product.name`.",
+    "Add `<meta name=\"description\" content={product.summary} />`.",
+    "React moves both into the document's head for you; no effect needed.",
+  ]}
+>
+
+Make `ProductPage` set the browser tab's title to **Coffee · MiniShop** (for the current product) and a `<meta name="description">` with the product's summary, using React 19's metadata support.
+
+```jsx starter file=/ProductPage.js
+export default function ProductPage({ product }) {
+  return (
+    <article>
+      <h2>{product.name}</h2>
+      <p>{product.summary}</p>
+    </article>
+  );
+}
+```
+
+```jsx starter file=/App.js
+import ProductPage from "./ProductPage";
+
+const coffee = { name: "Coffee", summary: "Freshly roasted, brewed to order." };
+
+export default function App() {
+  return <ProductPage product={coffee} />;
+}
+```
+
+```jsx tests file=/ProductPage.test.js
+import { render } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import ProductPage from "./ProductPage";
+
+const tea = { name: "Tea", summary: "Loose-leaf, steeped just right." };
+
+test("sets the document title", () => {
+  render(<ProductPage product={tea} />);
+  expect(document.title).toBe("Tea · MiniShop");
+});
+
+test("adds a meta description to the head", () => {
+  render(<ProductPage product={tea} />);
+  const meta = document.head.querySelector('meta[name="description"]');
+  expect(meta).not.toBeNull();
+  expect(meta.getAttribute("content")).toBe("Loose-leaf, steeped just right.");
+});
+```
+
+```jsx solution file=/ProductPage.js
+export default function ProductPage({ product }) {
+  return (
+    <article>
+      <title>{`${product.name} · MiniShop`}</title>
+      <meta name="description" content={product.summary} />
+      <h2>{product.name}</h2>
+      <p>{product.summary}</p>
+    </article>
+  );
+}
+```
+
+</ReactExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "In React 19, what happens to a `<title>` rendered inside a component?",
+      options: ["It shows up as text in the page", "React moves it into the document's `<head>`", "It's ignored", "It throws an error"],
+      answer: 1,
+      explain: "`<title>`, `<meta>` and `<link>` are hoisted to the head.",
+    },
+    {
+      q: "What can a ref callback return in React 19?",
+      options: ["A new ref", "A cleanup function, called when the element is removed", "JSX", "A promise"],
+      answer: 1,
+      explain: "Like an effect's cleanup, but tied to the element.",
+    },
+    {
+      q: "Which are React 19 changes?",
+      options: ["`ref` as a regular prop", "`<Context value>` instead of `<Context.Provider>`", "Better hydration error messages", "Class components removed"],
+      answer: [0, 1, 2],
+      explain: "Class components still work.",
+    },
+  ]}
+/>

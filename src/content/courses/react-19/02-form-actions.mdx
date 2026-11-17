@@ -1,0 +1,298 @@
+---
+id: form-actions
+title: Form actions and useFormStatus
+summary: Pass a function to a form's action prop, read the fields from FormData, let React reset the form, and show a pending submit button with useFormStatus.
+minutes: 16
+tags: [React 19, form action, FormData, useFormStatus, requestFormReset, uncontrolled forms]
+---
+
+In React 19, a `<form>`'s `action` prop can be a **function**. When the form is submitted, React calls it with the form's data as a `FormData` object, runs it as an Action (so it can be async), and **resets the form** when it finishes. No `onSubmit`, no `preventDefault`, no state per field.
+
+<Concept name="A form with an action" id="form-action">
+
+<ReactPlayground height={380}>
+
+```jsx file=/App.js
+import { useState } from "react";
+import { subscribe } from "./api";
+
+export default function App() {
+  const [message, setMessage] = useState("");
+
+  async function subscribeAction(formData) {
+    const email = formData.get("email");
+    const weekly = formData.get("weekly") === "on";
+    await subscribe(email, weekly);
+    setMessage(`Subscribed ${email}${weekly ? " to the weekly deals" : ""}!`);
+  }
+
+  return (
+    <form action={subscribeAction}>
+      <label>
+        Email <input name="email" type="email" required />
+      </label>
+      <label className="row">
+        <input name="weekly" type="checkbox" /> Weekly deals
+      </label>
+      <button>Subscribe</button>
+      {message && <p>{message}</p>}
+    </form>
+  );
+}
+```
+
+```js file=/api.js
+export function subscribe(email, weekly) {
+  return new Promise((resolve) => setTimeout(resolve, 800));
+}
+```
+
+```css file=/styles.css
+body { font-family: system-ui, sans-serif; padding: 16px; }
+form { display: grid; gap: 8px; max-width: 280px; }
+label { display: grid; gap: 4px; } .row { display: flex; gap: 6px; }
+input { padding: 6px; }
+```
+
+</ReactPlayground>
+
+- Each input needs a **`name`**: that's the key in `FormData`. `formData.get("email")` reads it.
+- A checkbox's value is `"on"` when checked and missing (`null`) when not.
+- When the action finishes successfully, React **resets** the uncontrolled fields, ready for the next entry.
+- Browser validation (`required`, `type="email"`) still runs before your action.
+
+</Concept>
+
+<Concept name="useFormStatus: a submit button that knows" id="form-status">
+
+A reusable `SubmitButton` should show "Saving…" while its form submits. `useFormStatus()` (from `react-dom`) reads the status of the **form the component is inside**, with no props needed.
+
+```jsx file=SubmitButton.jsx
+import { useFormStatus } from "react-dom";
+
+export function SubmitButton({ children }) {
+  const { pending, data } = useFormStatus();
+  return (
+    <button type="submit" disabled={pending}>
+      {pending ? "Sending…" : children}
+    </button>
+  );
+}
+
+// any form can use it
+<form action={subscribeAction}>
+  <input name="email" />
+  <SubmitButton>Subscribe</SubmitButton>
+</form>
+```
+
+`useFormStatus` returns `{ pending, data, method, action }`; `data` is the `FormData` being submitted, handy for "Subscribing ada@example.com…".
+
+<Callout type="warn">
+`useFormStatus` only works in a component rendered **inside** a `<form>`. Called in the component that renders the form itself, it always reports `pending: false`. That's why the button is its own component.
+</Callout>
+</Concept>
+
+<HowItWorks title="Controlled or uncontrolled?">
+
+Form actions favor **uncontrolled** inputs: the DOM holds the values, and you read them all at once from `FormData`. That's less code and works well for "fill in and submit" forms. You can still control an input when the UI must react while typing (a character counter, live validation); controlled and named inputs work together, since `FormData` reads whatever the input currently holds.
+
+Need to reset at a different time, or keep the values after submit? `requestFormReset(form)` from `react-dom` resets on demand, and a controlled input isn't reset automatically.
+
+</HowItWorks>
+
+<Practice>
+
+<FillBlanks
+  id="blanks-form-action"
+  prompt="Fill in the blanks to read the quantity from a form action."
+  explain="The input's `name` is the key, and the action receives a `FormData`."
+>
+
+```jsx
+async function orderAction(__[formData]__) {
+  const qty = Number(formData.__[get]__("qty"));
+  await placeOrder(qty);
+}
+
+<form action={orderAction}>
+  <input __[name]__="qty" type="number" />
+  <button>Order</button>
+</form>
+```
+
+</FillBlanks>
+
+<SpotTheBug
+  id="bug-form-status-place"
+  bug={2}
+  prompt="The button never shows Sending…. Click the line that explains why."
+  explain="`useFormStatus` is called in the component that renders the `<form>`, not inside it, so it never sees a pending submission. Move the button into its own component rendered inside the form."
+>
+
+```jsx
+function Newsletter() {
+  const { pending } = useFormStatus();
+  return (
+    <form action={subscribeAction}>
+      <input name="email" />
+      <button disabled={pending}>{pending ? "Sending…" : "Subscribe"}</button>
+    </form>
+  );
+}
+```
+
+</SpotTheBug>
+
+<TrueFalse
+  id="tf-form-actions"
+  statements={[
+    { text: "With `<form action={fn}>`, you must call `e.preventDefault()` yourself.", answer: false, explain: "React handles the submit event and calls your function with the FormData." },
+    { text: "Inputs need a `name` to appear in the FormData.", answer: true, explain: "Unnamed inputs aren't included." },
+    { text: "After a successful form action, React resets uncontrolled fields.", answer: true, explain: "Use `requestFormReset` for other timings." },
+  ]}
+/>
+
+</Practice>
+
+<ReactExercise
+  id="form-action-status"
+  title="A newsletter form with a pending button"
+  hints={[
+    "In `App`, write `async function subscribeAction(formData) { await subscribe(formData.get(\"email\")); setDone(formData.get(\"email\")); }` and pass it as `<form action={subscribeAction}>`.",
+    "Give the input `name=\"email\"`.",
+    "In `SubmitButton`, use `const { pending } = useFormStatus();` (from \"react-dom\") for `disabled` and the label.",
+  ]}
+>
+
+Wire up the form with React 19 features:
+
+- the form's `action` subscribes the email from `FormData`, then shows **Thanks, ada@example.com!**,
+- `SubmitButton` uses `useFormStatus` to show **Subscribing…** and be disabled while the form submits.
+
+```jsx starter file=/App.js
+import { useState } from "react";
+import { subscribe } from "./api";
+import SubmitButton from "./SubmitButton";
+
+export default function App() {
+  const [done, setDone] = useState("");
+
+  return (
+    <form>
+      <label>
+        Email <input type="email" />
+      </label>
+      <SubmitButton />
+      {done && <p>Thanks, {done}!</p>}
+    </form>
+  );
+}
+```
+
+```jsx starter file=/SubmitButton.js
+export default function SubmitButton() {
+  return <button type="submit">Subscribe</button>;
+}
+```
+
+```js starter file=/api.js
+export function subscribe(email) {
+  return new Promise((resolve) => setTimeout(resolve, 200));
+}
+```
+
+```jsx tests file=/App.test.js
+import { act, fireEvent, render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import App from "./App";
+
+const wait = (ms) => act(async () => {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+});
+
+function submit(email) {
+  render(<App />);
+  fireEvent.change(screen.getByLabelText("Email"), { target: { value: email } });
+  fireEvent.click(screen.getByRole("button"));
+}
+
+test("the button shows Subscribing… while pending", async () => {
+  submit("ada@example.com");
+  await wait(50);
+  expect(screen.getByRole("button")).toHaveTextContent("Subscribing…");
+  expect(screen.getByRole("button")).toBeDisabled();
+  await wait(300);
+});
+
+test("thanks the subscriber with the email from the form", async () => {
+  submit("ada@example.com");
+  await wait(300);
+  expect(screen.getByText("Thanks, ada@example.com!")).toBeInTheDocument();
+  expect(screen.getByRole("button")).toHaveTextContent("Subscribe");
+});
+```
+
+```jsx solution file=/App.js
+import { useState } from "react";
+import { subscribe } from "./api";
+import SubmitButton from "./SubmitButton";
+
+export default function App() {
+  const [done, setDone] = useState("");
+
+  async function subscribeAction(formData) {
+    const email = formData.get("email");
+    await subscribe(email);
+    setDone(email);
+  }
+
+  return (
+    <form action={subscribeAction}>
+      <label>
+        Email <input name="email" type="email" />
+      </label>
+      <SubmitButton />
+      {done && <p>Thanks, {done}!</p>}
+    </form>
+  );
+}
+```
+
+```jsx solution file=/SubmitButton.js
+import { useFormStatus } from "react-dom";
+
+export default function SubmitButton() {
+  const { pending } = useFormStatus();
+  return (
+    <button type="submit" disabled={pending}>
+      {pending ? "Subscribing…" : "Subscribe"}
+    </button>
+  );
+}
+```
+
+</ReactExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "What does React pass to a function given to `<form action={fn}>`?",
+      options: ["The submit event", "A `FormData` with the form's named fields", "An object of the input values", "Nothing"],
+      answer: 1,
+      explain: "Read fields with `formData.get(\"name\")`.",
+    },
+    {
+      q: "Where must a component that calls `useFormStatus` be rendered?",
+      options: ["Anywhere in the app", "Inside the `<form>` whose status it reads", "Above the form", "In a portal"],
+      answer: 1,
+      explain: "It reads the nearest parent form's status.",
+    },
+    {
+      q: "What happens to uncontrolled inputs after a form action succeeds?",
+      options: ["They keep their values", "React resets them", "They become controlled", "They're removed"],
+      answer: 1,
+      explain: "Ready for the next entry; `requestFormReset` gives you manual control.",
+    },
+  ]}
+/>
