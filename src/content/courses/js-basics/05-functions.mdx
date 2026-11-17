@@ -124,6 +124,133 @@ console.log(checkout(["Coffee"]));
 </Playground>
 </Concept>
 
+<GoDeeper title="Parameters vs arguments, and what happens when they don't match">
+
+**Parameters** are the names in the function definition; **arguments** are the values you pass when you call it. JavaScript never complains when the counts don't match:
+
+- Missing arguments become `undefined` (or the default value, if there is one).
+- Extra arguments are ignored (unless you collect them with `...rest`).
+
+<Playground file="arguments.js" expected={["Coffee undefined", "Coffee 2"]}>
+
+```js
+function show(name, qty) {
+  console.log(name, qty);
+}
+
+show("Coffee");              // qty is missing
+show("Coffee", 2, "extra");  // "extra" is ignored
+```
+
+</Playground>
+
+That's why a typo in a call rarely crashes right away; it gives you `undefined` somewhere later. TypeScript catches these mistakes for you.
+
+</GoDeeper>
+
+<Practice>
+
+<Predict
+  id="predict-functions"
+  answer={["11", "10", "hi", "undefined"]}
+  explain={"`price(10)` uses the default tax of 0.1: 10 + 1 = 11. With tax 0 you get 10. `log(\"hi\")` prints hi, but returns nothing, so the outer console.log prints `undefined`."}
+  hint="The last line prints twice: once inside `log`, once with what `log` returns."
+>
+
+```js
+function price(amount, tax = 0.1) {
+  return amount + amount * tax;
+}
+console.log(price(10));
+console.log(price(10, 0));
+
+const log = (x) => { console.log(x); };
+console.log(log("hi"));
+```
+
+</Predict>
+
+<MatchPairs
+  id="match-function-parts"
+  prompt="Match each piece of code with its name."
+  columns={["Code", "Name"]}
+  pairs={[
+    ["`function add(a, b) { }`", "Function declaration"],
+    ["`const add = (a, b) => a + b`", "Arrow function"],
+    ["`(qty = 1)`", "Default parameter"],
+    ["`(...prices)`", "Rest parameter"],
+    ["`add(2, 3)`", "Function call, with two arguments"],
+  ]}
+/>
+
+<CodeReview
+  id="review-checkout"
+  answer={1}
+  prompt="Which `checkout(cart)` would you approve in a code review?"
+  reasons={[
+    "It works, but the nested if/else makes you track three levels of braces to see what's returned when.",
+    "Early returns handle each problem first, so the happy path is the last, unindented line. Easy to read and extend.",
+    "It logs instead of returning, so the caller can't use the result (it always gets `undefined`).",
+  ]}
+>
+
+```js
+function checkout(cart) {
+  if (cart.length > 0) {
+    if (cart.every((i) => i.qty > 0)) {
+      return "OK";
+    } else {
+      return "Bad quantity";
+    }
+  } else {
+    return "Cart is empty";
+  }
+}
+```
+
+```js
+function checkout(cart) {
+  if (cart.length === 0) return "Cart is empty";
+  if (!cart.every((i) => i.qty > 0)) return "Bad quantity";
+  return "OK";
+}
+```
+
+```js
+function checkout(cart) {
+  if (cart.length === 0) console.log("Cart is empty");
+  else if (!cart.every((i) => i.qty > 0)) console.log("Bad quantity");
+  else console.log("OK");
+}
+```
+
+</CodeReview>
+
+<SpotTheBug
+  id="bug-arrow-return"
+  bug={2}
+  prompt="This prints `undefined` instead of 8. Click the buggy line."
+  explain="With curly braces, an arrow function needs `return`. Line 2 calculates `n * 2` and throws the result away."
+>
+
+```js
+const double = (n) => {
+  n * 2;
+};
+console.log(double(4));
+```
+
+```js fixed
+const double = (n) => {
+  return n * 2;
+};
+console.log(double(4));
+```
+
+</SpotTheBug>
+
+</Practice>
+
 <Exercise
   id="apply-discount"
   title="Apply a discount"

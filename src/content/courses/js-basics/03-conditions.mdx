@@ -127,6 +127,114 @@ Forget `break` and the code falls through into the next `case` too.
 </Callout>
 </Concept>
 
+<GoDeeper title="&& and || return values, not just true or false">
+
+`&&` and `||` don't turn their result into `true` or `false`. They return **one of the two values** you gave them:
+
+- `a && b`: if `a` is falsy, the result is `a` itself; otherwise it's `b`.
+- `a || b`: if `a` is truthy, the result is `a` itself; otherwise it's `b`.
+
+<Playground file="short-circuit.js" expected={["0", "Guest", "null", "Sara"]}>
+
+```js
+console.log(0 && "never");        // 0 is falsy: you get 0
+console.log("" || "Guest");       // "" is falsy: you get "Guest"
+const user = null;
+console.log(user && user.name);   // stops at null
+console.log({ name: "Sara" }.name || "Guest");
+```
+
+</Playground>
+
+This is also why they "short-circuit": once the answer is known, the right side never runs. In React, `{count > 0 && <Badge />}` works because of this, but watch out for `{count && <Badge />}`: when `count` is `0`, React renders the `0`.
+
+</GoDeeper>
+
+<Practice>
+
+<Predict
+  id="predict-conditions"
+  answer={["Sold out", "null", "none", "0"]}
+  explain={"The ternary picks \"Sold out\" because `qty > 0` is false. `user && user.name` stops at `null`. `||` replaces any falsy value, so `0 || \"none\"` is \"none\". `??` only replaces `null` and `undefined`, so `0 ?? \"none\"` keeps the 0."}
+  hint="Remember: `&&` and `||` return one of their two values, and `??` only cares about null and undefined."
+>
+
+```js
+const qty = 0;
+const user = null;
+
+console.log(qty > 0 ? "In stock" : "Sold out");
+console.log(user && user.name);
+console.log(qty || "none");
+console.log(qty ?? "none");
+```
+
+</Predict>
+
+<OrderLines
+  id="order-shipping"
+  prompt="Put the lines in order to build a function that labels a cart total."
+  explain="The empty case is checked first, then the free-shipping case; anything left falls through to the last `return`."
+>
+
+```js
+function shippingLabel(total) {
+  if (total === 0) {
+    return "Empty";
+  } else if (total >= 50) {
+    return "Free shipping";
+  }
+  return "Shipping: $4.99";
+}
+```
+
+</OrderLines>
+
+<SpotTheBug
+  id="bug-switch"
+  bug={4}
+  prompt={"This prints both \"Adding\" and \"Removing\". Click the line after which a `break` is missing."}
+  explain="Without `break`, the `add` case falls through into the `remove` case and runs its code too."
+  hint={"Follow the code from `case \"add\":` downwards: where does it stop?"}
+>
+
+```js
+const action = "add";
+switch (action) {
+  case "add":
+    console.log("Adding");
+  case "remove":
+    console.log("Removing");
+    break;
+}
+```
+
+```js fixed
+const action = "add";
+switch (action) {
+  case "add":
+    console.log("Adding");
+    break;
+  case "remove":
+    console.log("Removing");
+    break;
+}
+```
+
+</SpotTheBug>
+
+<TrueFalse
+  id="tf-conditions"
+  statements={[
+    { text: "`if (\"0\")` runs its block.", answer: true, explain: "\"0\" is a non-empty string, so it's truthy." },
+    { text: "`a && b` always gives `true` or `false`.", answer: false, explain: "It gives back one of its two values: `a` if `a` is falsy, otherwise `b`." },
+    { text: "An `else if` is only checked when the conditions above it were false.", answer: true, explain: "The first true condition wins and the rest are skipped." },
+    { text: "Every `switch` needs a `default` case.", answer: false, explain: "`default` is optional; it runs when no case matches." },
+  ]}
+/>
+
+</Practice>
+
 <Exercise
   id="shipping-cost"
   title="Shipping cost"

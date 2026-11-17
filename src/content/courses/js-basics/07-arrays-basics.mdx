@@ -154,6 +154,85 @@ console.log(second);
 </Playground>
 </Concept>
 
+<HowItWorks title="Same array or a new one?">
+
+A variable holding an array doesn't contain the array: it **points at** it. Two names can point at the same array, and then a change through one name shows up through the other. Watch the memory column:
+
+</HowItWorks>
+
+<CodeTrace
+  file="same-or-new.js"
+  frames={[
+    { line: 1, vars: { cart: "#a" }, heap: { "#a": "[ 'Coffee' ]" }, note: "`cart` points at a new array in memory, labeled #a." },
+    { line: 2, vars: { cart: "#a", same: "#a" }, heap: { "#a": "[ 'Coffee' ]" }, note: "`same = cart` copies the arrow, not the array: both point at #a." },
+    { line: 3, vars: { cart: "#a", same: "#a" }, heap: { "#a": "[ 'Coffee', 'Tea' ]" }, note: "`push` changes #a itself, so `cart` sees the change too." },
+    { line: 4, vars: { cart: "#a", same: "#a", copy: "#b" }, heap: { "#a": "[ 'Coffee', 'Tea' ]", "#b": "[ 'Coffee', 'Tea', 'Bagel' ]" }, note: "Spread builds a brand-new array, #b. #a is untouched." },
+    { line: 5, vars: { cart: "#a", same: "#a", copy: "#b" }, heap: { "#a": "[ 'Coffee', 'Tea' ]", "#b": "[ 'Coffee', 'Tea', 'Bagel' ]" }, out: "2 3", note: "`cart` has 2 items and `copy` has 3." },
+  ]}
+>
+
+```js
+const cart = ["Coffee"];
+const same = cart;
+same.push("Tea");
+const copy = [...cart, "Bagel"];
+console.log(cart.length, copy.length);
+```
+
+</CodeTrace>
+
+<Practice>
+
+<SortBuckets
+  id="buckets-mutate"
+  prompt="Sort each operation: does it change the original array, or give you a new one?"
+  buckets={["Changes the original", "Returns a new array"]}
+  items={[
+    ["`cart.push(item)`", 0],
+    ["`cart.pop()`", 0],
+    ["`cart[0] = item`", 0],
+    ["`cart.map(fn)`", 1],
+    ["`cart.filter(fn)`", 1],
+    ["`[...cart, item]`", 1],
+  ]}
+  explain="In React, state must never be changed in place, so stick to `map`, `filter` and spread when you update an array."
+/>
+
+<Predict
+  id="predict-map-filter"
+  answer={["[ 8, 6, 10 ]", "[ 4, 3 ]", "[ 4, 3, 5 ]"]}
+  explain="`map` and `filter` both return new arrays, so `prices` is unchanged on the last line."
+>
+
+```js
+const prices = [4, 3, 5];
+const doubled = prices.map((p) => p * 2);
+const cheap = prices.filter((p) => p < 5);
+
+console.log(doubled);
+console.log(cheap);
+console.log(prices);
+```
+
+</Predict>
+
+<OrderLines
+  id="order-names"
+  prompt="Order the lines to print the item names in capitals."
+  explain="Each line uses the variable made by the line before it, so the order follows the data."
+>
+
+```js
+const cart = [{ name: "Coffee" }, { name: "Bagel" }];
+const names = cart.map((item) => item.name);
+const upper = names.map((n) => n.toUpperCase());
+console.log(upper);
+```
+
+</OrderLines>
+
+</Practice>
+
 <Exercise
   id="remove-item"
   title="Remove an item without mutating"

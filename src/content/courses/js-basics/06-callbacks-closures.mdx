@@ -107,6 +107,106 @@ Hooks rely on closures: your event handlers "see" the state values from the rend
 </Callout>
 </Concept>
 
+<GoDeeper title="Where does a closure keep its variables?">
+
+Every time a function runs, JavaScript creates a little box for its variables. Normally that box is thrown away when the function returns. But if an inner function still refers to those variables, the box is **kept alive** for as long as the inner function exists. That kept-alive box is the closure.
+
+<Playground file="private.js" expected={["1", "2", "undefined"]}>
+
+```js
+function makeCart() {
+  const items = [];             // lives in the closure
+  return {
+    add: (item) => items.push(item),
+    count: () => items.length,
+  };
+}
+
+const cart = makeCart();
+cart.add("Coffee");
+console.log(cart.count());
+cart.add("Tea");
+console.log(cart.count());
+console.log(cart.items);        // private: not reachable from outside
+```
+
+</Playground>
+
+Closures give you private state without classes. React hooks rely on the same mechanism: each render's event handlers close over that render's state.
+
+</GoDeeper>
+
+<Practice>
+
+<Predict
+  id="predict-counters"
+  answer={["3 1"]}
+  explain="`a` and `b` each have their own `count`. `a` was called twice before, so the third call gives 3; `b` is called for the first time, so it gives 1."
+  hint="Each call to `makeCounter()` creates a brand-new `count`."
+>
+
+```js
+function makeCounter() {
+  let count = 0;
+  return () => ++count;
+}
+
+const a = makeCounter();
+const b = makeCounter();
+a();
+a();
+console.log(a(), b());
+```
+
+</Predict>
+
+<Predict
+  id="predict-callback-order"
+  answer={["before", "inside", "after"]}
+  explain="`run` calls the callback in the middle of its own code, so its output lands between before and after."
+>
+
+```js
+function run(callback) {
+  console.log("before");
+  callback();
+  console.log("after");
+}
+
+run(() => console.log("inside"));
+```
+
+</Predict>
+
+<FillBlanks
+  id="blanks-closure"
+  prompt="Fill in the blanks so `tenOff(50)` prints 45."
+  explain="`makeDiscount` must `return` the inner function, and you call the function you stored in `tenOff`."
+>
+
+```js
+function makeDiscount(percent) {
+  __[return]__ (price) => price - (price * percent) / 100;
+}
+
+const tenOff = makeDiscount(10);
+console.log(__[tenOff]__(50));
+```
+
+</FillBlanks>
+
+<TrueFalse
+  id="tf-closures"
+  statements={[
+    { text: "A callback is a function passed to another function, to be called later.", answer: true, explain: "Click handlers and the functions you give to `map()` are callbacks." },
+    { text: "`onClick={save()}` passes the `save` function to React.", answer: false, explain: "It calls `save` right away and passes its result. Pass `save` or `() => save()` instead." },
+    { text: "Two counters made by the same `makeCounter()` share one count.", answer: false, explain: "Each call creates a new closure with its own variables." },
+    { text: "A closure can keep a variable alive after its function has returned.", answer: true, explain: "That's exactly what a closure is." },
+  ]}
+/>
+
+</Practice>
+
 <Exercise
   id="id-generator"
   title="An id generator"

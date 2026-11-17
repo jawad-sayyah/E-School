@@ -123,6 +123,87 @@ console.log("5" - 1);           // - always means math
 </Playground>
 </Concept>
 
+<GoDeeper title="Type coercion: why some operators convert and others don't">
+
+When an operator gets values of different types, JavaScript quietly converts one of them. This is called **coercion**:
+
+- `+` prefers **text**: if either side is a string, both become strings and get joined.
+- `-`, `*`, `/` and `%` only work on **numbers**, so they convert both sides to numbers.
+- `true` becomes `1`, `false` and `null` become `0`, and `undefined` becomes `NaN`.
+
+<Playground file="coercion.js" expected={["12 3 2 1", "NaN", "51"]}>
+
+```js
+console.log("6" * "2", "6" / 2, true + 1, null + 1);
+console.log(undefined + 1);
+console.log(5 + "1");
+```
+
+</Playground>
+
+Coercion is why `===` is safer than `==`: `===` never converts, so you always compare exactly what you have.
+
+</GoDeeper>
+
+<Practice>
+
+<Predict
+  id="predict-operators"
+  answer={["2", "345", "75", "8"]}
+  explain={"`10 % 4` is the remainder, 2. With `+`, JavaScript works left to right: `\"3\" + 4` is already text, so you get `\"345\"`. But `3 + 4` is 7 first, then `+ \"5\"` joins: `\"75\"`. `-` always means math, so `\"10\" - 2` is 8."}
+  hint="Work left to right, one `+` at a time, and keep track of whether you have a number or a string."
+>
+
+```js
+console.log(10 % 4);
+console.log("3" + 4 + 5);
+console.log(3 + 4 + "5");
+console.log("10" - 2);
+```
+
+</Predict>
+
+<SortBuckets
+  id="buckets-truthy"
+  prompt="Sort each value: does it count as true or false in an `if`?"
+  buckets={["Truthy", "Falsy"]}
+  items={[
+    ["`0`", 1],
+    ["`\"0\"`", 0],
+    ["`\"\"`", 1],
+    ["`[]`", 0],
+    ["`null`", 1],
+    ["`\"false\"`", 0],
+    ["`NaN`", 1],
+    ["`{}`", 0],
+  ]}
+  explain={"Only six values are falsy: `false`, `0`, `\"\"`, `null`, `undefined` and `NaN`. Everything else is truthy, including the text `\"0\"`, the text `\"false\"` and empty arrays and objects."}
+/>
+
+<MatchPairs
+  id="match-results"
+  prompt="Match each expression with its result."
+  columns={["Expression", "Result"]}
+  pairs={[
+    ["`7 % 2`", "`1`"],
+    ["`2 ** 3`", "`8`"],
+    ["`\"5\" * 2`", "`10`"],
+    ["`5 === \"5\"`", "`false`"],
+    ["`Number(\"abc\")`", "`NaN`"],
+  ]}
+/>
+
+<Choice
+  id="choice-true-comparisons"
+  q="Which of these comparisons are `true`?"
+  options={["`5 === 5`", "`\"5\" === 5`", "`\"5\" == 5`", "`null === undefined`", "`0 == \"\"`"]}
+  answer={[0, 2, 4]}
+  explain={"`===` never converts, so `\"5\" === 5` and `null === undefined` are false. `==` converts first, which makes `\"5\" == 5` and even `0 == \"\"` true. That's exactly why you should use `===`."}
+  hint="Look closely at which ones use `==` (converts) and which use `===` (doesn't)."
+/>
+
+</Practice>
+
 <Exercise
   id="line-total"
   title="Price from an input"

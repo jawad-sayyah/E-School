@@ -164,6 +164,100 @@ console.log(null ?? 1);
 </Playground>
 </Concept>
 
+<HowItWorks title="Copy by reference, in memory">
+
+Objects work like arrays: variables hold an arrow to the object, not the object itself. Compare `b = a` with `{ ...a }`:
+
+</HowItWorks>
+
+<CodeTrace
+  file="references.js"
+  frames={[
+    { line: 1, vars: { a: "#1" }, heap: { "#1": "{ qty: 1 }" }, note: "`a` points at a new object, #1." },
+    { line: 2, vars: { a: "#1", b: "#1" }, heap: { "#1": "{ qty: 1 }" }, note: "`b = a` copies the arrow: both point at #1." },
+    { line: 3, vars: { a: "#1", b: "#1" }, heap: { "#1": "{ qty: 5 }" }, note: "Changing `b.qty` changes #1, which `a` also points at." },
+    { line: 4, vars: { a: "#1", b: "#1", c: "#2" }, heap: { "#1": "{ qty: 5 }", "#2": "{ qty: 9 }" }, note: "Spread creates a new object, #2, copying the fields and then setting qty to 9." },
+    { line: 5, vars: { a: "#1", b: "#1", c: "#2" }, heap: { "#1": "{ qty: 5 }", "#2": "{ qty: 9 }" }, out: "5 9" },
+  ]}
+>
+
+```js
+const a = { qty: 1 };
+const b = a;
+b.qty = 5;
+const c = { ...a, qty: 9 };
+console.log(a.qty, c.qty);
+```
+
+</CodeTrace>
+
+<Practice>
+
+<Predict
+  id="predict-objects"
+  answer={["Coffee 1", "4 5", "regular"]}
+  explain={"`qty` isn't in `item`, so the default 1 is used. The spread made a new object, so `item.price` is still 4. `item.size` is undefined, so `?.` gives undefined and `??` falls back to \"regular\"."}
+>
+
+```js
+const item = { name: "Coffee", price: 4 };
+const { name, qty = 1 } = item;
+const updated = { ...item, price: 5 };
+
+console.log(name, qty);
+console.log(item.price, updated.price);
+console.log(item.size?.label ?? "regular");
+```
+
+</Predict>
+
+<FillBlanks
+  id="blanks-safe-read"
+  prompt="Fill in the blanks: pull out `name`, and read the city safely with a fallback."
+  explain="Destructuring pulls out `name`. `?.` stops at the null address instead of crashing, and `??` supplies the fallback."
+>
+
+```js
+const user = { name: "Sara", address: null };
+const { __[name]__ } = user;
+const city = user.address__[?.]__city __[??]__ "Unknown";
+console.log(name, city);
+```
+
+</FillBlanks>
+
+<SpotTheBug
+  id="bug-mutate-object"
+  bug={2}
+  prompt="After this runs, the original `coffee` is called Tea. Click the line that causes it."
+  explain="Line 2 changes the object that was passed in. Return a new object instead: `return { ...item, name };`."
+>
+
+```js
+function rename(item, name) {
+  item.name = name;
+  return item;
+}
+
+const coffee = { name: "Coffee" };
+const tea = rename(coffee, "Tea");
+console.log(coffee.name);
+```
+
+```js fixed
+function rename(item, name) {
+  return { ...item, name };
+}
+
+const coffee = { name: "Coffee" };
+const tea = rename(coffee, "Tea");
+console.log(coffee.name);
+```
+
+</SpotTheBug>
+
+</Practice>
+
 <Exercise
   id="update-qty"
   title="Update a quantity without mutating"

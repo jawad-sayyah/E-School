@@ -107,6 +107,93 @@ for (const item of cart) {
 </Playground>
 </Concept>
 
+<HowItWorks title="Watch a loop add up">
+
+Each time round the loop, `q` gets the next value and `count` grows. Step through it:
+
+</HowItWorks>
+
+<CodeTrace
+  file="count.js"
+  frames={[
+    { line: 1, vars: { qtys: "[ 2, 3, 1 ]" }, note: "Three quantities to add up." },
+    { line: 2, vars: { qtys: "[ 2, 3, 1 ]", count: "0" }, note: "Start the total at 0, before the loop." },
+    { line: 3, vars: { qtys: "[ 2, 3, 1 ]", count: "0", q: "2" }, note: "First time round: `q` is the first item, 2." },
+    { line: 4, vars: { qtys: "[ 2, 3, 1 ]", count: "2", q: "2" }, note: "`count += q` makes count 0 + 2 = 2." },
+    { line: 3, vars: { qtys: "[ 2, 3, 1 ]", count: "2", q: "3" }, note: "Second time round: `q` is 3." },
+    { line: 4, vars: { qtys: "[ 2, 3, 1 ]", count: "5", q: "3" }, note: "count becomes 2 + 3 = 5." },
+    { line: 3, vars: { qtys: "[ 2, 3, 1 ]", count: "5", q: "1" }, note: "Last time round: `q` is 1." },
+    { line: 4, vars: { qtys: "[ 2, 3, 1 ]", count: "6", q: "1" }, note: "count becomes 5 + 1 = 6. No items are left, so the loop ends." },
+    { line: 6, vars: { qtys: "[ 2, 3, 1 ]", count: "6" }, out: "6", note: "After the loop, `q` is gone (it only lived inside the loop), and we print 6." },
+  ]}
+>
+
+```js
+const qtys = [2, 3, 1];
+let count = 0;
+for (const q of qtys) {
+  count += q;
+}
+console.log(count);
+```
+
+</CodeTrace>
+
+<Practice>
+
+<Predict
+  id="predict-countdown"
+  answer={["3", "2", "1", "Liftoff!"]}
+  explain="`i` starts at 3, goes down by one each time (`i--`), and the loop stops when `i > 0` is false. The last line runs after the loop."
+>
+
+```js
+for (let i = 3; i > 0; i--) {
+  console.log(i);
+}
+console.log("Liftoff!");
+```
+
+</Predict>
+
+<FillBlanks
+  id="blanks-for-of"
+  prompt="Fill in the blanks to print every item in the cart."
+  explain="`for (const item of cart)` gives you each value in turn."
+>
+
+```js
+const cart = ["Coffee", "Bagel"];
+__[for]__ (const item __[of]__ cart) {
+  console.log(item);
+}
+```
+
+</FillBlanks>
+
+<TraceState
+  id="trace-stock"
+  track="the value of `stock`"
+  steps={[
+    { action: "Before the loop starts", answer: "3" },
+    { action: "After the 1st time through the loop", answer: "1" },
+    { action: "After the 2nd time through the loop", answer: "-1" },
+  ]}
+  explain="After the 2nd time through, `stock` is -1, so `stock > 0` is false and the loop stops. Loops can overshoot: it went past 0."
+  hint="Each time through, `stock` goes down by 2."
+>
+
+```js
+let stock = 3;
+while (stock > 0) {
+  stock -= 2;
+}
+```
+
+</TraceState>
+
+</Practice>
+
 <Exercise
   id="count-items"
   title="Count the items"

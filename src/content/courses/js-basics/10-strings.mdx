@@ -139,6 +139,90 @@ console.log(typeof price.toFixed(2));
 </Playground>
 </Concept>
 
+<GoDeeper title="Strings never change">
+
+Strings are **immutable**: no method changes the string you call it on. `trim()`, `toUpperCase()`, `replace()` and the rest all return a new string, so you have to store or use the result.
+
+<Playground file="immutable.js" expected={["  Tea ", "TEA"]}>
+
+```js
+const drink = "  Tea ";
+drink.trim();                    // result thrown away
+drink.toUpperCase();             // result thrown away
+console.log(drink);              // unchanged
+
+const clean = drink.trim().toUpperCase();
+console.log(clean);
+```
+
+</Playground>
+
+Methods can be chained like this because each one returns a new string that the next one works on.
+
+</GoDeeper>
+
+<Practice>
+
+<Predict
+  id="predict-strings"
+  answer={["iced coffee", "true", "[ 'iced', 'coffee' ]", "hot coffee"]}
+  explain={"`trim()` drops the outer spaces and `toLowerCase()` lowercases everything. `split(\" \")` breaks at the space, and `replace` swaps the first match."}
+>
+
+```js
+const input = "  Iced Coffee ";
+const clean = input.trim().toLowerCase();
+
+console.log(clean);
+console.log(clean.includes("coffee"));
+console.log(clean.split(" "));
+console.log(clean.replace("iced", "hot"));
+```
+
+</Predict>
+
+<MatchPairs
+  id="match-string-methods"
+  prompt="Match each method with what it does."
+  columns={["Method", "Does"]}
+  pairs={[
+    ["`trim()`", "Removes spaces at both ends"],
+    ["`toUpperCase()`", "Turns every letter into a capital"],
+    ["`split(\",\")`", "Breaks the text into an array"],
+    ["`slice(0, 5)`", "Copies part of the text by position"],
+    ["`replaceAll(\" \", \"-\")`", "Swaps every match"],
+    ["`toFixed(2)`", "Formats a number with 2 decimals"],
+  ]}
+/>
+
+<OrderLines
+  id="order-slug"
+  prompt="Order the lines to turn a product name into a URL slug: `iced-coffee`."
+  explain="Clean up first (trim), then lowercase, then swap the spaces, and finally print."
+>
+
+```js
+const name = "  Iced Coffee  ";
+const trimmed = name.trim();
+const lower = trimmed.toLowerCase();
+const slug = lower.replaceAll(" ", "-");
+console.log(slug);
+```
+
+</OrderLines>
+
+<TrueFalse
+  id="tf-strings"
+  statements={[
+    { text: "`name.toUpperCase()` changes the string stored in `name`.", answer: false, explain: "Strings never change; it returns a new string." },
+    { text: "`\"Tea\".length` is 3.", answer: true, explain: "length counts characters." },
+    { text: "`(4.5).toFixed(2)` returns the number 4.5.", answer: false, explain: "It returns the string \"4.50\"." },
+    { text: "`\"a-b-c\".split(\"-\")` gives an array of 3 strings.", answer: true, explain: "It gives `[ 'a', 'b', 'c' ]`." },
+  ]}
+/>
+
+</Practice>
+
 <Exercise
   id="format-price"
   title="Format a price"

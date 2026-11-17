@@ -129,6 +129,75 @@ console.log(cart.join("-"));
 </Playground>
 </Concept>
 
+<HowItWorks title="reduce, one step at a time">
+
+`reduce` calls your function once per item. Whatever you return becomes `sum` for the next call. Step through it:
+
+</HowItWorks>
+
+<CodeTrace
+  file="reduce.js"
+  frames={[
+    { line: 1, vars: { prices: "[ 4, 3, 5 ]" }, note: "Three prices to add up." },
+    { line: 2, vars: { prices: "[ 4, 3, 5 ]", sum: "0", p: "4" }, note: "First call: `sum` is the starting value 0, `p` is 4. It returns 0 + 4 = 4." },
+    { line: 2, vars: { prices: "[ 4, 3, 5 ]", sum: "4", p: "3" }, note: "Second call: `sum` is what the last call returned (4), `p` is 3. Returns 7." },
+    { line: 2, vars: { prices: "[ 4, 3, 5 ]", sum: "7", p: "5" }, note: "Third call: `sum` is 7, `p` is 5. Returns 12." },
+    { line: 2, vars: { prices: "[ 4, 3, 5 ]", total: "12" }, note: "No items left: the last return value, 12, becomes `total`." },
+    { line: 3, vars: { prices: "[ 4, 3, 5 ]", total: "12" }, out: "12" },
+  ]}
+>
+
+```js
+const prices = [4, 3, 5];
+const total = prices.reduce((sum, p) => sum + p, 0);
+console.log(total);
+```
+
+</CodeTrace>
+
+<Practice>
+
+<MatchPairs
+  id="match-array-methods"
+  prompt="Match each method with what it gives back."
+  columns={["Method", "Gives back"]}
+  pairs={[
+    ["`find()`", "The first matching item, or `undefined`"],
+    ["`filter()`", "A new array of every matching item"],
+    ["`some()`", "`true` if at least one item matches"],
+    ["`every()`", "`true` if all items match"],
+    ["`includes()`", "`true` if the value is in the array"],
+    ["`reduce()`", "One value combined from all items"],
+  ]}
+/>
+
+<Predict
+  id="predict-array-methods"
+  answer={["[ 1, 5 ]", "10", "true true", "10 + 1 + 5"]}
+  explain="`slice(1)` copies from index 1 to the end. `find` returns the first match (10). Some numbers are over 9, and all are over 0. `join` glues the items with the separator."
+>
+
+```js
+const nums = [10, 1, 5];
+
+console.log(nums.slice(1));
+console.log(nums.find((n) => n > 3));
+console.log(nums.some((n) => n > 9), nums.every((n) => n > 0));
+console.log(nums.join(" + "));
+```
+
+</Predict>
+
+<Choice
+  id="choice-new-array"
+  q="Which of these return a brand-new array?"
+  options={["`map()`", "`filter()`", "`find()`", "`slice()`", "`includes()`"]}
+  answer={[0, 1, 3]}
+  explain="`find` returns a single item (or undefined) and `includes` returns true or false. `map`, `filter` and `slice` all give you a new array."
+/>
+
+</Practice>
+
 <Exercise
   id="get-total"
   title="The cart total"
