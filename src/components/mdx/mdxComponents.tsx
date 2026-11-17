@@ -3,6 +3,8 @@ import { InlineCode } from '@/components/InlineCode';
 import { slugify } from '@/lib/slug';
 import { cn } from '@/lib/utils';
 import { BossChallenge } from './BossChallenge';
+import { BuildUI, ReactExercise } from './ReactExercise';
+import { ReactPlayground } from './ReactPlayground';
 import { Callout } from './Callout';
 import { MdxLink } from './MdxLink';
 import { CodeBlock } from './CodeBlock';
@@ -14,6 +16,7 @@ import { Quiz } from './Quiz';
 import { GoDeeper, HowItWorks } from '@/components/depth/GoDeeper';
 import { CodeTrace } from '@/components/visualizers/CodeTrace';
 import { EventLoop } from '@/components/visualizers/EventLoop';
+import { RenderCycle } from '@/components/visualizers/RenderCycle';
 import { Choice } from '@/components/questions/Choice';
 import { CodeReview } from '@/components/questions/CodeReview';
 import { FillBlanks } from '@/components/questions/FillBlanks';
@@ -132,7 +135,11 @@ export const mdxComponents: MDXComponents = {
   GoDeeper,
   CodeTrace,
   EventLoop,
+  RenderCycle,
   BossChallenge,
+  ReactPlayground,
+  ReactExercise,
+  BuildUI,
   // question types
   Practice,
   Choice,

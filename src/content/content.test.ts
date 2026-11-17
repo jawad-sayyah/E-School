@@ -156,6 +156,7 @@ function kindOf(node: Node): string {
   const kind = COMPONENT_KINDS[node.name ?? ''];
   if (kind === 'quiz') return 'choice';
   if (kind === 'write-code' && attr(node, 'variant') === 'fix') return 'fix-bug';
+  if (kind === 'write-code' && attr(node, 'variant') === 'build') return 'build-ui';
   return kind;
 }
 
