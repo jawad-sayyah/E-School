@@ -1,0 +1,242 @@
+---
+id: spread-rest
+title: Spread, rest & destructuring
+summary: Copy and update arrays and objects without changing the original, which is how React knows something changed.
+minutes: 14
+tags: [spread, rest, destructuring, copy, immutable, shallow copy, react state]
+---
+
+React decides whether to re-render by checking if your state is a **new** value. Change an array in place and React sees the same array, so nothing updates. Spread, rest and destructuring are how you make the new values.
+
+<Concept name="Why copies matter" id="why-copies" react>
+
+`===` on arrays and objects checks "is it the same thing?", so changing one in place still looks the same.
+
+<Playground file="why-copies.js" expected={["true", "false"]}>
+
+```js
+const cart = [{ name: "Coffee", qty: 1 }];
+
+const same = cart;
+same.push({ name: "Tea", qty: 1 });
+console.log(same === cart);   // true: React thinks nothing changed
+
+const copy = [...cart, { name: "Bagel", qty: 1 }];
+console.log(copy === cart);   // false: React re-renders
+```
+
+</Playground>
+</Concept>
+
+<Concept name="[...a, ...b]" id="merge-arrays" react>
+
+Spread joins arrays and adds items at either end, always into a new array.
+
+<Playground file="merge.js" expected={["[ 'Coffee', 'Tea', 'Bagel' ]", "[ 'Water', 'Coffee', 'Tea' ]"]}>
+
+```js
+const drinks = ["Coffee", "Tea"];
+const food = ["Bagel"];
+
+console.log([...drinks, ...food]);
+console.log(["Water", ...drinks]);
+```
+
+</Playground>
+</Concept>
+
+<Concept name="{ ...obj, key }" id="spread-order" react>
+
+With object spread, later keys win, so put the spread first and your changes after it.
+
+<Playground file="order.js" expected={["{ name: 'Coffee', qty: 5 }", "{ qty: 1, name: 'Coffee' }"]}>
+
+```js
+const item = { name: "Coffee", qty: 1 };
+
+console.log({ ...item, qty: 5 });   // qty 5 wins
+console.log({ qty: 5, ...item });   // the spread overwrites qty
+```
+
+</Playground>
+</Concept>
+
+<Concept name="Spread is shallow" id="shallow-copy" warn react>
+
+Spread copies one level deep, so nested objects are still shared. Spread every level you change.
+
+<Playground file="shallow.js" expected={["Irbid", "Irbid Aqaba"]}>
+
+```js
+const user = { name: "Sara", address: { city: "Amman" } };
+
+const copy = { ...user };
+copy.address.city = "Irbid";
+console.log(user.address.city);   // the original changed too!
+
+const fixed = { ...user, address: { ...user.address, city: "Aqaba" } };
+console.log(user.address.city, fixed.address.city);
+```
+
+</Playground>
+</Concept>
+
+<Concept name="Update one item in a list" id="update-in-list" react>
+
+`map` plus spread replaces just the item you change and keeps every other item as it is.
+
+<Playground file="update.js" expected={["{ id: 2, name: 'Bagel', qty: 3 }", "2"]}>
+
+```js
+const cart = [
+  { id: 1, name: "Coffee", qty: 1 },
+  { id: 2, name: "Bagel", qty: 2 },
+];
+
+const next = cart.map(item =>
+  item.id === 2 ? { ...item, qty: item.qty + 1 } : item
+);
+
+console.log(next[1]);
+console.log(cart[1].qty);   // the original is untouched
+```
+
+</Playground>
+</Concept>
+
+<Concept name="...rest in destructuring" id="rest-destructuring">
+
+`...rest` collects whatever you didn't pull out, from an object or an array.
+
+<Playground file="rest.js" expected={["1 { name: 'Coffee', price: 4 }", "Coffee [ 'Tea', 'Bagel' ]"]}>
+
+```js
+const item = { id: 1, name: "Coffee", price: 4 };
+const { id, ...details } = item;
+console.log(id, details);
+
+const [first, ...others] = ["Coffee", "Tea", "Bagel"];
+console.log(first, others);
+```
+
+</Playground>
+</Concept>
+
+<Concept name="Defaults & renaming" id="destructuring-defaults" react>
+
+Destructuring can give a default when a value is missing and rename a property as you pull it out. React props use both.
+
+<Playground file="defaults.js" expected={["Cart 0 Cart"]}>
+
+```js
+const props = { title: "Cart" };
+const { title, count = 0, title: heading } = props;
+
+console.log(title, count, heading);
+```
+
+</Playground>
+</Concept>
+
+<Exercise
+  id="add-to-cart"
+  title="Add to cart, the React way"
+  hints={[
+    "First check whether the product is already in the cart: `cart.some(item => item.id === product.id)`.",
+    "If it is, `map` over the cart and return `{ ...item, qty: item.qty + 1 }` for that item only.",
+    "If it isn't, return `[...cart, { ...product, qty: 1 }]`.",
+  ]}
+>
+
+Write `addToCart(cart, product)`. If the product is already in the cart, return a new cart where its `qty` is one higher. If not, return a new cart with the product added and `qty: 1`. Never change the cart or its items.
+
+```js starter
+function addToCart(cart, product) {
+  const existing = cart.find(item => item.id === product.id);
+  if (existing) {
+    existing.qty++;
+  } else {
+    cart.push({ ...product, qty: 1 });
+  }
+  return cart;
+}
+
+console.log(addToCart([], { id: 1, name: "Coffee", price: 4 }));
+```
+
+```js tests
+const coffee = { id: 1, name: "Coffee", price: 4 };
+const bagel = { id: 2, name: "Bagel", price: 3 };
+
+test("adds a new product with qty 1", () => {
+  expect(addToCart([], coffee)).toEqual([{ id: 1, name: "Coffee", price: 4, qty: 1 }]);
+});
+
+test("adds 1 to the qty of a product already in the cart", () => {
+  const cart = [{ ...coffee, qty: 2 }, { ...bagel, qty: 1 }];
+  expect(addToCart(cart, coffee)).toEqual([{ ...coffee, qty: 3 }, { ...bagel, qty: 1 }]);
+});
+
+test("returns a new array", () => {
+  const cart = [{ ...coffee, qty: 1 }];
+  expect(addToCart(cart, bagel)).not.toBe(cart);
+  expect(addToCart(cart, coffee)).not.toBe(cart);
+});
+
+test("never changes the old cart or its items", () => {
+  const item = { ...coffee, qty: 1 };
+  const cart = [item];
+  addToCart(cart, coffee);
+  addToCart(cart, bagel);
+  expect(cart).toHaveLength(1);
+  expect(item.qty).toBe(1);
+});
+```
+
+```js solution
+function addToCart(cart, product) {
+  const inCart = cart.some(item => item.id === product.id);
+  if (inCart) {
+    return cart.map(item =>
+      item.id === product.id ? { ...item, qty: item.qty + 1 } : item
+    );
+  }
+  return [...cart, { ...product, qty: 1 }];
+}
+
+console.log(addToCart([], { id: 1, name: "Coffee", price: 4 }));
+```
+
+</Exercise>
+
+<Quiz
+  questions={[
+    {
+      q: "Why doesn't React re-render after `cart.push(item); setCart(cart);`?",
+      options: ["`push` is too slow", "It's the same array, so React sees no change", "`setCart` only accepts objects", "React re-renders anyway"],
+      answer: 1,
+      explain: "React compares the old and new state with `===`. After `push`, it's still the same array, so React skips the update. Use `setCart([...cart, item])`.",
+    },
+    {
+      q: "What does this print?",
+      code: "const item = { qty: 1, name: \"Tea\" };\nconsole.log({ ...item, qty: 2 }.qty);",
+      options: ["`1`", "`2`", "`undefined`", "`[1, 2]`"],
+      answer: 1,
+      explain: "Keys written after the spread win, so `qty` is 2.",
+    },
+    {
+      q: "What does this print?",
+      code: "const a = { info: { qty: 1 } };\nconst b = { ...a };\nb.info.qty = 9;\nconsole.log(a.info.qty);",
+      options: ["`1`", "`9`", "`undefined`", "An error"],
+      answer: 1,
+      explain: "Spread is shallow: `a.info` and `b.info` are the same object. To change it safely, spread it too: `{ ...a, info: { ...a.info, qty: 9 } }`.",
+    },
+    {
+      q: "What is `rest` here?",
+      code: "const { id, ...rest } = { id: 1, name: \"Coffee\", price: 4 };",
+      options: ["`1`", "`[\"Coffee\", 4]`", "`{ name: \"Coffee\", price: 4 }`", "`undefined`"],
+      answer: 2,
+      explain: "Object rest collects the remaining properties into a new object.",
+    },
+  ]}
+/>

@@ -1,0 +1,243 @@
+---
+id: async-await
+title: async / await & fetch
+summary: Load data with fetch, wait for it with await, check res.ok, catch errors and run requests in parallel.
+minutes: 15
+tags: [async, await, fetch, res.ok, try, catch, Promise.all, loading, error, api]
+---
+
+Real apps load data from a server. `async` and `await` let you write that code top to bottom, like normal code, while the page stays responsive.
+
+<Callout type="tip">
+`fetch` is simulated here: `/api/cart`, `/api/products` and `/api/user` return sample data after about 250 ms, and any other URL gives a 404.
+</Callout>
+
+<Concept name="async functions return promises" id="async-returns-promise">
+
+An `async` function always returns a promise, even when you return a plain value.
+
+<Playground file="async-fn.js" expected={["true", "3"]}>
+
+```js
+async function getQty() {
+  return 3;
+}
+
+console.log(getQty() instanceof Promise);
+getQty().then(qty => console.log(qty));
+```
+
+</Playground>
+</Concept>
+
+<Concept name="await" id="await" react>
+
+`await` pauses the async function until the promise has a value. The rest of the page keeps running.
+
+<Playground file="await.js" expected={["[ { id: 1, name: 'Coffee', price: 4 } ]"]}>
+
+```js
+async function loadCart() {
+  const res = await fetch("/api/cart");
+  const data = await res.json();
+  console.log(data);
+}
+
+loadCart();
+```
+
+</Playground>
+</Concept>
+
+<Concept name="Who waits, who doesn't" id="await-order">
+
+Only the code inside the async function waits; the code that called it carries on.
+
+<Playground file="order.js" expected={["1. start", "2. loading…", "3. other code keeps running", "4. got 3 products"]}>
+
+```js
+async function load() {
+  console.log("2. loading…");
+  const res = await fetch("/api/products");
+  const products = await res.json();
+  console.log("4. got", products.length, "products");
+}
+
+console.log("1. start");
+load();
+console.log("3. other code keeps running");
+```
+
+</Playground>
+</Concept>
+
+<Concept name="res.ok" id="res-ok" react warn>
+
+`fetch` only fails on network errors; a 404 or 500 still "succeeds", so always check `res.ok`.
+
+<Playground file="res-ok.js" expected={["false 404", "{ error: 'Not found' }"]}>
+
+```js
+const res = await fetch("/api/missing");
+
+console.log(res.ok, res.status);
+console.log(await res.json());
+```
+
+</Playground>
+</Concept>
+
+<Concept name="try / catch with await" id="try-catch-await" react>
+
+Wrap awaits in `try`/`catch` to handle failures, like the network being down.
+
+<Playground
+  file="try-catch.js"
+  fetchMocks={{ "/api/cart": { networkError: true } }}
+  expected={["Could not load the cart: Failed to fetch", "[]"]}
+>
+
+```js
+async function loadCart() {
+  try {
+    const res = await fetch("/api/cart");   // fails in this example
+    return await res.json();
+  } catch (err) {
+    console.log("Could not load the cart:", err.message);
+    return [];
+  }
+}
+
+console.log(await loadCart());
+```
+
+</Playground>
+</Concept>
+
+<Concept name="Loading, success, error" id="loading-states" react>
+
+Every request has three states, and your UI should show each one. This is exactly the pattern you'll write in React.
+
+<Playground file="states.js" expected={["loading", "success 3"]}>
+
+```js
+let state = { status: "loading" };
+console.log(state.status);
+
+try {
+  const res = await fetch("/api/products");
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  state = { status: "success", data: await res.json() };
+} catch (err) {
+  state = { status: "error", message: err.message };
+}
+
+console.log(state.status, state.data.length);
+```
+
+</Playground>
+</Concept>
+
+<Concept name="Promise.all()" id="promise-all">
+
+`Promise.all` runs several requests at the same time and waits until all of them finish.
+
+<Playground file="all.js" expected={["Coffee Sara"]}>
+
+```js
+const [cart, user] = await Promise.all([
+  fetch("/api/cart").then(res => res.json()),
+  fetch("/api/user").then(res => res.json()),
+]);
+
+console.log(cart[0].name, user.name);
+```
+
+</Playground>
+</Concept>
+
+<Exercise
+  id="get-json"
+  title="A safe getJson() helper"
+  hints={[
+    "`await fetch(url)` gives you the response; check `res.ok` before reading it.",
+    "If it's not ok, throw: `throw new Error(\"HTTP \" + res.status)`.",
+    "Otherwise `return res.json()`.",
+  ]}
+>
+
+Write `async function getJson(url)` that fetches the URL and returns the parsed JSON. If the response is not ok, throw an error with the message `HTTP <status>`, for example `"HTTP 404"`.
+
+```js starter
+async function getJson(url) {
+  const res = await fetch(url);
+  return res.json();
+}
+
+console.log(await getJson("/api/products"));
+```
+
+```js tests
+test("returns the parsed data", async () => {
+  const products = await getJson("/api/products");
+  expect(products).toHaveLength(3);
+  expect(products[0].name).toBe("Coffee");
+});
+
+test("throws HTTP 404 for a missing URL", async () => {
+  let message = "no error";
+  try {
+    await getJson("/api/missing");
+  } catch (err) {
+    message = err.message;
+  }
+  expect(message).toBe("HTTP 404");
+});
+
+test("is an async function (returns a promise)", () => {
+  const result = getJson("/api/user");
+  expect(result instanceof Promise).toBe(true);
+});
+```
+
+```js solution
+async function getJson(url) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+console.log(await getJson("/api/products"));
+```
+
+</Exercise>
+
+<Quiz
+  questions={[
+    {
+      q: "What does `fetch` do when the server answers 404?",
+      options: ["It throws an error", "It resolves, with `res.ok` set to `false`", "It returns `null`", "It retries automatically"],
+      answer: 1,
+      explain: "`fetch` only rejects on network failures. For HTTP errors you must check `res.ok` (or `res.status`) yourself.",
+    },
+    {
+      q: "What does this print?",
+      code: "async function f() { return 5; }\nconsole.log(f());",
+      options: ["`5`", "`Promise { <pending> }`", "`undefined`", "An error"],
+      answer: 1,
+      explain: "An async function always returns a promise. Use `await f()` or `f().then(...)` to get the 5.",
+    },
+    {
+      q: "You need the cart AND the user, and they don't depend on each other. What's fastest?",
+      options: ["Two `await fetch` calls, one after the other", "`Promise.all` with both requests", "`setTimeout` around each fetch", "A `for` loop with `await`"],
+      answer: 1,
+      explain: "`Promise.all` starts both requests at once and waits for both, instead of one after the other.",
+    },
+    {
+      q: "Which three states should a component that loads data handle?",
+      options: ["start, middle, end", "loading, success, error", "fetch, json, render", "try, catch, finally"],
+      answer: 1,
+      explain: "Show a spinner while loading, the data on success, and a message (with a retry) on error.",
+    },
+  ]}
+/>

@@ -1,0 +1,259 @@
+---
+id: dom-events
+title: The DOM & events
+summary: Find elements, change their text and classes, react to clicks and form submits, and build elements by hand.
+minutes: 14
+tags: [dom, querySelector, textContent, addEventListener, events, preventDefault, classList, createElement, innerHTML]
+---
+
+The DOM is the page as JavaScript sees it: a tree of elements you can find, read and change. React does this work for you, but knowing it makes React's job (and its bugs) much clearer.
+
+<Callout type="tip">
+DOM code needs a real web page, so most examples here show what you'd see in the browser instead of a Run button. The last ones build HTML as text, which does run here.
+</Callout>
+
+<Concept name="querySelector()" id="query-selector">
+
+`querySelector` finds the first element that matches a CSS selector; `querySelectorAll` finds all of them.
+
+<Playground file="query.js" browserOnly expected={["2"]}>
+
+```js
+const title = document.querySelector("h1");
+const button = document.querySelector("#add-btn");
+const items = document.querySelectorAll(".cart-item");
+
+console.log(items.length);
+```
+
+</Playground>
+</Concept>
+
+<Concept name="textContent" id="text-content">
+
+`textContent` reads or changes the text inside an element. Prefer it over `innerHTML` for plain text.
+
+<Playground file="text.js" browserOnly expected={["3"]}>
+
+```js
+const badge = document.querySelector(".badge");
+
+badge.textContent = "3";
+console.log(badge.textContent);
+```
+
+</Playground>
+</Concept>
+
+<Concept name="addEventListener()" id="add-event-listener" react>
+
+`addEventListener` runs a function when something happens on an element, like a click.
+
+<Playground file="click.js" browserOnly expected={["~ After clicking the button:", "Added to cart"]}>
+
+```js
+const button = document.querySelector("#add-btn");
+
+button.addEventListener("click", () => {
+  console.log("Added to cart");
+});
+```
+
+</Playground>
+
+<Callout type="react">
+In React you write `<button onClick={addToCart}>` instead. It's the same idea: you hand over a function, and React calls it on click.
+</Callout>
+</Concept>
+
+<Concept name="event.preventDefault()" id="prevent-default" react>
+
+`preventDefault` stops the browser's default action, like a form reloading the page on submit.
+
+<Playground file="submit.js" browserOnly expected={["~ After submitting the form:", "Saved without reloading"]}>
+
+```js
+const form = document.querySelector("form");
+
+form.addEventListener("submit", (event) => {
+  event.preventDefault();
+  console.log("Saved without reloading");
+});
+```
+
+</Playground>
+</Concept>
+
+<Concept name="input.value" id="input-value" warn>
+
+`input.value` is what the user typed, and it's always a string, so convert numbers.
+
+<Playground file="input.js" browserOnly expected={["~ The user typed 2:", "string", "3"]}>
+
+```js
+const input = document.querySelector("#qty");
+
+console.log(typeof input.value);
+console.log(Number(input.value) + 1);
+```
+
+</Playground>
+</Concept>
+
+<Concept name="classList" id="class-list">
+
+`classList` adds, removes or toggles CSS classes on an element.
+
+<Playground file="classes.js" browserOnly expected={["true"]}>
+
+```js
+const menu = document.querySelector(".menu");
+
+menu.classList.add("open");
+menu.classList.toggle("dark");
+console.log(menu.classList.contains("open"));
+```
+
+</Playground>
+</Concept>
+
+<Concept name="createElement()" id="create-element">
+
+`createElement` builds a new element in JavaScript, and `append` adds it to the page. React does this for you.
+
+<Playground file="create.js" browserOnly expected={["~ A new “Coffee” item appears in the list."]}>
+
+```js
+const li = document.createElement("li");
+li.textContent = "Coffee";
+
+document.querySelector("ul").append(li);
+```
+
+</Playground>
+</Concept>
+
+<Concept name="Building HTML from data" id="html-from-data">
+
+You can also build HTML as text with `map` and `join`, then put it on the page in one go with `innerHTML`.
+
+<Playground file="render.js" expected={["<li>2 × Coffee</li><li>1 × Bagel</li>"]}>
+
+```js
+const cart = [
+  { name: "Coffee", qty: 2 },
+  { name: "Bagel", qty: 1 },
+];
+
+const html = cart.map(item => `<li>${item.qty} × ${item.name}</li>`).join("");
+console.log(html);
+// document.querySelector("ul").innerHTML = html;
+```
+
+</Playground>
+
+<Callout type="warn">
+Never put text the user typed into `innerHTML`: it can contain HTML or scripts. Use `textContent` for user text. React escapes text for you.
+</Callout>
+</Concept>
+
+<Concept name="The sync problem" id="sync-problem" react>
+
+With plain DOM code, every change means updating every place that shows it, and forgetting one leaves the page out of sync.
+
+<Playground file="sync.js" browserOnly expected={["~ Click “Add” and the list and total update… but the badge still says 0."]}>
+
+```js
+function addItem(item) {
+  cart.push(item);
+  renderList();       // 1. update the list
+  renderTotal();      // 2. update the total
+  // forgot renderBadge(): the badge is now wrong
+}
+```
+
+</Playground>
+
+<Callout type="react">
+This is the problem React solves: you change the data once, and React updates every place that uses it. The **Why React?** course builds this cart both ways.
+</Callout>
+</Concept>
+
+<Exercise
+  id="cart-html"
+  title="Render the cart as HTML"
+  hints={[
+    "Handle the empty cart first with an early return.",
+    "Build one `<li>` per item with `map` and a template literal, then glue them with `.join(\"\")`.",
+    "Wrap the items: `\"<ul>\" + items + \"</ul>\"`.",
+  ]}
+>
+
+Write `cartHTML(cart)` that returns the cart as an HTML string: `<ul>` with one `<li>Name × qty</li>` per item. An empty cart returns `<p>Your cart is empty</p>`.
+
+```js starter
+function cartHTML(cart) {
+  return "";
+}
+
+console.log(cartHTML([{ name: "Coffee", qty: 2 }]));
+```
+
+```js tests
+test("an empty cart shows a message", () => {
+  expect(cartHTML([])).toBe("<p>Your cart is empty</p>");
+});
+
+test("one item", () => {
+  expect(cartHTML([{ name: "Coffee", qty: 2 }])).toBe("<ul><li>Coffee × 2</li></ul>");
+});
+
+test("several items, in order, with no commas", () => {
+  const cart = [
+    { name: "Coffee", qty: 2 },
+    { name: "Bagel", qty: 1 },
+  ];
+  expect(cartHTML(cart)).toBe("<ul><li>Coffee × 2</li><li>Bagel × 1</li></ul>");
+});
+```
+
+```js solution
+function cartHTML(cart) {
+  if (cart.length === 0) return "<p>Your cart is empty</p>";
+  const items = cart.map(item => `<li>${item.name} × ${item.qty}</li>`).join("");
+  return `<ul>${items}</ul>`;
+}
+
+console.log(cartHTML([{ name: "Coffee", qty: 2 }]));
+```
+
+</Exercise>
+
+<Quiz
+  questions={[
+    {
+      q: "A form reloads the whole page when submitted. What stops that?",
+      options: ["`return false` in the HTML", "`event.preventDefault()` in the submit handler", "`event.stop()`", "`form.reload = false`"],
+      answer: 1,
+      explain: "`preventDefault()` cancels the browser's default action for the event, here the page reload.",
+    },
+    {
+      q: "The user types `2` into a quantity input. What is `input.value + 1`?",
+      options: ["`3`", "`\"21\"`", "`NaN`", "`21`"],
+      answer: 1,
+      explain: "`value` is always a string, so `+` joins text: `\"21\"`. Use `Number(input.value) + 1`.",
+    },
+    {
+      q: "Which is safest for showing a product name the user typed?",
+      options: ["`el.innerHTML = name`", "`el.textContent = name`", "`el.outerHTML = name`", "`document.write(name)`"],
+      answer: 1,
+      explain: "`textContent` treats the value as plain text, so any HTML inside it is shown, not run.",
+    },
+    {
+      q: "What does `document.querySelector(\".item\")` return when there are 3 matching elements?",
+      options: ["All 3, as a list", "The first one", "The last one", "`null`"],
+      answer: 1,
+      explain: "`querySelector` returns the first match. Use `querySelectorAll` to get all of them.",
+    },
+  ]}
+/>

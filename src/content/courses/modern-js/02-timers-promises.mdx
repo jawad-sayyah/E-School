@@ -1,0 +1,213 @@
+---
+id: timers-promises
+title: Timers & promises
+summary: Run code later with setTimeout and setInterval, and handle values that arrive later with promises.
+minutes: 13
+tags: [setTimeout, setInterval, clearTimeout, promises, then, catch, finally, async]
+---
+
+Some code runs later: a reminder after 5 seconds, a clock that ticks, an answer from a server. JavaScript doesn't stop and wait; it keeps going and calls you back.
+
+<Concept name="setTimeout()" id="set-timeout">
+
+`setTimeout` runs code once after a delay in milliseconds. The code after it doesn't wait.
+
+<Playground file="set-timeout.js" expected={["Order placed", "Waiting…", "Order shipped!"]}>
+
+```js
+console.log("Order placed");
+
+setTimeout(() => {
+  console.log("Order shipped!");
+}, 500);
+
+console.log("Waiting…");
+```
+
+</Playground>
+</Concept>
+
+<Concept name="A delay of 0 is still later" id="timeout-zero" warn>
+
+Even with a delay of `0`, the callback waits until the current code has finished.
+
+<Playground file="zero.js" expected={["sync", "timeout"]}>
+
+```js
+setTimeout(() => console.log("timeout"), 0);
+console.log("sync");
+```
+
+</Playground>
+</Concept>
+
+<Concept name="clearTimeout()" id="clear-timeout">
+
+`setTimeout` returns an id; pass it to `clearTimeout` to cancel the timer before it fires.
+
+<Playground file="clear-timeout.js" expected={["Reminder cancelled"]}>
+
+```js
+const id = setTimeout(() => console.log("Reminder!"), 500);
+clearTimeout(id);
+
+console.log("Reminder cancelled");
+```
+
+</Playground>
+</Concept>
+
+<Concept name="setInterval()" id="set-interval">
+
+`setInterval` repeats code every few milliseconds until you stop it with `clearInterval`.
+
+<Playground file="set-interval.js" expected={["Tick 1", "Tick 2", "Tick 3"]}>
+
+```js
+let n = 0;
+
+const id = setInterval(() => {
+  n++;
+  console.log("Tick", n);
+  if (n === 3) clearInterval(id);
+}, 300);
+```
+
+</Playground>
+
+<Callout type="react">
+In React, start intervals in `useEffect` and clear them in its cleanup function, or they keep running after the component is gone.
+</Callout>
+</Concept>
+
+<Concept name="Promise" id="promise" react>
+
+A promise is a value that arrives later; `.then()` runs once it's ready.
+
+<Playground file="promise.js" expected={["Coffee is ready"]}>
+
+```js
+const ready = new Promise(resolve => {
+  setTimeout(() => resolve("Coffee is ready"), 500);
+});
+
+ready.then(msg => console.log(msg));
+```
+
+</Playground>
+</Concept>
+
+<Concept name=".catch()" id="promise-catch">
+
+A promise can fail with `reject`; `.catch()` handles the error.
+
+<Playground file="catch.js" expected={["Failed: Out of stock"]}>
+
+```js
+const order = new Promise((resolve, reject) => {
+  setTimeout(() => reject(new Error("Out of stock")), 300);
+});
+
+order
+  .then(() => console.log("Shipped"))
+  .catch(err => console.log("Failed:", err.message));
+```
+
+</Playground>
+</Concept>
+
+<Concept name=".then() chains & finally" id="promise-chain">
+
+Each `.then()` receives the value returned by the one before it, and `.finally()` runs at the end either way.
+
+<Playground file="chain.js" expected={["Total: 8", "Done"]}>
+
+```js
+const wait = (ms, value) =>
+  new Promise(resolve => setTimeout(() => resolve(value), ms));
+
+wait(200, 2)
+  .then(qty => qty * 4)
+  .then(total => console.log("Total:", total))
+  .finally(() => console.log("Done"));
+```
+
+</Playground>
+</Concept>
+
+<Exercise
+  id="wait"
+  title="Write a wait() helper"
+  hints={[
+    "Return `new Promise(resolve => …)`.",
+    "Inside, call `setTimeout(() => resolve(value), ms)`.",
+  ]}
+>
+
+Write `wait(ms, value)` that returns a promise. After `ms` milliseconds it resolves with `value`. You'll use a helper like this to fake slow servers.
+
+```js starter
+function wait(ms, value) {
+  return value;
+}
+
+wait(300, "ready").then(v => console.log(v));
+```
+
+```js tests
+test("returns a promise", () => {
+  expect(wait(1, "x") instanceof Promise).toBe(true);
+});
+
+test("resolves with the value", async () => {
+  const value = await wait(20, "ready");
+  expect(value).toBe("ready");
+});
+
+test("actually waits", async () => {
+  const start = Date.now();
+  await wait(150, "done");
+  expect(Date.now() - start).toBeGreaterThan(120);
+});
+```
+
+```js solution
+function wait(ms, value) {
+  return new Promise(resolve => setTimeout(() => resolve(value), ms));
+}
+
+wait(300, "ready").then(v => console.log(v));
+```
+
+</Exercise>
+
+<Quiz
+  questions={[
+    {
+      q: "In what order do these lines print?",
+      code: "console.log(\"A\");\nsetTimeout(() => console.log(\"B\"), 0);\nconsole.log(\"C\");",
+      options: ["A, B, C", "A, C, B", "B, A, C", "C, A, B"],
+      answer: 1,
+      explain: "A timer callback always waits until the current code has finished, even with a delay of 0.",
+    },
+    {
+      q: "How do you stop a `setInterval`?",
+      options: ["`stopInterval()`", "`clearInterval(id)` with the id it returned", "`setInterval(null)`", "Return `false` from the callback"],
+      answer: 1,
+      explain: "`setInterval` returns an id. Pass it to `clearInterval` to stop it.",
+    },
+    {
+      q: "What does this print?",
+      code: "Promise.resolve(2)\n  .then(n => n * 3)\n  .then(n => console.log(n));",
+      options: ["`2`", "`3`", "`6`", "A Promise object"],
+      answer: 2,
+      explain: "Each `.then` gets the value returned by the previous one: 2, then 2 × 3 = 6.",
+    },
+    {
+      q: "Which method runs when a promise is rejected?",
+      options: ["`.then()` only", "`.catch()`", "`.finally()` only", "`.reject()`"],
+      answer: 1,
+      explain: "`.catch()` handles failures. `.finally()` runs too, but it doesn't receive the error.",
+    },
+  ]}
+/>

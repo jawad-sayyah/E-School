@@ -30,7 +30,15 @@ export const COURSES: CourseInfo[] = [
     color: 'js',
     description:
       'Spread and destructuring, promises, async/await, modules, the DOM, JSON and the gotchas that cause real bugs.',
-    lessons: [],
+    lessons: [
+      'spread-rest',
+      'timers-promises',
+      'async-await',
+      'modules',
+      'dom-events',
+      'json-storage',
+      'gotchas',
+    ],
     phase: 2,
   },
   {

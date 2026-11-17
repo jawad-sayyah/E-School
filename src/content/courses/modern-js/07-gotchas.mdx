@@ -1,0 +1,237 @@
+---
+id: gotchas
+title: JavaScript gotchas
+summary: The small surprises behind real bugs, from "5" + 1 and 0.1 + 0.2 to references and the missing return.
+minutes: 12
+tags: [gotchas, bugs, equality, decimals, typeof null, references, const, arrow return, NaN]
+---
+
+Each of these has caused real bugs in real shopping carts. Learn them once, and you'll spot them in seconds.
+
+<Concept name={'"5" + 1'} id="string-plus" warn>
+
+`+` with a string joins text instead of adding, and values from inputs and storage are always strings.
+
+<Playground file="string-plus.js" expected={["51", "6"]}>
+
+```js
+console.log("5" + 1);
+console.log(Number("5") + 1);
+```
+
+</Playground>
+</Concept>
+
+<Concept name="== vs ===" id="equality" warn>
+
+`==` converts types before comparing, which gives surprises. Always use `===`.
+
+<Playground file="equality.js" expected={["true", "false", "true"]}>
+
+```js
+console.log(0 == "");
+console.log(0 === "");
+console.log(null == undefined);
+```
+
+</Playground>
+</Concept>
+
+<Concept name="0.1 + 0.2" id="decimals" warn>
+
+Decimal math isn't exact. Round money with `toFixed()` for display, or work in cents.
+
+<Playground file="decimals.js" expected={["0.30000000000000004", "0.30", "30"]}>
+
+```js
+console.log(0.1 + 0.2);
+console.log((0.1 + 0.2).toFixed(2));
+console.log(10 + 20);   // in cents: exact
+```
+
+</Playground>
+</Concept>
+
+<Concept name="typeof null" id="typeof-null" warn>
+
+`typeof null` says `"object"`, an old bug in the language. Check for null with `=== null`.
+
+<Playground file="typeof-null.js" expected={["object", "true"]}>
+
+```js
+const user = null;
+
+console.log(typeof user);
+console.log(user === null);
+```
+
+</Playground>
+</Concept>
+
+<Concept name="NaN !== NaN" id="nan" warn>
+
+`NaN` isn't equal to anything, not even itself. Use `Number.isNaN()` to check for it.
+
+<Playground file="nan.js" expected={["false", "true"]}>
+
+```js
+const qty = Number("two");
+
+console.log(qty === NaN);
+console.log(Number.isNaN(qty));
+```
+
+</Playground>
+</Concept>
+
+<Concept name="Copy by reference" id="reference-copy" warn react>
+
+Assigning an object or array doesn't copy it: both names point to the same thing.
+
+<Playground file="reference.js" expected={["5"]}>
+
+```js
+const a = { qty: 1 };
+const b = a;
+b.qty = 5;
+
+console.log(a.qty);  // a changed too!
+```
+
+</Playground>
+</Concept>
+
+<Concept name="[1] === [1]" id="compare-arrays" warn react>
+
+`===` checks whether two arrays or objects are the same thing, not whether their contents match.
+
+<Playground file="compare.js" expected={["false", "true"]}>
+
+```js
+console.log([1, 2] === [1, 2]);
+
+const a = [1, 2];
+const b = a;
+console.log(a === b);
+```
+
+</Playground>
+</Concept>
+
+<Concept name="const isn't frozen" id="const-not-frozen" warn>
+
+`const` stops you from reassigning the variable, but you can still change what's inside it.
+
+<Playground file="const.js" expected={["[ 'Coffee', 'Bagel' ]"]}>
+
+```js
+const cart = ["Coffee"];
+cart.push("Bagel");   // allowed!
+
+console.log(cart);
+// cart = [];         // TypeError: Assignment to constant variable
+```
+
+</Playground>
+</Concept>
+
+<Concept name="Missing return in { }" id="arrow-return" warn react>
+
+An arrow function with `{ }` needs `return`. Without it you get `undefined`, a classic `map()` bug.
+
+<Playground file="arrow-return.js" expected={["[ undefined, undefined ]", "[ 2, 4 ]", "[ { qty: 1 }, { qty: 2 } ]"]}>
+
+```js
+const a = [1, 2].map(n => { n * 2 });
+const b = [1, 2].map(n => n * 2);
+const c = [1, 2].map(n => ({ qty: n }));   // returning an object: add ( )
+
+console.log(a);
+console.log(b);
+console.log(c);
+```
+
+</Playground>
+</Concept>
+
+<Exercise
+  id="fix-total"
+  title="Fix the buggy total"
+  hints={[
+    "The arrow function in `map` has `{ }` but no `return`.",
+    "Prices come from a form, so they're strings: convert with `Number(item.price)`.",
+    "Round to cents at the end: `Math.round(total * 100) / 100`.",
+  ]}
+>
+
+This `cartTotal(items)` has three gotchas in it. The prices come from a form, so they are strings. Fix it so it returns the total as a number, rounded to cents.
+
+```js starter
+function cartTotal(items) {
+  const lines = items.map(item => { item.price * item.qty });
+  return lines.reduce((sum, n) => sum + n, 0);
+}
+
+console.log(cartTotal([{ price: "4", qty: 2 }]));
+```
+
+```js tests
+test("works with prices as strings", () => {
+  expect(cartTotal([{ price: "4", qty: 2 }])).toBe(8);
+});
+
+test("adds several lines", () => {
+  expect(cartTotal([{ price: "4", qty: 2 }, { price: "3", qty: 1 }])).toBe(11);
+});
+
+test("0.1 + 0.2 comes out as 0.3", () => {
+  expect(cartTotal([{ price: "0.1", qty: 1 }, { price: "0.2", qty: 1 }])).toBe(0.3);
+});
+
+test("an empty cart is 0", () => {
+  expect(cartTotal([])).toBe(0);
+});
+```
+
+```js solution
+function cartTotal(items) {
+  const total = items.reduce((sum, item) => sum + Number(item.price) * item.qty, 0);
+  return Math.round(total * 100) / 100;
+}
+
+console.log(cartTotal([{ price: "4", qty: 2 }]));
+```
+
+</Exercise>
+
+<Quiz
+  questions={[
+    {
+      q: "What does this print?",
+      code: "console.log(0.1 + 0.2 === 0.3);",
+      options: ["`true`", "`false`", "`NaN`", "An error"],
+      answer: 1,
+      explain: "`0.1 + 0.2` is `0.30000000000000004`. Compare rounded values, or work in cents.",
+    },
+    {
+      q: "What does this print?",
+      code: "console.log([1, 2].map(n => { n + 1 }));",
+      options: ["`[ 2, 3 ]`", "`[ undefined, undefined ]`", "`[ 1, 2 ]`", "An error"],
+      answer: 1,
+      explain: "With `{ }` the arrow function needs `return`. Without it, every item becomes `undefined`.",
+    },
+    {
+      q: "How do you check whether `qty` is `NaN`?",
+      options: ["`qty === NaN`", "`qty == NaN`", "`Number.isNaN(qty)`", "`typeof qty === \"NaN\"`"],
+      answer: 2,
+      explain: "`NaN` is never equal to anything, itself included, so only `Number.isNaN()` works.",
+    },
+    {
+      q: "What does this print?",
+      code: "const cart = [\"Tea\"];\ncart.push(\"Cake\");\nconsole.log(cart.length);",
+      options: ["An error: cart is const", "`1`", "`2`", "`undefined`"],
+      answer: 2,
+      explain: "`const` only stops reassignment (`cart = …`). Changing the array's contents is allowed.",
+    },
+  ]}
+/>

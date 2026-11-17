@@ -1,0 +1,238 @@
+---
+id: json-storage
+title: JSON & localStorage
+summary: Turn objects into text and back with JSON, and keep the cart in the browser with localStorage.
+minutes: 12
+tags: [json, stringify, parse, localStorage, storage, persistence, save]
+---
+
+Servers send JSON, and the browser can only store text. JSON is how your objects travel and how the cart survives a page refresh.
+
+<Callout type="tip">
+`localStorage` is simulated here and starts empty on every run. In a real browser it keeps its data after a refresh.
+</Callout>
+
+<Concept name="JSON.stringify / parse" id="json" react>
+
+`JSON.stringify` turns objects into text (to save or send), and `JSON.parse` turns that text back into objects.
+
+<Playground file="json.js" expected={["[{\"name\":\"Coffee\",\"qty\":2}]", "string", "Coffee"]}>
+
+```js
+const cart = [{ name: "Coffee", qty: 2 }];
+const text = JSON.stringify(cart);
+
+console.log(text);
+console.log(typeof text);
+console.log(JSON.parse(text)[0].name);
+```
+
+</Playground>
+</Concept>
+
+<Concept name="What JSON drops" id="json-limits" warn>
+
+JSON only knows text, numbers, booleans, null, arrays and objects. Functions and `undefined` disappear, and dates become strings.
+
+<Playground file="limits.js" expected={["{\"id\":7,\"placed\":\"1970-01-01T00:00:00.000Z\"}"]}>
+
+```js
+const order = {
+  id: 7,
+  note: undefined,
+  total: () => 12,
+  placed: new Date(0),
+};
+
+console.log(JSON.stringify(order));
+```
+
+</Playground>
+</Concept>
+
+<Concept name="Bad JSON throws" id="parse-errors">
+
+`JSON.parse` throws on broken text, so wrap it in `try`/`catch` and fall back to a safe value.
+
+<Playground file="safe-parse.js" expected={["{ qty: 2 }", "[]"]}>
+
+```js
+function safeParse(text, fallback) {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return fallback;
+  }
+}
+
+console.log(safeParse('{"qty": 2}', null));
+console.log(safeParse("{ oops", []));
+```
+
+</Playground>
+</Concept>
+
+<Concept name="localStorage stores strings" id="local-storage-strings" warn>
+
+`localStorage` keeps text in the browser, even after a refresh. Anything you store becomes a string, and a missing key gives `null`.
+
+<Playground file="strings.js" expected={["3 string", "null"]}>
+
+```js
+localStorage.setItem("qty", 3);
+
+console.log(localStorage.getItem("qty"), typeof localStorage.getItem("qty"));
+console.log(localStorage.getItem("missing"));
+```
+
+</Playground>
+</Concept>
+
+<Concept name="Saving objects" id="save-objects" react>
+
+Store objects as JSON: `stringify` when you save and `parse` when you load.
+
+<Playground file="save.js" expected={["[ { name: 'Coffee', qty: 2 } ]"]}>
+
+```js
+const cart = [{ name: "Coffee", qty: 2 }];
+localStorage.setItem("cart", JSON.stringify(cart));
+
+const saved = JSON.parse(localStorage.getItem("cart"));
+console.log(saved);
+```
+
+</Playground>
+</Concept>
+
+<Concept name="A fallback with ??" id="storage-fallback" react>
+
+On the first visit nothing is saved yet. `JSON.parse(null)` gives `null`, so `??` supplies an empty cart.
+
+<Playground file="fallback.js" expected={["[]"]}>
+
+```js
+const cart = JSON.parse(localStorage.getItem("cart")) ?? [];
+
+console.log(cart);
+```
+
+</Playground>
+</Concept>
+
+<Concept name="removeItem() / clear()" id="remove-item">
+
+`removeItem` deletes one key, and `clear` deletes everything your site stored.
+
+<Playground file="remove.js" expected={["null 1"]}>
+
+```js
+localStorage.setItem("cart", "[]");
+localStorage.setItem("theme", "dark");
+
+localStorage.removeItem("cart");
+console.log(localStorage.getItem("cart"), localStorage.length);
+```
+
+</Playground>
+</Concept>
+
+<Exercise
+  id="save-load-cart"
+  title="Save and load the cart"
+  hints={[
+    "`saveCart` should store `JSON.stringify(cart)` under the key `\"cart\"`.",
+    "In `loadCart`, read the key, then `JSON.parse` it inside `try`/`catch`.",
+    "Return `[]` when nothing is saved (`null`) or the text is broken.",
+  ]}
+>
+
+Write `saveCart(cart)`, which stores the cart under the key `"cart"`, and `loadCart()`, which gives it back. `loadCart()` returns `[]` when nothing is saved or the saved text is broken.
+
+```js starter
+function saveCart(cart) {
+  localStorage.setItem("cart", cart);
+}
+
+function loadCart() {
+  return localStorage.getItem("cart");
+}
+
+saveCart([{ name: "Coffee", qty: 2 }]);
+console.log(loadCart());
+```
+
+```js tests
+test("what you save is what you load", () => {
+  localStorage.clear();
+  const cart = [{ id: 1, name: "Coffee", qty: 2 }];
+  saveCart(cart);
+  expect(loadCart()).toEqual(cart);
+});
+
+test("stores the cart as JSON text", () => {
+  localStorage.clear();
+  saveCart([{ id: 2, name: "Bagel", qty: 1 }]);
+  expect(JSON.parse(localStorage.getItem("cart"))).toEqual([{ id: 2, name: "Bagel", qty: 1 }]);
+});
+
+test("nothing saved yet gives an empty cart", () => {
+  localStorage.clear();
+  expect(loadCart()).toEqual([]);
+});
+
+test("broken text gives an empty cart instead of crashing", () => {
+  localStorage.clear();
+  localStorage.setItem("cart", "{ oops");
+  expect(loadCart()).toEqual([]);
+});
+```
+
+```js solution
+function saveCart(cart) {
+  localStorage.setItem("cart", JSON.stringify(cart));
+}
+
+function loadCart() {
+  try {
+    return JSON.parse(localStorage.getItem("cart")) ?? [];
+  } catch {
+    return [];
+  }
+}
+
+saveCart([{ name: "Coffee", qty: 2 }]);
+console.log(loadCart());
+```
+
+</Exercise>
+
+<Quiz
+  questions={[
+    {
+      q: "What does this print?",
+      code: "localStorage.setItem(\"qty\", 5);\nconsole.log(localStorage.getItem(\"qty\") + 1);",
+      options: ["`6`", "`\"51\"`, printed as 51", "`NaN`", "An error"],
+      answer: 1,
+      explain: "localStorage stores strings, so you get `\"5\"`, and `\"5\" + 1` is `\"51\"`.",
+    },
+    {
+      q: "What does `JSON.stringify({ a: 1, b: undefined })` give?",
+      options: ["`'{\"a\":1,\"b\":undefined}'`", "`'{\"a\":1}'`", "`'{\"a\":1,\"b\":null}'`", "An error"],
+      answer: 1,
+      explain: "JSON has no `undefined`, so properties with that value are left out.",
+    },
+    {
+      q: "What does `JSON.parse(localStorage.getItem(\"cart\"))` return on a first visit, when nothing is saved?",
+      options: ["`[]`", "`undefined`", "`null`", "It throws"],
+      answer: 2,
+      explain: "`getItem` returns `null`, and `JSON.parse(null)` is `null`. Add `?? []` for a safe default.",
+    },
+    {
+      q: "Which call can throw an error if the stored text is broken?",
+      options: ["`localStorage.getItem()`", "`JSON.stringify()`", "`JSON.parse()`", "`localStorage.removeItem()`"],
+      answer: 2,
+      explain: "`JSON.parse` throws a SyntaxError on invalid JSON, so wrap it in `try`/`catch`.",
+    },
+  ]}
+/>

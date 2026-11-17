@@ -1,0 +1,186 @@
+---
+id: modules
+title: Modules
+summary: Split code into files with export and import, and know when to use a default or a named export.
+minutes: 10
+tags: [modules, import, export, default export, named export, files]
+---
+
+A real app is many files: one per component, one for helpers, one for API calls. Modules connect them. These examples need a real project (with files), so they show what happens instead of running here.
+
+<Concept name="Named exports" id="named-exports" react>
+
+`export` in front of a function or variable makes it available to other files, which import it by its exact name in `{ }`.
+
+<Playground
+  file="cart.js"
+  browserOnly
+  expected={["~ cart.js shares two things; App.js imports them by name.", "[ { name: 'Coffee' } ] 0.16"]}
+>
+
+```js
+// cart.js
+export function addItem(cart, item) {
+  return [...cart, item];
+}
+export const TAX = 0.16;
+
+// App.js
+import { addItem, TAX } from "./cart.js";
+
+console.log(addItem([], { name: "Coffee" }), TAX);
+```
+
+</Playground>
+</Concept>
+
+<Concept name="Default export" id="default-export" react>
+
+A file can have one `export default`. You import it without `{ }`, and you can give it any name.
+
+<Playground
+  file="Cart.jsx"
+  browserOnly
+  expected={["~ Both imports get the same function: the name is up to you."]}
+>
+
+```js
+// Cart.jsx
+export default function Cart() {
+  /* ... */
+}
+
+// App.jsx
+import Cart from "./Cart.jsx";
+import ShoppingCart from "./Cart.jsx";   // also works
+```
+
+</Playground>
+
+<Callout type="react">
+Most React projects use one component per file with `export default`, and named exports for helpers and hooks.
+</Callout>
+</Concept>
+
+<Concept name="Default + named together" id="default-and-named">
+
+One import line can take the default export and named exports at the same time.
+
+<Playground
+  file="App.js"
+  browserOnly
+  expected={["~ Nothing to print: this connects files together."]}
+>
+
+```js
+// cart.js
+export function addItem(item) { /* ... */ }
+export default function Cart() { /* ... */ }
+
+// App.js
+import Cart, { addItem } from "./cart.js";
+```
+
+</Playground>
+</Concept>
+
+<Concept name="as" id="import-as">
+
+`as` renames an import, which helps when two files export the same name.
+
+<Playground
+  file="rename.js"
+  browserOnly
+  expected={["~ Two different formatPrice functions, no name clash."]}
+>
+
+```js
+import { formatPrice } from "./cart.js";
+import { formatPrice as formatEuro } from "./euro.js";
+
+formatPrice(4);   // "$4.00"
+formatEuro(4);    // "4,00 €"
+```
+
+</Playground>
+</Concept>
+
+<Concept name="Module scope" id="module-scope">
+
+Variables in a module are private to that file unless you export them, so files can't clash by accident.
+
+<Playground
+  file="counter.js"
+  browserOnly
+  expected={["~ main.js can call nextId(), but can't touch lastId."]}
+>
+
+```js
+// ids.js
+let lastId = 0;               // private to this file
+export function nextId() {
+  lastId += 1;
+  return lastId;
+}
+
+// main.js
+import { nextId } from "./ids.js";
+nextId();   // 1
+nextId();   // 2
+```
+
+</Playground>
+</Concept>
+
+<Concept name="Import mistakes" id="import-mistakes" warn>
+
+The most common error is mixing up `{ }`: named exports need the braces, the default export must not have them.
+
+<Compare
+  wrong="Cart is undefined: there's no named export called Cart"
+  right="Imports the default export"
+  wrongFile="App.jsx"
+  rightFile="App.jsx"
+>
+
+```js
+// Cart.jsx has: export default function Cart() {}
+import { Cart } from "./Cart.jsx";
+```
+
+```js
+// Cart.jsx has: export default function Cart() {}
+import Cart from "./Cart.jsx";
+```
+
+</Compare>
+</Concept>
+
+<Quiz
+  questions={[
+    {
+      q: "`utils.js` has `export function formatPrice() {}`. Which import works?",
+      options: ["`import formatPrice from \"./utils.js\";`", "`import { formatPrice } from \"./utils.js\";`", "`import * from \"./utils.js\";`", "`require formatPrice from \"./utils.js\";`"],
+      answer: 1,
+      explain: "A named export is imported with braces and its exact name.",
+    },
+    {
+      q: "How many default exports can one file have?",
+      options: ["None", "One", "Two", "As many as you like"],
+      answer: 1,
+      explain: "A module has at most one default export, but any number of named exports.",
+    },
+    {
+      q: "`Button.jsx` has `export default function Button() {}`. What does `import MyButton from \"./Button.jsx\"` give you?",
+      options: ["An error: the name must be Button", "`undefined`", "The Button component, under the name MyButton", "An object with a Button property"],
+      answer: 2,
+      explain: "A default import can use any name you choose.",
+    },
+    {
+      q: "Two files both export `formatPrice`. How do you import both into one file?",
+      options: ["You can't", "Rename one with `as`", "Import the second one twice", "Use `export default` in both"],
+      answer: 1,
+      explain: "`import { formatPrice as formatEuro } from \"./euro.js\"` gives it a different local name.",
+    },
+  ]}
+/>
