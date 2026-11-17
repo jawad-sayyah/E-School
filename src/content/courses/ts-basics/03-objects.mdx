@@ -1,0 +1,247 @@
+---
+id: objects
+title: "Objects: type, interface and optional properties"
+summary: Describe the shape of objects like a cart item with type aliases and interfaces, mark properties optional or readonly, and see when to pick type or interface.
+minutes: 16
+tags: [TypeScript, object types, type alias, interface, optional properties, readonly, excess property check]
+---
+
+Almost all data in a shop is objects: products, cart items, users, orders. TypeScript lets you name an object's **shape** once and reuse it everywhere.
+
+<Concept name="A type alias for an object" id="type-alias">
+
+<TSPlayground file="cartItem.ts" errors={[9, 12]} expected={["Coffee: 8"]}>
+
+```ts
+type CartItem = {
+  id: number;
+  name: string;
+  price: number;
+  qty: number;
+};
+
+const coffee: CartItem = { id: 1, name: "Coffee", price: 4, qty: 2 };
+const tea: CartItem = { id: 2, name: "Tea", price: 2 };   // error: qty is missing
+
+function lineTotal(item: CartItem): number {
+  return item.price * item.quantity;                      // error: no property "quantity"
+}
+
+console.log(`${coffee.name}: ${coffee.price * coffee.qty}`);
+```
+
+</TSPlayground>
+
+`type CartItem = { … }` gives the shape a name. Now every place that uses a `CartItem` is checked: missing properties, misspelled names and wrong value types are all errors.
+
+</Concept>
+
+<Concept name="Optional and readonly properties" id="optional-readonly">
+
+<TSPlayground file="product.ts" errors={[10, 13]} expected={["Iced coffee no description", "Tea Fresh mint tea"]}>
+
+```ts
+type Product = {
+  readonly id: number;     // can't be changed after creation
+  name: string;
+  description?: string;    // may be missing: its type is string | undefined
+};
+
+const iced: Product = { id: 1, name: "Iced coffee" };          // fine without description
+const tea: Product = { id: 2, name: "Tea", description: "Fresh mint tea" };
+
+iced.id = 99;                                                  // error: id is readonly
+
+function shout(p: Product) {
+  return p.description.toUpperCase();                          // error: it might be undefined
+}
+
+for (const p of [iced, tea]) {
+  console.log(p.name, p.description ?? "no description");
+}
+```
+
+</TSPlayground>
+
+- `description?: string` means the property may be left out. Reading it gives `string | undefined`, so TypeScript makes you handle the missing case (`??`, `?.`, or an `if`).
+- `readonly` stops reassignment. It's checked by TypeScript only; at run time the object is a normal object.
+
+</Concept>
+
+<Concept name="interface: the other way to write it" id="interface">
+
+```ts file=product.ts
+interface Product {
+  id: number;
+  name: string;
+  description?: string;
+}
+
+interface CartItem extends Product {   // add to an existing shape
+  qty: number;
+}
+```
+
+`interface` and `type` describe objects equally well. The differences:
+
+| | `type` | `interface` |
+| --- | --- | --- |
+| Objects | ✓ | ✓ |
+| Unions, primitives, tuples (`"S" \| "M"`, `string`, `[number, number]`) | ✓ | ✗ |
+| Extend | `type B = A & { x: number }` | `interface B extends A { x: number }` |
+| Merge two declarations with the same name | ✗ (error) | ✓ (declaration merging) |
+
+Pick one style per project and stay consistent. A common choice, and this school's: `type` for everything, since it also handles unions; `interface` when you need to extend library types.
+
+</Concept>
+
+<HowItWorks title="Structural typing: shape, not name">
+
+TypeScript compares types by their **shape**, not their name. Any object with `id`, `name`, `price` and `qty` of the right types **is** a `CartItem`, even if it was never declared as one. That's called structural typing (some languages, like Java, use names instead).
+
+One exception catches typos: when you write an object **literal** directly where a type is expected, extra properties are an error (`{ id: 1, name: "Tea", prise: 2 }` → "Object literal may only specify known properties"). That's the **excess property check**.
+
+</HowItWorks>
+
+<Practice>
+
+<SpotTheBug
+  id="bug-object-shape"
+  bug={[8, 9]}
+  prompt="TypeScript underlines two lines. Click either one."
+  explain="Line 8 misspells `price` as `prise` (an excess property, and `price` is missing). Line 9 gives `qty` a string instead of a number."
+>
+
+```ts
+type CartItem = {
+  id: number;
+  name: string;
+  price: number;
+  qty: number;
+};
+
+const a: CartItem = { id: 1, name: "Tea", prise: 2, qty: 1 };
+const b: CartItem = { id: 2, name: "Bagel", price: 3, qty: "2" };
+```
+
+</SpotTheBug>
+
+<FillBlanks
+  id="blanks-object-type"
+  prompt="Fill in the blanks: a user has a name, and maybe a phone number."
+  explain="A `type` alias names the shape; `?` makes `phone` optional."
+>
+
+```ts
+__[type]__ User = {
+  name: string;
+  phone__[?]__: string;
+};
+
+const ada: User = { name: "Ada" };
+```
+
+</FillBlanks>
+
+<TrueFalse
+  id="tf-objects"
+  statements={[
+    { text: "`interface` can describe a union like `\"S\" | \"M\" | \"L\"`.", answer: false, explain: "Only `type` can name unions, primitives and tuples." },
+    { text: "An object with the right properties matches a type even if it was never declared with that type.", answer: true, explain: "Structural typing: shape, not name." },
+    { text: "`readonly` makes the object frozen at run time.", answer: false, explain: "It's a compile-time check only. Use `Object.freeze` for a run-time freeze." },
+    { text: "Reading an optional property gives `T | undefined`.", answer: true, explain: "So you must handle the missing case." },
+  ]}
+/>
+
+</Practice>
+
+<TSExercise
+  id="type-order"
+  title="Type an order"
+  hints={[
+    "Write `type Order = { id: number; items: CartItem[]; note?: string; readonly createdAt: string };`.",
+    "`orderTotal(order: Order): number` adds `price * qty` for every item: `order.items.reduce((sum, i) => sum + i.price * i.qty, 0)`.",
+  ]}
+>
+
+Define a type `Order` with: an `id` (number), `items` (an array of `CartItem`), an optional `note` (text), and a **readonly** `createdAt` (text). Then type `orderTotal` so it takes an `Order` and returns a number.
+
+```ts starter
+type CartItem = { id: number; name: string; price: number; qty: number };
+
+type Order = any;
+
+function orderTotal(order) {
+  return order.items.reduce((sum, i) => sum + i.price * i.qty, 0);
+}
+```
+
+```ts types
+const order: Order = {
+  id: 7,
+  items: [{ id: 1, name: "Coffee", price: 4, qty: 2 }],
+  createdAt: "2026-11-17",
+};
+const withNote: Order = { ...order, note: "Oat milk please" };
+const sum: number = orderTotal(order);
+// @ts-expect-error createdAt is readonly
+order.createdAt = "yesterday";
+// @ts-expect-error items must be cart items
+const wrong: Order = { id: 8, items: ["Coffee"], createdAt: "2026-11-17" };
+// @ts-expect-error orderTotal needs an Order
+orderTotal({ id: 9 });
+```
+
+```js tests
+test("adds price times quantity for every item", () => {
+  const order = {
+    id: 1,
+    items: [
+      { id: 1, name: "Coffee", price: 4, qty: 2 },
+      { id: 2, name: "Bagel", price: 3, qty: 1 },
+    ],
+    createdAt: "2026-11-17",
+  };
+  expect(orderTotal(order)).toBe(11);
+});
+```
+
+```ts solution
+type CartItem = { id: number; name: string; price: number; qty: number };
+
+type Order = {
+  id: number;
+  items: CartItem[];
+  note?: string;
+  readonly createdAt: string;
+};
+
+function orderTotal(order: Order): number {
+  return order.items.reduce((sum, i) => sum + i.price * i.qty, 0);
+}
+```
+
+</TSExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "What does `description?: string` mean?",
+      options: ["description is required", "description may be missing; its type is `string | undefined`", "description can be any type", "description is readonly"],
+      answer: 1,
+      explain: "The `?` makes the property optional.",
+    },
+    {
+      q: "Which can only be written with `type`, not `interface`?",
+      options: ["An object shape", "A union like `\"small\" | \"large\"`", "A shape that extends another", "An optional property"],
+      answer: 1,
+      explain: "Interfaces describe object shapes only.",
+    },
+    {
+      q: "Why is `{ id: 1, name: \"Tea\", prise: 2 }` an error when assigned to a `Product` literal?",
+      options: ["Excess property check: `prise` isn't a known property (a likely typo)", "Strings can't be names", "ids must be strings", "It isn't an error"],
+      answer: 0,
+      explain: "Object literals are checked for unknown properties.",
+    },
+  ]}
+/>

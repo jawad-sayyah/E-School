@@ -1,0 +1,200 @@
+---
+id: enums
+title: Enums, and the union alternatives
+summary: Name a fixed set of values with an enum, see what it compiles to, and learn why many teams prefer a union of string literals or an as const object.
+minutes: 13
+tags: [TypeScript, enum, string enum, union types, as const, keyof typeof]
+---
+
+An order is always in one of a few states: placed, paid, shipped, delivered. TypeScript has two ways to name such a fixed set: **enums**, and **unions of literal types**. You'll meet both in real code.
+
+<Concept name="Enums" id="enums">
+
+<TSPlayground file="status.ts" errors={[13]} expected={["shipped", "Shipped orders: 1"]}>
+
+```ts
+enum OrderStatus {
+  Placed = "placed",
+  Paid = "paid",
+  Shipped = "shipped",
+}
+
+const orders = [
+  { id: 1, status: OrderStatus.Paid },
+  { id: 2, status: OrderStatus.Shipped },
+];
+
+console.log(OrderStatus.Shipped);
+const typo: OrderStatus = "shipped";     // error: a plain string isn't an OrderStatus
+console.log("Shipped orders:", orders.filter((o) => o.status === OrderStatus.Shipped).length);
+```
+
+</TSPlayground>
+
+- Members are used as `OrderStatus.Shipped`, which reads well and autocompletes.
+- Give enums **string values** (`= "shipped"`): they're readable in logs and APIs. Without them, members are numbered 0, 1, 2…, and any number is accepted.
+- Unlike almost everything else in TypeScript, an enum **exists at run time**: it compiles to a real object.
+
+</Concept>
+
+<Concept name="The alternatives: literal unions and as const objects" id="alternatives">
+
+```ts file=status.ts
+// 1. A union of string literals: no run-time code at all
+type OrderStatus = "placed" | "paid" | "shipped";
+const s: OrderStatus = "paid";                 // plain strings, still checked
+
+// 2. An object as const, when you also want the values at run time (to loop over, say)
+const ORDER_STATUS = {
+  Placed: "placed",
+  Paid: "paid",
+  Shipped: "shipped",
+} as const;
+type Status = (typeof ORDER_STATUS)[keyof typeof ORDER_STATUS]; // "placed" | "paid" | "shipped"
+
+Object.values(ORDER_STATUS);                   // ["placed", "paid", "shipped"]
+```
+
+Many teams prefer these:
+
+- they're **plain JavaScript values**: data from an API (`"paid"`) fits directly, no conversion;
+- they produce **no extra code** (the union) or obvious code (the object);
+- newer tools that just strip types (Node's built-in TypeScript support, the `erasableSyntaxOnly` option) don't support enums, because enums need real code generated.
+
+Use whichever your codebase uses. For new code, a literal union is a great default.
+
+</Concept>
+
+<HowItWorks title="What an enum compiles to">
+
+A string enum becomes an object:
+
+```js file=status.js
+var OrderStatus;
+(function (OrderStatus) {
+  OrderStatus["Placed"] = "placed";
+  OrderStatus["Paid"] = "paid";
+  OrderStatus["Shipped"] = "shipped";
+})(OrderStatus || (OrderStatus = {}));
+```
+
+A numeric enum also gets a **reverse mapping** (`OrderStatus[0] === "Placed"`). This generated code is why enums are the one TypeScript feature that isn't "JavaScript plus erasable types".
+
+</HowItWorks>
+
+<Practice>
+
+<SortBuckets
+  id="buckets-enum-runtime"
+  prompt="Does this exist at run time, in the compiled JavaScript?"
+  buckets={["Exists at run time", "Erased"]}
+  items={[
+    ["`enum Size { S = \"s\", M = \"m\" }`", 0],
+    ["`type Size = \"s\" | \"m\"`", 1],
+    ["`const SIZES = { S: \"s\" } as const`", 0],
+    ["`interface Item { size: Size }`", 1],
+    ["`: number` on a parameter", 1],
+  ]}
+  explain="Types, interfaces and annotations vanish. Enums and real objects remain."
+/>
+
+<SpotTheBug
+  id="bug-enum-string"
+  bug={7}
+  prompt="TypeScript reports one error. Click the line."
+  explain="An enum type only accepts its members, not the plain string. Write `Size.Medium`, or use a literal union if you want plain strings."
+>
+
+```ts
+enum Size {
+  Small = "small",
+  Medium = "medium",
+}
+
+const a: Size = Size.Small;
+const b: Size = "medium";
+```
+
+</SpotTheBug>
+
+<Choice
+  id="choice-enum-or-union"
+  q={"An API returns orders with `status: \"paid\" | \"shipped\"`. Which type is the most direct fit?"}
+  options={["A numeric enum", "A union of string literals", "`any`", "`string`"]}
+  answer={1}
+  explain="The union matches the API's plain strings exactly. A string enum also works but needs conversions; `string` allows typos."
+/>
+
+</Practice>
+
+<TSExercise
+  id="size-union"
+  title="Sizes as a union, prices as a record"
+  hints={[
+    "`type Size = \"small\" | \"medium\" | \"large\";`",
+    "Annotate the prices object so every size must have a number: `const PRICES: { [S in Size]: number } = { … }` (or `Record<Size, number>`, coming next course).",
+    "`function price(size: Size): number { return PRICES[size]; }`",
+  ]}
+>
+
+Replace the loose `string` with a `Size` union of `"small"`, `"medium"` and `"large"`, make sure `PRICES` has a number for **every** size, and type `price` to take a `Size`.
+
+```ts starter
+type Size = string;
+
+const PRICES = { small: 3.5, medium: 4.5, large: 5 };
+
+function price(size) {
+  return PRICES[size];
+}
+```
+
+```ts types
+const m: number = price("medium");
+// @ts-expect-error only the three sizes exist
+price("huge");
+// @ts-expect-error a Size is one of the three strings
+const s: Size = "extra large";
+```
+
+```js tests
+test("looks up the price of each size", () => {
+  expect(price("small")).toBe(3.5);
+  expect(price("large")).toBe(5);
+});
+```
+
+```ts solution
+type Size = "small" | "medium" | "large";
+
+const PRICES: { [S in Size]: number } = { small: 3.5, medium: 4.5, large: 5 };
+
+function price(size: Size): number {
+  return PRICES[size];
+}
+```
+
+</TSExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "What makes enums different from most TypeScript features?",
+      options: ["They're faster", "They generate real JavaScript code", "They only work in React", "They can't have string values"],
+      answer: 1,
+      explain: "Most TypeScript syntax is erased; enums become objects.",
+    },
+    {
+      q: "Why give an enum string values?",
+      options: ["Readable logs and API values, and no accidental numbers", "They're required", "To make it faster", "To enable reverse mapping"],
+      answer: 0,
+      explain: "Numeric enums accept any number.",
+    },
+    {
+      q: "Which gives you the list of values at run time AND a union type?",
+      options: ["A literal union", "An object `as const` plus `(typeof OBJ)[keyof typeof OBJ]`", "An interface", "A tuple type"],
+      answer: 1,
+      explain: "A literal union alone has no run-time value.",
+    },
+  ]}
+/>

@@ -1,0 +1,179 @@
+---
+id: review
+title: "Review: TypeScript Basics"
+summary: Mixed questions on types and inference, object types, unions and narrowing, functions, arrays and tuples, and enums, plus a typed cart to build.
+minutes: 18
+kind: review
+tags: [review, TypeScript, types, unions, narrowing, functions, tuples, enums]
+---
+
+Everything from TypeScript Basics in one review. The lesson names in brackets tell you where to look.
+
+<Practice title="Read the types">
+
+<MatchPairs
+  id="match-review-ts-basics"
+  prompt="Match each type with a value it accepts."
+  columns={["Type", "Accepts"]}
+  pairs={[
+    ["`string | null`", "`null`"],
+    ["`\"S\" | \"M\"`", "`\"M\"`"],
+    ["`[string, number]`", "`[\"Tea\", 2]`"],
+    ["`readonly number[]`", "`[4, 2]`"],
+    ["`{ name: string; note?: string }`", "`{ name: \"Ada\" }`"],
+  ]}
+/>
+
+<SpotTheBug
+  id="bug-review-ts-basics"
+  bug={[6, 10]}
+  prompt="TypeScript reports two errors. Click either line. (Unions and narrowing, Arrays and tuples)"
+  explain="Line 6: `code` might be null, so `.toUpperCase()` needs a check first. Line 10: `find` might return undefined, so `.price` needs a check."
+>
+
+```ts
+type Item = { name: string; price: number };
+
+const items: Item[] = [{ name: "Tea", price: 2 }];
+
+function label(code: string | null): string {
+  return code.toUpperCase();
+}
+
+const tea = items.find((i) => i.name === "Tea");
+const teaPrice = tea.price;
+```
+
+</SpotTheBug>
+
+<TraceState
+  id="trace-review-inference"
+  track="the type TypeScript infers"
+  steps={[
+    { action: "`let qty = 2`", answer: "number" },
+    { action: "`const size = \"M\"`", answer: "\"M\"" },
+    { action: "`let tags = [\"hot\", \"new\"]`", answer: "string[]" },
+    { action: "`const pair = [1, 2] as const`", answer: "readonly [1, 2]" },
+  ]}
+  explain="`let` widens to the general type, `const` keeps literals, and `as const` makes readonly tuples of literals. (Basic types and inference, Arrays and tuples)"
+/>
+
+<TrueFalse
+  id="tf-review-ts-basics"
+  statements={[
+    { text: "Function parameters need type annotations in strict mode.", answer: true, explain: "Otherwise they're implicitly `any`. (Typing functions)" },
+    { text: "`interface` can describe a union of string literals.", answer: false, explain: "Use `type`. (Objects)" },
+    { text: "Type errors stop JavaScript from running.", answer: false, explain: "Types are erased; the build or editor reports them. (Why TypeScript?)" },
+    { text: "Enums exist at run time.", answer: true, explain: "They compile to objects. (Enums)" },
+  ]}
+/>
+
+</Practice>
+
+<TSExercise
+  id="typed-cart"
+  title="A fully typed cart"
+  hints={[
+    "`type CartLine = { id: number; name: string; price: number; qty: number };`",
+    "`function addLine(cart: readonly CartLine[], line: CartLine): CartLine[]` returns `[...cart, line]`; `removeLine` uses `filter`.",
+    "`findLine(cart: readonly CartLine[], id: number): CartLine | undefined` returns `cart.find((l) => l.id === id)`.",
+  ]}
+>
+
+Type the cart helpers: define `CartLine` (`id`, `name`, `price`, `qty`), then give `addLine`, `removeLine` and `findLine` full signatures. The cart parameter must be **readonly** (they return new arrays), and `findLine` must admit it may find nothing.
+
+```ts starter
+type CartLine = any;
+
+function addLine(cart, line) {
+  return [...cart, line];
+}
+
+function removeLine(cart, id) {
+  return cart.filter((l) => l.id !== id);
+}
+
+function findLine(cart, id) {
+  return cart.find((l) => l.id === id);
+}
+```
+
+```ts types
+const cart: CartLine[] = [{ id: 1, name: "Tea", price: 2, qty: 1 }];
+const next: CartLine[] = addLine(cart, { id: 2, name: "Bagel", price: 3, qty: 1 });
+const fewer: CartLine[] = removeLine(next, 1);
+const found = findLine(cart, 1);
+// a found line may be undefined, so this must be checked first
+const name: string = found?.name ?? "none";
+// @ts-expect-error findLine may return undefined
+const unsafe: string = findLine(cart, 1).name;
+// @ts-expect-error a cart line needs a quantity
+addLine(cart, { id: 3, name: "Cake", price: 5 });
+// @ts-expect-error ids are numbers
+removeLine(cart, "1");
+```
+
+```js tests
+const tea = { id: 1, name: "Tea", price: 2, qty: 1 };
+const bagel = { id: 2, name: "Bagel", price: 3, qty: 1 };
+
+test("addLine returns a new array with the line", () => {
+  const cart = [tea];
+  const next = addLine(cart, bagel);
+  expect(next).toEqual([tea, bagel]);
+  expect(cart).toEqual([tea]);
+});
+
+test("removeLine and findLine", () => {
+  expect(removeLine([tea, bagel], 1)).toEqual([bagel]);
+  expect(findLine([tea, bagel], 2)).toEqual(bagel);
+  expect(findLine([tea], 9)).toBe(undefined);
+});
+```
+
+```ts solution
+type CartLine = { id: number; name: string; price: number; qty: number };
+
+function addLine(cart: readonly CartLine[], line: CartLine): CartLine[] {
+  return [...cart, line];
+}
+
+function removeLine(cart: readonly CartLine[], id: number): CartLine[] {
+  return cart.filter((l) => l.id !== id);
+}
+
+function findLine(cart: readonly CartLine[], id: number): CartLine | undefined {
+  return cart.find((l) => l.id === id);
+}
+```
+
+</TSExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "Which is the safest type for JSON from a server, before you've checked it?",
+      options: ["`any`", "`unknown`", "`object`", "`string`"],
+      answer: 1,
+      explain: "It forces a check before use. (Basic types)",
+    },
+    {
+      q: "How do you make a property optional?",
+      options: ["`name: optional string`", "`name?: string`", "`name: string?`", "`?name: string`"],
+      answer: 1,
+      explain: "The `?` goes after the name. (Objects)",
+    },
+    {
+      q: "Which narrow `x: string | number` to `number`?",
+      options: ["`typeof x === \"number\"`", "`typeof x !== \"string\"`", "`if (x)`", "`x > 0`"],
+      answer: [0, 1],
+      explain: "Truthiness keeps both types, and comparing a string with `>` is an error. (Unions and narrowing)",
+    },
+    {
+      q: "What does `(name: string) => void` describe?",
+      options: ["A string", "A function that takes a string and returns nothing useful", "An array", "A tuple"],
+      answer: 1,
+      explain: "A function type, e.g. for a callback prop. (Typing functions)",
+    },
+  ]}
+/>

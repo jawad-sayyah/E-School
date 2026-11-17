@@ -1,0 +1,212 @@
+---
+id: unions-narrowing
+title: Union and literal types, and narrowing
+summary: Say "this or that" with union types, allow only exact values with literal types, and let TypeScript narrow a union down with typeof, in, equality and truthiness checks.
+minutes: 18
+tags: [TypeScript, union types, literal types, narrowing, typeof, in, null checks, control flow]
+---
+
+Real values are often "one of several things": a price that's a number **or** the text "free", a coupon code **or** `null`, a size that's `"small"`, `"medium"` **or** `"large"`. **Union types** describe exactly that, and **narrowing** lets you handle each case safely.
+
+<Concept name="Union types" id="unions">
+
+`A | B` means "an A **or** a B". You can only use what's valid for **every** member, until you check which one you have.
+
+<TSPlayground file="discount.ts" expected={["$4.00", "free", "no code"]}>
+
+```ts
+function formatPrice(price: number | "free"): string {
+  // price.toFixed(2) here would be an error: "free" has no toFixed
+  return price === "free" ? "free" : `$${price.toFixed(2)}`;
+}
+
+function describeCode(code: string | null): string {
+  return code === null ? "no code" : code.toUpperCase();
+}
+
+console.log(formatPrice(4));
+console.log(formatPrice("free"));
+console.log(describeCode(null));
+```
+
+</TSPlayground>
+
+`price.toFixed(2)` on line 3 is fine **because** of the `price === "free"` check: in the other branch of the ternary, TypeScript knows `price` must be a number. Delete the check and the error appears.
+
+</Concept>
+
+<Concept name="Literal types" id="literals">
+
+A literal type is one exact value. A union of literals is a closed list of allowed values, like a dropdown:
+
+<TSPlayground file="sizes.ts" errors={[7]} expected={["medium costs $4.5"]}>
+
+```ts
+type Size = "small" | "medium" | "large";
+
+const PRICES = { small: 3.5, medium: 4.5, large: 5 };
+
+let size: Size = "medium";
+console.log(`${size} costs $${PRICES[size]}`);
+size = "huge";            // error: not one of the three
+```
+
+</TSPlayground>
+
+Typos in strings are a classic JavaScript bug (`"meduim"`). With a literal union, the editor also **autocompletes** the allowed values.
+
+</Concept>
+
+<Concept name="Narrowing" id="narrowing">
+
+TypeScript follows your `if`s, `return`s and `switch`es, and **narrows** the type in each branch:
+
+```ts file=narrowing.ts
+function show(value: string | number | null | { name: string }) {
+  if (value === null) return "nothing";        // value: null
+  if (typeof value === "string") return value; // value: string
+  if (typeof value === "number") return value.toFixed(2); // value: number
+  return value.name;                           // value: { name: string } — the only one left
+}
+```
+
+| Check | Narrows |
+| --- | --- |
+| `typeof x === "string"` / `"number"` / `"boolean"` | primitives |
+| `x === null`, `x !== undefined`, `x === "free"` | exact values |
+| `if (x)` (truthiness) | removes `null`, `undefined` (and `""`, `0`!) |
+| `"price" in x` | objects that have that property |
+| `Array.isArray(x)`, `x instanceof Date` | arrays, class instances |
+
+</Concept>
+
+<HowItWorks title="Control-flow analysis">
+
+TypeScript doesn't just read types; it follows the **flow** of your code. After `if (code === null) return;`, it knows `code` can't be `null` on the following lines, because the only way to get there is if the check was false. The same works with `switch`, early `throw`s, `&&` and ternaries. That's why idiomatic TypeScript looks just like careful JavaScript: the checks you'd write anyway are what make the types precise.
+
+</HowItWorks>
+
+<Practice>
+
+<TraceState
+  id="trace-narrowing"
+  track="the type of `value` at each point"
+  steps={[
+    { action: "At the start of `function f(value: string | number | null)`", answer: "string | number | null" },
+    { action: "Inside `if (value === null) { … }`", answer: "null" },
+    { action: "After `if (value === null) return;`", answer: "string | number" },
+    { action: "Inside `if (typeof value === \"number\") { … }` after that", answer: "number" },
+  ]}
+  explain="Each check removes possibilities for the code that follows it."
+/>
+
+<SpotTheBug
+  id="bug-union"
+  bug={2}
+  prompt="TypeScript reports an error. Click the line."
+  explain={"`name` might be `null`, so calling `.trim()` on it is an error. Check first: `name?.trim() ?? \"\"` or `if (name === null) …`."}
+>
+
+```ts
+function cleanName(name: string | null): string {
+  return name.trim();
+}
+```
+
+</SpotTheBug>
+
+<SortBuckets
+  id="buckets-narrowing"
+  prompt="Does this check narrow `x: string | number` to `string`?"
+  buckets={["Narrows to string", "Doesn't"]}
+  items={[
+    ["`typeof x === \"string\"`", 0],
+    ["`typeof x !== \"number\"`", 0],
+    ["`if (x)`", 1],
+    ["`x.length > 0`", 1],
+    ["`!(typeof x === \"number\")`", 0],
+  ]}
+  explain="`typeof` checks (and their negations) narrow. Truthiness keeps both (a non-empty string and a non-zero number are both truthy), and `x.length` is an error on a number."
+/>
+
+</Practice>
+
+<TSExercise
+  id="shipping-label"
+  title="Type the shipping option"
+  hints={[
+    "`type Shipping = \"standard\" | \"express\" | \"pickup\";`",
+    "Give `shippingCost` the parameter type `Shipping` and the return type `number`.",
+    "Return 0 for pickup, 3 for standard and 8 for express; a `switch` reads well.",
+  ]}
+>
+
+Create a `Shipping` type that allows only `"standard"`, `"express"` or `"pickup"`. Then type and finish `shippingCost`: pickup is free, standard costs 3, express costs 8.
+
+```ts starter
+type Shipping = string;
+
+function shippingCost(option) {
+  return 0;
+}
+```
+
+```ts types
+const fast: Shipping = "express";
+const cost: number = shippingCost("pickup");
+// @ts-expect-error only the three options are allowed
+const typo: Shipping = "expres";
+// @ts-expect-error shippingCost only takes a Shipping option
+shippingCost("drone");
+```
+
+```js tests
+test("pickup is free", () => {
+  expect(shippingCost("pickup")).toBe(0);
+});
+
+test("standard costs 3 and express costs 8", () => {
+  expect(shippingCost("standard")).toBe(3);
+  expect(shippingCost("express")).toBe(8);
+});
+```
+
+```ts solution
+type Shipping = "standard" | "express" | "pickup";
+
+function shippingCost(option: Shipping): number {
+  switch (option) {
+    case "pickup":
+      return 0;
+    case "standard":
+      return 3;
+    case "express":
+      return 8;
+  }
+}
+```
+
+</TSExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "What can you do with a value of type `string | number` without checking it first?",
+      options: ["Call `.toUpperCase()`", "Call `.toFixed()`", "Only what both strings and numbers support, like `.toString()`", "Anything"],
+      answer: 2,
+      explain: "Narrow it to use string-only or number-only methods.",
+    },
+    {
+      q: "What's `\"small\" | \"medium\" | \"large\"`?",
+      options: ["A string", "A union of literal types: exactly one of those three strings", "An enum", "An array"],
+      answer: 1,
+      explain: "Any other string is an error.",
+    },
+    {
+      q: "Which checks narrow `x: string | null` to `string`?",
+      options: ["`if (x !== null)`", "`if (typeof x === \"string\")`", "`if (x)` (but it also excludes the empty string)", "`if (x.length)`"],
+      answer: [0, 1, 2],
+      explain: "`x.length` is an error while `x` might be null.",
+    },
+  ]}
+/>

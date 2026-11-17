@@ -1,0 +1,193 @@
+---
+id: basic-types
+title: Basic types and inference
+summary: Annotate variables with string, number and boolean, let TypeScript infer types for you, and meet any, unknown, null and undefined.
+minutes: 14
+tags: [TypeScript, string, number, boolean, inference, any, unknown, null, undefined, annotations]
+---
+
+A **type** describes what kind of value something can hold. You write it after a colon: `let name: string`. Most of the time you don't even need to: TypeScript **infers** the type from the value.
+
+<Concept name="The primitive types" id="primitives">
+
+<TSPlayground file="types.ts" errors={[8]} expected={["Coffee 4 true"]}>
+
+```ts
+let name: string = "Coffee";
+let price: number = 4;          // whole numbers and decimals are both number
+let inStock: boolean = true;
+
+console.log(name, price, inStock);
+
+price = 4.5;                    // fine: still a number
+price = "four";                 // error: a string isn't a number
+```
+
+</TSPlayground>
+
+Once a variable has a type, TypeScript makes sure every value you put in it matches. Hover over any variable in the editor to see its type.
+
+</Concept>
+
+<Concept name="Inference: let TypeScript work it out" id="inference">
+
+You rarely need to annotate a variable you initialize right away. TypeScript reads the value and **infers** the type:
+
+<TSPlayground file="inference.ts" errors={[5]} expected={["5 3 Iced coffee"]}>
+
+```ts
+let qty = 2;                 // inferred: number
+const label = "Iced coffee"; // inferred: the literal type "Iced coffee" (a const can't change)
+
+function oops() {
+  qty = "three";             // error: qty is a number
+}
+
+qty = qty + 3;
+const total = qty * 0.6;     // inferred: number
+console.log(qty, Math.round(total), label);
+```
+
+</TSPlayground>
+
+**Rule of thumb:** let TypeScript infer variables; write types on **function parameters** (TypeScript can't guess what callers will pass) and on things exported for others to use.
+
+</Concept>
+
+<Concept name="any, unknown, null and undefined" id="special">
+
+- **`any`** turns type checking off for that value. Anything goes, so every bug is back. Avoid it; in strict projects it's often banned by lint.
+- **`unknown`** means "some value, but I don't know what yet". You must check what it is before using it, so it's the safe choice for data from outside (JSON, user input).
+- **`null`** and **`undefined`** are their own types. With `strict` on (always, in real projects), a `string` can't be `null`: you write `string | null` when it can (next lessons).
+
+<TSPlayground file="unknown.ts" errors={[3]} expected={["COFFEE"]}>
+
+```ts
+const fromServer: unknown = JSON.parse('"coffee"');
+
+fromServer.toUpperCase();          // error: check what it is first
+
+if (typeof fromServer === "string") {
+  console.log(fromServer.toUpperCase()); // fine: now TypeScript knows it's a string
+}
+```
+
+</TSPlayground>
+
+With `any` instead of `unknown`, the bad call on line 3 would compile without a word, and a call like `value.toFixed(2)` on a string would crash at run time instead.
+
+</Concept>
+
+<HowItWorks title="Where types come from">
+
+TypeScript builds a type for every expression. Literals have types (`4` is a `number`, `"Tea"` is a `string`), operators produce types (`number * number` is a `number`), and functions have return types. When you annotate, TypeScript checks the value against your annotation; when you don't, it uses what it worked out. For `const`, it keeps the exact value as a **literal type** (`"Iced coffee"`), because a `const` can never change. That detail powers union types two lessons from now.
+
+</HowItWorks>
+
+<Practice>
+
+<MatchPairs
+  id="match-basic-types"
+  prompt="Match each value with the type TypeScript infers for a `let`."
+  columns={["let x = …", "Type"]}
+  pairs={[
+    ["`4.5`", "`number`"],
+    ["`\"Tea\"`", "`string`"],
+    ["`false`", "`boolean`"],
+    ["`[1, 2, 3]`", "`number[]`"],
+    ["`{ name: \"Tea\" }`", "`{ name: string }`"],
+  ]}
+/>
+
+<SpotTheBug
+  id="bug-basic-types"
+  bug={4}
+  prompt="TypeScript reports one error. Click the line."
+  explain={"`inStock` was inferred as `boolean` from its first value, so assigning the string \"yes\" is an error."}
+>
+
+```ts
+let qty = 1;
+let inStock = true;
+qty = qty + 1;
+inStock = "yes";
+```
+
+</SpotTheBug>
+
+<SortBuckets
+  id="buckets-any-unknown"
+  prompt="`any` or `unknown`: which one allows this without a check?"
+  buckets={["Allowed on `any` and `unknown`", "Only allowed on `any`"]}
+  items={[
+    ["Assigning any value to it", 0],
+    ["Calling `.toUpperCase()` on it", 1],
+    ["Passing it to a function that wants a `number`", 1],
+    ["Checking it with `typeof value === \"string\"`", 0],
+    ["Reading `value.price`", 1],
+  ]}
+  explain="Both accept any value, but only `any` lets you use it without checking. `unknown` forces a check first, which is why it's safe."
+/>
+
+</Practice>
+
+<TSExercise
+  id="annotate-product"
+  title="Type the product variables"
+  hints={[
+    "Write the type after the name: `let stock: number = 12;`",
+    "The discount code can be missing, so its type is `string | null`.",
+  ]}
+>
+
+Add type annotations so that each variable only accepts the right kind of value: `productName` is text, `stock` is a number, `onSale` is true/false, and `discountCode` is text **or** `null` (no code).
+
+```ts starter
+let productName = "Coffee";
+let stock = 12;
+let onSale = false;
+let discountCode = null;
+```
+
+```ts types
+// a discount code can be set later
+discountCode = "SAVE10";
+// @ts-expect-error stock must be a number
+stock = "twelve";
+// @ts-expect-error onSale must be a boolean
+onSale = "no";
+// @ts-expect-error a discount code is text, not a number
+discountCode = 10;
+```
+
+```ts solution
+let productName: string = "Coffee";
+let stock: number = 12;
+let onSale: boolean = false;
+let discountCode: string | null = null;
+```
+
+</TSExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "What type does TypeScript infer for `let qty = 3`?",
+      options: ["`any`", "`number`", "`3`", "`string`"],
+      answer: 1,
+      explain: "A `let` gets the general type; a `const` would keep the literal `3`.",
+    },
+    {
+      q: "Where should you usually write type annotations?",
+      options: ["On every variable", "On function parameters and exported things", "Nowhere; TypeScript always guesses", "Only on strings"],
+      answer: 1,
+      explain: "Let inference handle local variables.",
+    },
+    {
+      q: "Why prefer `unknown` over `any` for data from outside?",
+      options: ["It's faster", "You must check the value before using it, so mistakes are caught", "It converts the data", "There's no difference"],
+      answer: 1,
+      explain: "`any` silently turns checking off.",
+    },
+  ]}
+/>

@@ -1,0 +1,202 @@
+---
+id: arrays-tuples
+title: Arrays and tuples
+summary: Type arrays with T[] and Array<T>, keep them read-only, and use tuples for fixed-length pairs like useState's [value, setter].
+minutes: 14
+tags: [TypeScript, arrays, Array<T>, readonly arrays, tuples, as const]
+---
+
+Lists are everywhere: cart lines, products, tags. TypeScript types a list by the type of its **items**, and **tuples** describe short arrays where each position has its own meaning.
+
+<Concept name="Array types" id="arrays">
+
+<TSPlayground file="arrays.ts" errors={[4, 9]} expected={["[ 'hot', 'new', 42 ]", "6"]}>
+
+```ts
+const tags: string[] = ["hot", "new"];
+const prices: Array<number> = [4, 2];   // the same as number[]
+
+tags.push(42);                           // error: 42 isn't a string
+console.log(tags);
+
+const inferred = [1, 2, 3];              // inferred: number[]
+console.log(inferred.reduce((a, b) => a + b, 0));
+inferred.push("four");                   // error
+```
+
+</TSPlayground>
+
+- The error on line 4 doesn't stop the code from running: the log shows the 42. Types only protect you if you fix the errors.
+- `string[]` and `Array<string>` mean the same thing; `T[]` is more common.
+- Array methods keep the types: `prices.map((p) => p * 2)` is a `number[]`, `tags.find(...)` is `string | undefined` (it might find nothing!).
+- An array of objects is `CartItem[]`.
+
+</Concept>
+
+<Concept name="readonly arrays" id="readonly">
+
+`readonly string[]` (or `ReadonlyArray<string>`) removes the mutating methods (`push`, `sort`, `splice`…). Great for props and state that must never be mutated, which in React is all of them:
+
+```ts file=readonly.ts
+function total(lines: readonly { price: number; qty: number }[]): number {
+  // lines.push(...) or lines.sort() here would be errors
+  return lines.reduce((sum, l) => sum + l.price * l.qty, 0);
+}
+```
+
+</Concept>
+
+<Concept name="Tuples" id="tuples">
+
+A **tuple** is an array with a fixed length and a type per position. You've used one in every React component: `useState` returns `[value, setter]`.
+
+<TSPlayground file="tuples.ts" errors={[6]} expected={["Coffee x2", "48.8566 2.3522"]}>
+
+```ts
+type LineSummary = [name: string, qty: number];   // labels are just documentation
+
+const line: LineSummary = ["Coffee", 2];
+const [name, qty] = line;                           // name: string, qty: number
+console.log(`${name} x${qty}`);
+const bad: LineSummary = [2, "Coffee"];             // error: wrong order
+
+const shop = [48.8566, 2.3522] as const;            // readonly [48.8566, 2.3522]
+console.log(shop[0], shop[1]);
+```
+
+</TSPlayground>
+
+`as const` makes TypeScript infer the narrowest type: a readonly tuple of exact literals, instead of `number[]`.
+
+</Concept>
+
+<HowItWorks title="Why find() returns T | undefined">
+
+TypeScript models what can really happen. `[4, 2].find((p) => p > 10)` finds nothing and returns `undefined`, so the result type is `number | undefined`, and you must handle that case before using it. Indexing (`prices[5]`) is typed as `number` by default for convenience, even though it can be `undefined`; the `noUncheckedIndexedAccess` compiler option makes that case `number | undefined` too, and many teams turn it on.
+
+</HowItWorks>
+
+<Practice>
+
+<MatchPairs
+  id="match-array-types"
+  prompt="Match each value with its inferred type."
+  columns={["Value", "Type"]}
+  pairs={[
+    ["`[\"tea\", \"coffee\"]`", "`string[]`"],
+    ["`[1, \"two\"]`", "`(string | number)[]`"],
+    ["`[1, 2] as const`", "`readonly [1, 2]`"],
+    ["`[4, 2].find((p) => p > 3)`", "`number | undefined`"],
+  ]}
+/>
+
+<SpotTheBug
+  id="bug-find-undefined"
+  bug={4}
+  prompt="TypeScript reports one error. Click the line."
+  explain="`find` may return `undefined`, so `coffee.price` isn't safe. Handle it: `coffee?.price ?? 0`, or check `if (!coffee)` first."
+>
+
+```ts
+const menu = [{ name: "Coffee", price: 4 }, { name: "Tea", price: 2 }];
+
+const coffee = menu.find((m) => m.name === "Coffee");
+const price = coffee.price;
+```
+
+</SpotTheBug>
+
+<FillBlanks
+  id="blanks-tuple"
+  prompt="Fill in the blanks to type a coordinate pair and a list of tags."
+  explain="A tuple lists one type per position; an array type is `Array<Item>` (or `Item[]`)."
+>
+
+```ts
+const point: [__[number]__, number] = [10, 20];
+const tags: Array<__[string]__> = ["hot", "iced"];
+```
+
+</FillBlanks>
+
+</Practice>
+
+<TSExercise
+  id="cart-summary-tuple"
+  title="Return a tuple"
+  hints={[
+    "The return type is a tuple: `[count: number, total: number]`.",
+    "Type the parameter as `readonly CartLine[]` so the function can't mutate it.",
+    "Return `[count, total]` where count adds up the `qty`s.",
+  ]}
+>
+
+Write `summarize(lines)` that returns a **tuple** `[count, total]`: the number of items (sum of `qty`) and the total price. The parameter must be a **readonly** array of `CartLine`, so the function can't change the cart.
+
+```ts starter
+type CartLine = { name: string; price: number; qty: number };
+
+function summarize(lines) {
+  return { count: 0, total: 0 };
+}
+```
+
+```ts types
+const lines: CartLine[] = [{ name: "Coffee", price: 4, qty: 2 }];
+const [count, total] = summarize(lines);
+const n: number = count;
+const t: number = total;
+// @ts-expect-error a tuple of two has no third element
+summarize(lines)[2];
+// @ts-expect-error the lines must be cart lines
+summarize([1, 2]);
+```
+
+```js tests
+test("counts items and adds up the total", () => {
+  const lines = [
+    { name: "Coffee", price: 4, qty: 2 },
+    { name: "Tea", price: 2, qty: 3 },
+  ];
+  expect(summarize(lines)).toEqual([5, 14]);
+});
+
+test("an empty cart is [0, 0]", () => {
+  expect(summarize([])).toEqual([0, 0]);
+});
+```
+
+```ts solution
+type CartLine = { name: string; price: number; qty: number };
+
+function summarize(lines: readonly CartLine[]): [count: number, total: number] {
+  const count = lines.reduce((n, l) => n + l.qty, 0);
+  const total = lines.reduce((sum, l) => sum + l.price * l.qty, 0);
+  return [count, total];
+}
+```
+
+</TSExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "What's the difference between `string[]` and `Array<string>`?",
+      options: ["None: two ways to write the same type", "`Array<string>` is readonly", "`string[]` can hold numbers", "`Array<string>` is a tuple"],
+      answer: 0,
+      explain: "Pick one style; `T[]` is the common one.",
+    },
+    {
+      q: "Which type fits `useState`'s return value for a number state?",
+      options: ["`number[]`", "`[number, (value: number) => void]` (a tuple)", "`{ value: number }`", "`Array<number | Function>`"],
+      answer: 1,
+      explain: "A fixed pair with a different type in each position: a tuple.",
+    },
+    {
+      q: "What does `as const` do to `[\"S\", \"M\"]`?",
+      options: ["Nothing", "Makes it `readonly [\"S\", \"M\"]`, with exact literal types", "Freezes it at run time", "Converts it to an enum"],
+      answer: 1,
+      explain: "It's a compile-time hint for the narrowest type.",
+    },
+  ]}
+/>

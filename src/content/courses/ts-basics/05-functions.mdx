@@ -1,0 +1,219 @@
+---
+id: functions
+title: Typing functions
+summary: Type parameters and return values, optional and default parameters, rest parameters, callbacks and function types, plus void and never.
+minutes: 16
+tags: [TypeScript, functions, parameters, return types, optional parameters, default parameters, callbacks, void, never]
+---
+
+Functions are where types help most: a function's signature is a promise about what it takes and what it gives back, checked at every call.
+
+<Concept name="Parameters and return types" id="params">
+
+<TSPlayground file="totals.ts" errors={[6, 7]} expected={["8", "8.8"]}>
+
+```ts
+function lineTotal(price: number, qty: number): number {
+  return price * qty;
+}
+
+console.log(lineTotal(4, 2));
+lineTotal(4);              // error: expected 2 arguments
+lineTotal(4, "2");         // error: "2" isn't a number
+
+const withTax = (amount: number, rate = 0.1): number => amount * (1 + rate);
+console.log(withTax(8).toFixed(1));
+```
+
+</TSPlayground>
+
+- **Parameters always need types** (TypeScript can't know what callers will pass). In strict mode a missing one is an error: "implicitly has an any type".
+- **Return types** can be inferred, but writing them on exported functions documents intent and catches a wrong `return` early.
+- `rate = 0.1` is a **default parameter**: its type (`number`) is inferred from the default, and callers may leave it out.
+
+</Concept>
+
+<Concept name="Optional and rest parameters" id="optional-rest">
+
+```ts file=greet.ts
+function greet(name: string, title?: string): string {   // title: string | undefined
+  return title ? `Hello, ${title} ${name}` : `Hello, ${name}`;
+}
+
+function sum(...prices: number[]): number {              // any number of numbers
+  return prices.reduce((a, b) => a + b, 0);
+}
+
+greet("Ada");
+greet("Ada", "Dr.");
+sum(4, 3, 2.5);
+```
+
+Optional parameters (`?`) must come after required ones.
+
+</Concept>
+
+<Concept name="Function types and callbacks" id="callbacks">
+
+A function's type is written like an arrow: `(price: number) => string`. Use it for callbacks and for props like `onAdd`:
+
+<TSPlayground file="callbacks.ts" errors={[9]} expected={["[ '$4.00', '$2.50' ]", "Coffee", "Added Coffee"]}>
+
+```ts
+type Formatter = (price: number) => string;
+
+const dollars: Formatter = (p) => `$${p.toFixed(2)}`;   // p is inferred as number
+console.log([4, 2.5].map(dollars));
+
+function onAdd(callback: (name: string) => void) {
+  callback("Coffee");
+}
+onAdd((name: number) => console.log(name));               // error: wrong parameter type
+onAdd((name) => console.log(`Added ${name}`));
+```
+
+</TSPlayground>
+
+When a function is passed where a function type is expected, its parameters are inferred from that type (**contextual typing**), so you rarely annotate callback parameters.
+
+</Concept>
+
+<Concept name="void and never" id="void-never">
+
+- **`void`**: the function doesn't return anything useful (`console.log`, event handlers).
+- **`never`**: the function never returns at all, because it always throws or loops forever. It's also the type of "impossible" leftover cases, which the In Depth course uses for exhaustive checks.
+
+```ts file=errors.ts
+function logOrder(id: number): void {
+  console.log("Order", id);
+}
+
+function fail(message: string): never {
+  throw new Error(message);
+}
+```
+
+</Concept>
+
+<HowItWorks title="Why parameter types matter so much">
+
+Inside a function, TypeScript can only check your code if it knows what the parameters are. Outside, every **call** is checked against the parameters. So typing one line, the signature, protects both the function body and every place in the codebase that calls it. That's why "type your function signatures" is the first rule of TypeScript, and why inference is enough for most local variables.
+
+</HowItWorks>
+
+<Practice>
+
+<MatchPairs
+  id="match-function-types"
+  prompt="Match each signature with its meaning."
+  columns={["Signature", "Meaning"]}
+  pairs={[
+    ["`(a: number, b?: number) => number`", "The second argument may be left out"],
+    ["`(...items: string[]) => void`", "Any number of strings, returns nothing useful"],
+    ["`(qty: number, max = 10) => boolean`", "Has a default for the second argument"],
+    ["`(message: string) => never`", "Never returns (always throws)"],
+  ]}
+/>
+
+<SpotTheBug
+  id="bug-function-sig"
+  bug={[1, 6]}
+  prompt="TypeScript reports two errors. Click either line."
+  explain={"Line 1: `discount` has no type, so it's implicitly `any` (an error in strict mode). Line 6: `\"50\"` is passed where `total: number` is expected. (Passing a string as `discount` would NOT be caught: it's `any`, which is exactly the danger.)"}
+>
+
+```ts
+function applyDiscount(total: number, discount): number {
+  return total - discount;
+}
+
+applyDiscount(50, 10);
+applyDiscount("50", 10);
+```
+
+</SpotTheBug>
+
+<FillBlanks
+  id="blanks-callback"
+  prompt="Fill in the blanks: `forEachItem` calls the callback with each item's name."
+  explain="The callback takes a string and returns nothing: `(name: string) => void`."
+>
+
+```ts
+function forEachItem(names: string[], callback: (name: __[string]__) => __[void]__): void {
+  for (const n of names) callback(n);
+}
+```
+
+</FillBlanks>
+
+</Practice>
+
+<TSExercise
+  id="format-price"
+  title="A typed formatPrice"
+  hints={[
+    "Signature: `function formatPrice(amount: number, currency = \"$\", decimals?: number): string`.",
+    "Use `amount.toFixed(decimals ?? 2)`.",
+  ]}
+>
+
+Write `formatPrice(amount, currency, decimals)`: `amount` is a number; `currency` is text and defaults to `"$"`; `decimals` is optional (use 2 when it's missing). It returns a string like `$4.00`.
+
+```ts starter
+function formatPrice(amount, currency, decimals) {
+  return currency + amount;
+}
+```
+
+```ts types
+const a: string = formatPrice(4);
+const b: string = formatPrice(4, "€");
+const c: string = formatPrice(4, "€", 0);
+// @ts-expect-error the amount must be a number
+formatPrice("4");
+// @ts-expect-error decimals must be a number
+formatPrice(4, "$", "2");
+```
+
+```js tests
+test("defaults to dollars and two decimals", () => {
+  expect(formatPrice(4)).toBe("$4.00");
+});
+
+test("uses the currency and decimals given", () => {
+  expect(formatPrice(4.5, "€")).toBe("€4.50");
+  expect(formatPrice(4.5, "€", 0)).toBe("€5");
+});
+```
+
+```ts solution
+function formatPrice(amount: number, currency = "$", decimals?: number): string {
+  return currency + amount.toFixed(decimals ?? 2);
+}
+```
+
+</TSExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "Why must function parameters be typed in strict mode?",
+      options: ["For speed", "TypeScript can't infer what callers will pass; untyped params are implicitly `any`", "It's optional", "Only for exported functions"],
+      answer: 1,
+      explain: "`noImplicitAny` (part of strict) reports them.",
+    },
+    {
+      q: "What's the type of `title` in `function greet(name: string, title?: string)`?",
+      options: ["`string`", "`string | undefined`", "`any`", "`never`"],
+      answer: 1,
+      explain: "Optional means it may be undefined.",
+    },
+    {
+      q: "Which return type fits an `onClick` handler that returns nothing?",
+      options: ["`never`", "`void`", "`undefined[]`", "`null`"],
+      answer: 1,
+      explain: "`never` is for functions that never finish.",
+    },
+  ]}
+/>
