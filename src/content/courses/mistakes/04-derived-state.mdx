@@ -1,0 +1,242 @@
+---
+id: derived-state
+title: "Storing derived state"
+summary: Keeping values in state that could be calculated, syncing them with effects, and copying props into state, and why calculating during render is simpler and always correct.
+minutes: 13
+tags: [mistakes, derived state, useEffect, props in state, single source of truth, useMemo]
+---
+
+The most common "it works but it's wrong" pattern in React codebases: **state that's a copy of other state**.
+
+<Concept name="Mistake 8: storing derived state" id="derived" warn>
+
+<Compare
+  wrong="Three states that must be kept in sync by hand (and an effect to do it)"
+  right="One state; the rest is calculated during render"
+  wrongFile="Cart.jsx"
+  rightFile="Cart.jsx"
+>
+
+```jsx
+const [cart, setCart] = useState([]);
+const [total, setTotal] = useState(0);
+const [count, setCount] = useState(0);
+
+useEffect(() => {
+  setTotal(cart.reduce((s, l) => s + l.price * l.qty, 0));
+  setCount(cart.reduce((n, l) => n + l.qty, 0));
+}, [cart]);
+```
+
+```jsx
+const [cart, setCart] = useState([]);
+
+const total = cart.reduce((s, l) => s + l.price * l.qty, 0);
+const count = cart.reduce((n, l) => n + l.qty, 0);
+```
+
+</Compare>
+
+**Why:** derived state is a second copy of the truth, and copies drift. The effect version also renders **twice** per change (once with the new cart and the old total, then again), so for a moment the screen shows a wrong total. A calculation in the render body is always in sync, and it's usually so fast that it doesn't matter; if it's really expensive, wrap it in `useMemo`.
+
+</Concept>
+
+<Concept name="Its cousin: copying props into state" id="props-copy" warn>
+
+<Compare
+  wrong="Only reads the prop on the first render; later changes are ignored"
+  right="Use the prop directly (or a key to reset on purpose)"
+  wrongFile="PriceTag.jsx"
+  rightFile="PriceTag.jsx"
+>
+
+```jsx
+function PriceTag({ price }) {
+  const [shown, setShown] = useState(price);
+  return <strong>${shown}</strong>;
+}
+```
+
+```jsx
+function PriceTag({ price }) {
+  return <strong>${price}</strong>;
+}
+```
+
+</Compare>
+
+**Why:** `useState(price)` uses its argument only once. When the parent later passes a new price, the component keeps the old one. Copy a prop into state only when you mean "start from this value, then the user edits it" (and name it that way: `initialPrice`). To start over when an id changes, give the component a `key`.
+
+</Concept>
+
+<HowItWorks title="The test: could you calculate it?">
+
+Before adding a `useState`, ask: **can I compute this from props or other state?** If yes, it isn't state. Full name from first and last name, a filtered list from the list and the filter, "is the form valid" from the field values, the selected item from the list and a selected **id**: all derived. Keep the minimum in state (store the selected **id**, not a copy of the selected object), and compute the rest.
+
+</HowItWorks>
+
+<Practice>
+
+<SortBuckets
+  id="buckets-state-or-derived"
+  prompt="State, or calculate it during render?"
+  buckets={["State", "Calculate it"]}
+  items={[
+    ["The cart lines", 0],
+    ["The cart total", 1],
+    ["The text in the search box", 0],
+    ["The products matching the search", 1],
+    ["Which product id is selected", 0],
+    ["The selected product object", 1],
+    ["Whether the checkout button is enabled", 1],
+  ]}
+  explain="Only the source data the user changes is state. Totals, filtered lists, lookups and flags are calculated from it."
+/>
+
+<SpotTheBug
+  id="bug-derived-effect"
+  bug={[3, 4, 5, 6]}
+  prompt="The full name flickers with the old value for a moment after typing. Click a line that shouldn't exist."
+  explain={"`fullName` is derived from `first` and `last`, so the state and the effect are unnecessary (and cause an extra render with stale data). Replace them with `const fullName = first + \" \" + last;`."}
+>
+
+```jsx
+const [first, setFirst] = useState("");
+const [last, setLast] = useState("");
+const [fullName, setFullName] = useState("");
+useEffect(() => {
+  setFullName(first + " " + last);
+}, [first, last]);
+```
+
+</SpotTheBug>
+
+<Choice
+  id="choice-selected"
+  q="A list lets you select one product, and the product's price can change while it's selected. What should be in state?"
+  options={["A copy of the selected product object", "The selected product's id; find the object during render", "Both the id and a copy", "Nothing"]}
+  answer={1}
+  explain="An id never goes stale; a copied object keeps the old price."
+/>
+
+</Practice>
+
+<ReactExercise
+  id="fix-derived-state"
+  variant="fix"
+  title="Remove the derived state"
+  hints={[
+    "Delete the `visible` state and the effect.",
+    "Calculate it during render: `const visible = products.filter((p) => p.name.toLowerCase().includes(query.toLowerCase()));`",
+    "Also derive the count from `visible.length` instead of keeping it in state.",
+  ]}
+>
+
+This search keeps the filtered list and its count in state and syncs them with an effect, so for one render after each keystroke they're out of date (the tests check the very first render too). Remove both pieces of derived state and calculate them during render.
+
+```jsx starter file=/App.js
+import { useEffect, useState } from "react";
+
+const products = [
+  { id: 1, name: "Coffee" },
+  { id: 2, name: "Iced coffee" },
+  { id: 3, name: "Tea" },
+];
+
+export default function App() {
+  const [query, setQuery] = useState("");
+  const [visible, setVisible] = useState([]);
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    const next = products.filter((p) => p.name.toLowerCase().includes(query.toLowerCase()));
+    setVisible(next);
+    setCount(next.length);
+  }, [query]);
+
+  return (
+    <>
+      <input aria-label="Search" value={query} onChange={(e) => setQuery(e.target.value)} />
+      <p>{count} matches</p>
+      <ul>
+        {visible.map((p) => (
+          <li key={p.id}>{p.name}</li>
+        ))}
+      </ul>
+    </>
+  );
+}
+```
+
+```jsx tests file=/App.test.js
+import { fireEvent, render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import { renderToString } from "react-dom/server";
+import App from "./App";
+
+test("the very first render already shows every product", () => {
+  // renderToString renders once, with no effects, like the first frame the user sees
+  const html = renderToString(<App />);
+  expect(html).toContain("Iced coffee");
+  expect(html).toMatch(/3(<!-- -->)? matches/);
+});
+
+test("filters as you type", () => {
+  render(<App />);
+  fireEvent.change(screen.getByLabelText("Search"), { target: { value: "coffee" } });
+  expect(screen.getAllByRole("listitem")).toHaveLength(2);
+  expect(screen.getByText("2 matches")).toBeInTheDocument();
+});
+```
+
+```jsx solution file=/App.js
+import { useState } from "react";
+
+const products = [
+  { id: 1, name: "Coffee" },
+  { id: 2, name: "Iced coffee" },
+  { id: 3, name: "Tea" },
+];
+
+export default function App() {
+  const [query, setQuery] = useState("");
+  const visible = products.filter((p) => p.name.toLowerCase().includes(query.toLowerCase()));
+
+  return (
+    <>
+      <input aria-label="Search" value={query} onChange={(e) => setQuery(e.target.value)} />
+      <p>{visible.length} matches</p>
+      <ul>
+        {visible.map((p) => (
+          <li key={p.id}>{p.name}</li>
+        ))}
+      </ul>
+    </>
+  );
+}
+```
+
+</ReactExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "What's wrong with syncing a total into state with an effect?",
+      options: ["Nothing", "It's a second copy that can drift, and it renders twice with a stale value in between", "Effects can't set state", "It's slower to read"],
+      answer: 1,
+      explain: "Calculate it in render; `useMemo` if it's expensive.",
+    },
+    {
+      q: "Which should be calculated instead of stored?",
+      options: ["A full name from first and last name", "Whether a form is valid", "The text a user typed", "The number of cart items"],
+      answer: [0, 1, 3],
+      explain: "Typed text is source data: it's state.",
+    },
+    {
+      q: "When is copying a prop into state correct?",
+      options: ["Never", "When the prop is only a starting value the user then edits (name it `initialX`)", "Always", "When the prop is a number"],
+      answer: 1,
+      explain: "Otherwise, read the prop directly.",
+    },
+  ]}
+/>

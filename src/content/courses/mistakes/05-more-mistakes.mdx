@@ -1,0 +1,253 @@
+---
+id: more-mistakes
+title: More mistakes worth knowing
+summary: Components defined inside components, async effect callbacks, forgotten cleanups, the stray 0 from &&, and hooks called conditionally.
+minutes: 15
+tags: [mistakes, nested components, async useEffect, cleanup, "&&", conditional hooks]
+---
+
+Five more mistakes that reviewers see every week. Each is small to fix once you know it.
+
+<Concept name="Mistake 9: defining a component inside another component" id="nested" warn>
+
+<Compare
+  wrong="A brand-new Field type every render: the input remounts and loses focus after each keystroke"
+  right="Define components at the top level and pass props"
+  wrongFile="Form.jsx"
+  rightFile="Form.jsx"
+>
+
+```jsx
+function Form() {
+  const [name, setName] = useState("");
+  function Field() {
+    return <input value={name} onChange={(e) => setName(e.target.value)} />;
+  }
+  return <Field />;
+}
+```
+
+```jsx
+function Field({ value, onChange }) {
+  return <input value={value} onChange={(e) => onChange(e.target.value)} />;
+}
+
+function Form() {
+  const [name, setName] = useState("");
+  return <Field value={name} onChange={setName} />;
+}
+```
+
+</Compare>
+
+**Why:** each render of `Form` creates a new `Field` function. To React, a different function is a different component **type**, so it unmounts the old input and mounts a new one: focus, selection and any state inside are lost on every keystroke.
+
+</Concept>
+
+<Concept name="Mistake 10: an async function as the effect" id="async-effect" warn>
+
+<Compare
+  wrong="An async function returns a promise, which React can't use as a cleanup"
+  right="Define the async function inside, and call it"
+  wrongFile="Orders.jsx"
+  rightFile="Orders.jsx"
+>
+
+```jsx
+useEffect(async () => {
+  const data = await fetchOrders();
+  setOrders(data);
+}, []);
+```
+
+```jsx
+useEffect(() => {
+  let ignore = false;
+  async function load() {
+    const data = await fetchOrders();
+    if (!ignore) setOrders(data);
+  }
+  load();
+  return () => { ignore = true; };
+}, []);
+```
+
+</Compare>
+
+**Why:** an effect may return only a cleanup function (or nothing). An `async` function always returns a promise; React warns and can't run your cleanup.
+
+</Concept>
+
+<Concept name="Mistake 11: forgetting the cleanup" id="cleanup" warn>
+
+Timers, subscriptions, event listeners and connections started in an effect must be stopped in its cleanup: `return () => clearInterval(id)`, `return () => window.removeEventListener("resize", onResize)`, `return () => socket.close()`. Otherwise they pile up every time the component mounts (StrictMode shows it immediately in development) and keep running after the component is gone.
+
+</Concept>
+
+<Concept name="Mistake 12: a stray 0 from &&" id="zero" warn>
+
+`{items.length && <List />}` renders **0** when the list is empty, because `&&` returns its left side and React renders numbers. Make the left side a boolean: `{items.length > 0 && <List />}`.
+
+</Concept>
+
+<Concept name="Mistake 13: calling a hook conditionally" id="conditional-hook" warn>
+
+`if (user) { const [x, setX] = useState() }` or a hook after an early `return` breaks the Rules of Hooks: on some renders the hook is skipped and every hook after it reads the wrong data. Call hooks unconditionally at the top, and put the condition **inside** the hook's logic or after it.
+
+</Concept>
+
+<Practice>
+
+<MatchPairs
+  id="match-more-mistakes"
+  prompt="Match each symptom with its cause."
+  columns={["Symptom", "Cause"]}
+  pairs={[
+    ["An input loses focus after every keystroke", "A component defined inside another component"],
+    ["React warns that an effect returned a promise", "An `async` function passed to `useEffect`"],
+    ["Two timers tick after visiting a page twice", "A missing effect cleanup"],
+    ["A lonely 0 appears under the title", "`count && <Thing />` with count 0"],
+    ["Rendered fewer hooks than expected", "A hook called inside a condition"],
+  ]}
+/>
+
+<SpotTheBug
+  id="bug-listener-cleanup"
+  bug={[3, 4, 5, 6]}
+  prompt="After opening and closing the product page five times, every resize logs five times. Click a line of the faulty effect."
+  explain={"The effect adds a listener but never removes it. Return a cleanup: `return () => window.removeEventListener(\"resize\", onResize);`."}
+>
+
+```jsx
+function ProductPage() {
+  const [width, setWidth] = useState(window.innerWidth);
+  useEffect(() => {
+    const onResize = () => setWidth(window.innerWidth);
+    window.addEventListener("resize", onResize);
+  }, []);
+  return <Gallery wide={width > 900} />;
+}
+```
+
+</SpotTheBug>
+
+<Predict
+  id="predict-and-zero"
+  answer={["0", "false", "List"]}
+  explain="`&&` returns the first falsy value or the last value. React renders `0` but not `false`."
+>
+
+```js
+const items = [];
+console.log(items.length && "List");
+console.log(items.length > 0 && "List");
+console.log(["Tea"].length && "List");
+```
+
+</Predict>
+
+</Practice>
+
+<ReactExercise
+  id="fix-nested-component"
+  variant="fix"
+  title="The input that loses focus"
+  hints={[
+    "Move `Field` out of `CheckoutForm`, to the top level of the file.",
+    "Give it props: `function Field({ label, value, onChange })`.",
+    "Render it as `<Field label=\"Name\" value={name} onChange={setName} />`.",
+  ]}
+>
+
+Every keystroke in the **Name** field kicks the cursor out of it. Fix it by moving `Field` to the top level and passing what it needs as props.
+
+```jsx starter file=/App.js
+import { useState } from "react";
+
+export default function CheckoutForm() {
+  const [name, setName] = useState("");
+
+  function Field() {
+    return (
+      <label>
+        Name <input value={name} onChange={(e) => setName(e.target.value)} />
+      </label>
+    );
+  }
+
+  return (
+    <form>
+      <Field />
+      <p>Order for: {name}</p>
+    </form>
+  );
+}
+```
+
+```jsx tests file=/App.test.js
+import { fireEvent, render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import CheckoutForm from "./App";
+
+test("typing keeps the same input focused", () => {
+  render(<CheckoutForm />);
+  const input = screen.getByLabelText("Name");
+  input.focus();
+  fireEvent.change(input, { target: { value: "A" } });
+  expect(screen.getByLabelText("Name")).toBe(input);
+  expect(screen.getByLabelText("Name")).toHaveFocus();
+});
+
+test("the name still updates", () => {
+  render(<CheckoutForm />);
+  fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Ada" } });
+  expect(screen.getByText("Order for: Ada")).toBeInTheDocument();
+});
+```
+
+```jsx solution file=/App.js
+import { useState } from "react";
+
+function Field({ label, value, onChange }) {
+  return (
+    <label>
+      {label} <input value={value} onChange={(e) => onChange(e.target.value)} />
+    </label>
+  );
+}
+
+export default function CheckoutForm() {
+  const [name, setName] = useState("");
+  return (
+    <form>
+      <Field label="Name" value={name} onChange={setName} />
+      <p>Order for: {name}</p>
+    </form>
+  );
+}
+```
+
+</ReactExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "Why does a component defined inside another lose its state?",
+      options: ["Inner functions can't use hooks", "It's a new component type on every render, so React remounts it", "It's not exported", "It has no key"],
+      answer: 1,
+      explain: "Define components at the top level of the module.",
+    },
+    {
+      q: "How do you use `async`/`await` in an effect?",
+      options: ["`useEffect(async () => …)`", "Define an async function inside the effect and call it", "You can't", "Use `useLayoutEffect` instead"],
+      answer: 1,
+      explain: "The effect itself must return nothing or a cleanup function.",
+    },
+    {
+      q: "Which effects need a cleanup?",
+      options: ["One that starts `setInterval`", "One that adds a `resize` listener", "One that sets `document.title`", "One that opens a WebSocket"],
+      answer: [0, 1, 3],
+      explain: "Setting the title has nothing ongoing to stop.",
+    },
+  ]}
+/>

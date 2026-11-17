@@ -161,6 +161,8 @@ React code can't run in the worker, so React lessons use Sandpack components. Ev
 | `<EffectTimeline frames title? file?>` | The `useEffect` timeline: frames `{ stage, log?, deps?: [{ name, prev?, next }], screen?, line?, out?, note? }`, with `stage` one of `render`, `commit`, `paint`, `cleanup`, `effect`, `unmount`; `log` lines build up a timeline and `deps` shows React's dependency check. |
 | `<RenderCycle frames title? file?>` | Steps through trigger → render → commit over a component tree. Frames: `{ phase, tree: [{ name, depth, state?, status? }], screen?, line?, note? }`, with `status` one of `rendering`, `rendered`, `skipped`, `updated`. An optional fenced block shows the code, with `line` highlighted. |
 
+**npm packages.** A sandbox gets React, React DOM and Testing Library, plus any package from `src/components/react/packages.json` that its files import (React Router, TanStack Query, React Hook Form, Zod, `@hookform/resolvers`, Zustand, Redux Toolkit, react-redux). Lessons never list dependencies. To allow another package, add it to `packages.json` (with a version) and install it as a dev dependency so `npm test` can run the lesson's code; the test generator rejects imports of anything not in that file.
+
 Rules for React exercise tests:
 
 - Import from `@testing-library/react` and `@testing-library/jest-dom`, use `test` and `expect` as globals, and simulate users with **`fireEvent`**. `@testing-library/user-event` v14 crashes Sandpack's test runner, so the generator rejects it.

@@ -1,0 +1,295 @@
+---
+id: state-mistakes
+title: "State mistakes: mutating, stale updates, reading too early"
+summary: The three state bugs every React beginner writes, why each one happens, and the one-line fix for each.
+minutes: 15
+tags: [mistakes, mutating state, stale state, updater function, snapshot, setState]
+---
+
+This course is a field guide to the mistakes that show up in almost every junior's first React pull requests. Each one gets the wrong code, the right code, and **why**, so you recognize it in review, including your own.
+
+<Concept name="Mistake 1: mutating state directly" id="mutating" warn>
+
+<Compare
+  wrong="Changes the array React is holding; the screen doesn't update"
+  right="Builds a new array; React sees the change"
+  wrongFile="Cart.jsx"
+  rightFile="Cart.jsx"
+>
+
+```jsx
+function addItem(item) {
+  cart.push(item);
+  setCart(cart);
+}
+
+function rename(name) {
+  user.name = name;
+  setUser(user);
+}
+```
+
+```jsx
+function addItem(item) {
+  setCart([...cart, item]);
+}
+
+function rename(name) {
+  setUser({ ...user, name });
+}
+```
+
+</Compare>
+
+**Why:** React decides whether to re-render by comparing the old and new state with `Object.is`. After `push`, it's the **same array**, so React assumes nothing changed and skips the render. Even when something else causes a render later, mutation breaks `memo`, effects with dependencies and anything comparing old and new values. Always create a new array or object: spread, `map`, `filter`, `toSorted()`, `with()`.
+
+</Concept>
+
+<Concept name="Mistake 2: stale state in several updates" id="stale" warn>
+
+<Compare
+  wrong="Both calls use the same snapshot: +1, not +2"
+  right="Updater functions build on the queue: +2"
+  wrongFile="Picker.jsx"
+  rightFile="Picker.jsx"
+>
+
+```jsx
+function addTwo() {
+  setQty(qty + 1);
+  setQty(qty + 1);
+}
+```
+
+```jsx
+function addTwo() {
+  setQty((q) => q + 1);
+  setQty((q) => q + 1);
+}
+```
+
+</Compare>
+
+**Why:** `qty` is a constant in each render. Both calls compute `qty + 1` from the same old value, so they ask for the same number. The updater form receives the latest **queued** value. The same bug appears in timers and subscriptions created once (`setInterval(() => setCount(count + 1))` with `[]`), where `count` is stuck at its first value.
+
+</Concept>
+
+<Concept name="Mistake 3: reading state right after setting it" id="read-after-set" warn>
+
+<Compare
+  wrong="Logs and sends the old value"
+  right="Compute the new value once, then use it everywhere"
+  wrongFile="Coupon.jsx"
+  rightFile="Coupon.jsx"
+>
+
+```jsx
+function applyCoupon() {
+  setDiscount(10);
+  console.log(discount);     // still 0
+  saveOrder({ discount });   // sends 0!
+}
+```
+
+```jsx
+function applyCoupon() {
+  const next = 10;
+  setDiscount(next);
+  saveOrder({ discount: next });
+}
+```
+
+</Compare>
+
+**Why:** setting state doesn't change the variable in the running code; it schedules a new render where `useState` returns the new value. If the handler needs the new value, keep it in a local variable. (And if something should happen *because* the state changed, it usually belongs right there in the handler, not in an effect.)
+
+</Concept>
+
+<Practice>
+
+<SpotTheBug
+  id="bug-mutate-sort"
+  bug={3}
+  prompt="Clicking Sort by price does nothing on screen. Click the buggy line."
+  explain="`sort` sorts the array in place and returns the same array, so `setProducts` receives the old array object. Use `products.toSorted(...)` or `[...products].sort(...)`."
+>
+
+```jsx
+function ProductList({ products, setProducts }) {
+  function sortByPrice() {
+    setProducts(products.sort((a, b) => a.price - b.price));
+  }
+  return <button onClick={sortByPrice}>Sort by price</button>;
+}
+```
+
+</SpotTheBug>
+
+<Predict
+  id="predict-same-ref"
+  answer={["true", "false"]}
+  explain="`sort` returns the very same array it sorted, so React would see no change. `toSorted` returns a new array."
+>
+
+```js
+const prices = [4, 2, 3];
+console.log(prices.sort() === prices);
+console.log(prices.toSorted() === prices);
+```
+
+</Predict>
+
+<TraceState
+  id="trace-stale-mistakes"
+  track="the quantity after the click (it starts at 1)"
+  steps={[
+    { action: "`setQty(qty + 1); setQty(qty + 1);`", answer: "2" },
+    { action: "`setQty((q) => q + 1); setQty((q) => q + 1);`", answer: "3" },
+    { action: "`setQty(qty + 1); console.log(qty);`, then what's logged?", answer: "1" },
+  ]}
+  explain="Same snapshot → same answer twice; updaters chain; and the variable never changes inside the current render."
+/>
+
+</Practice>
+
+<ReactExercise
+  id="fix-state-mistakes"
+  variant="fix"
+  title="Fix the wishlist"
+  hints={[
+    "`add` mutates the array with `push`: use `setItems([...items, name])`.",
+    "`addTwoSamples` calls `setItems` twice with the same snapshot: use the updater form `setItems((prev) => [...prev, ...])`.",
+    "`toggleGift` mutates the `options` object: use `setOptions({ ...options, gift: !options.gift })`.",
+  ]}
+>
+
+This wishlist has three state bugs: **Add Tea** doesn't update the list, **Add two samples** only adds one, and the **Gift wrap** checkbox doesn't toggle. Fix all three.
+
+```jsx starter file=/App.js
+import { useState } from "react";
+
+export default function App() {
+  const [items, setItems] = useState(["Coffee"]);
+  const [options, setOptions] = useState({ gift: false });
+
+  function add(name) {
+    items.push(name);
+    setItems(items);
+  }
+
+  function addTwoSamples() {
+    setItems([...items, "Sample 1"]);
+    setItems([...items, "Sample 2"]);
+  }
+
+  function toggleGift() {
+    options.gift = !options.gift;
+    setOptions(options);
+  }
+
+  return (
+    <>
+      <ul>
+        {items.map((item) => (
+          <li key={item}>{item}</li>
+        ))}
+      </ul>
+      <button onClick={() => add("Tea")}>Add Tea</button>
+      <button onClick={addTwoSamples}>Add two samples</button>
+      <label>
+        <input type="checkbox" checked={options.gift} onChange={toggleGift} /> Gift wrap
+      </label>
+    </>
+  );
+}
+```
+
+```jsx tests file=/App.test.js
+import { fireEvent, render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import App from "./App";
+
+const items = () => screen.getAllByRole("listitem").map((li) => li.textContent);
+
+test("Add Tea shows Tea in the list", () => {
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "Add Tea" }));
+  expect(items()).toEqual(["Coffee", "Tea"]);
+});
+
+test("Add two samples adds both", () => {
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "Add two samples" }));
+  expect(items()).toEqual(["Coffee", "Sample 1", "Sample 2"]);
+});
+
+test("Gift wrap toggles", () => {
+  render(<App />);
+  fireEvent.click(screen.getByLabelText("Gift wrap"));
+  expect(screen.getByLabelText("Gift wrap")).toBeChecked();
+  fireEvent.click(screen.getByLabelText("Gift wrap"));
+  expect(screen.getByLabelText("Gift wrap")).not.toBeChecked();
+});
+```
+
+```jsx solution file=/App.js
+import { useState } from "react";
+
+export default function App() {
+  const [items, setItems] = useState(["Coffee"]);
+  const [options, setOptions] = useState({ gift: false });
+
+  function add(name) {
+    setItems([...items, name]);
+  }
+
+  function addTwoSamples() {
+    setItems((prev) => [...prev, "Sample 1"]);
+    setItems((prev) => [...prev, "Sample 2"]);
+  }
+
+  function toggleGift() {
+    setOptions({ ...options, gift: !options.gift });
+  }
+
+  return (
+    <>
+      <ul>
+        {items.map((item) => (
+          <li key={item}>{item}</li>
+        ))}
+      </ul>
+      <button onClick={() => add("Tea")}>Add Tea</button>
+      <button onClick={addTwoSamples}>Add two samples</button>
+      <label>
+        <input type="checkbox" checked={options.gift} onChange={toggleGift} /> Gift wrap
+      </label>
+    </>
+  );
+}
+```
+
+</ReactExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "Why does `cart.push(x); setCart(cart)` fail to update the screen?",
+      options: ["`push` is async", "It's the same array, so React sees no change", "`setCart` needs a string", "Arrays can't be state"],
+      answer: 1,
+      explain: "Pass a new array: `setCart([...cart, x])`.",
+    },
+    {
+      q: "Which updates are safe?",
+      options: ["`setCart(cart.filter((l) => l.id !== id))`", "`setCart(cart.sort(byName))`", "`setUser({ ...user, name })`", "`setCart((c) => [...c, item])`"],
+      answer: [0, 2, 3],
+      explain: "`sort` mutates and returns the same array; use `toSorted`.",
+    },
+    {
+      q: "After `setTotal(20)`, how do you use 20 in the same handler?",
+      options: ["Read `total`", "Store it in a local variable first and use that", "Call `getState()`", "Wait one second"],
+      answer: 1,
+      explain: "`total` keeps its old value until the next render.",
+    },
+  ]}
+/>

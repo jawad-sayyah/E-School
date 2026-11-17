@@ -1,0 +1,103 @@
+---
+id: review
+title: "Review: Common React Mistakes"
+summary: Spot every mistake from the course in fresh code, and explain why each one breaks.
+minutes: 15
+kind: review
+tags: [review, mistakes, state, keys, effects, derived state, onClick]
+---
+
+Final check: can you spot each mistake in code you haven't seen before? The lesson names in brackets tell you where to look.
+
+<Practice title="Spot it">
+
+<MatchPairs
+  id="match-review-mistakes"
+  prompt="Match each piece of code with the mistake it makes."
+  columns={["Code", "Mistake"]}
+  pairs={[
+    ["`cart.push(x); setCart(cart)`", "Mutating state"],
+    ["`items.map((it, i) => <Row key={i} />)` in a sortable list", "Index as key"],
+    ["`setQty(qty + 1); setQty(qty + 1)`", "Stale state in several updates"],
+    ["`useEffect(() => setN(n + 1))`", "An effect that loops forever"],
+    ["`<button onClick={buy(id)}>`", "Calling the function during render"],
+    ["`useEffect(() => setTotal(sum(cart)), [cart])`", "Storing derived state"],
+  ]}
+/>
+
+<SpotTheBug
+  id="bug-review-mistakes"
+  bug={[4, 7, 13]}
+  prompt="Three mistakes are hiding here. Click any of them. (State, Effects, Derived state)"
+  explain="Line 4: an effect that reads `category` but doesn't list it. Line 7: derived state (`count`) synced by an effect. Line 13: reading `selected` right after setting it."
+>
+
+```jsx
+function Shop({ category }) {
+  const [items, setItems] = useState([]);
+  const [count, setCount] = useState(0);
+  useEffect(() => {
+    load(category).then(setItems);
+  }, []);
+  useEffect(() => setCount(items.length), [items]);
+
+  const [selected, setSelected] = useState(null);
+
+  function choose(item) {
+    setSelected(item);
+    track("selected", selected);
+  }
+  return <List items={items} count={count} onChoose={choose} />;
+}
+```
+
+</SpotTheBug>
+
+<TrueFalse
+  id="tf-review-mistakes"
+  statements={[
+    { text: "`[...cart].sort(byPrice)` is safe for state, but `cart.sort(byPrice)` isn't.", answer: true, explain: "Sort the copy, never the original. (State mistakes)" },
+    { text: "A missing `key` only causes a console warning; it can't cause real bugs.", answer: false, explain: "Without stable keys, state and focus can attach to the wrong items. (Keys)" },
+    { text: "Defining a component inside another makes it remount on every render.", answer: true, explain: "It's a new component type each time. (More mistakes)" },
+    { text: "`useEffect(async () => …)` is fine as long as you await inside.", answer: false, explain: "It returns a promise instead of a cleanup. (More mistakes)" },
+  ]}
+/>
+
+<Choice
+  id="choice-review-mistakes"
+  q="The lint rule says an effect is missing the dependency `options`, and adding it makes the effect run on every render. What's the best fix? (Effect mistakes)"
+  options={["Disable the rule for that line", "Move the creation of `options` inside the effect (or depend on its primitive fields)", "Remove the dependency array", "Use the index as a key"]}
+  answer={1}
+  explain="`options` is a new object every render. Create it inside the effect, so the effect depends only on stable values."
+/>
+
+</Practice>
+
+<Quiz
+  questions={[
+    {
+      q: "Which of these should never be state?",
+      options: ["The number of items in the cart", "Whether the cart is empty", "The cart lines", "A filtered copy of the product list"],
+      answer: [0, 1, 3],
+      explain: "Only the cart lines are source data. (Derived state)",
+    },
+    {
+      q: "Which handler is correct?",
+      options: ["`onClick={remove(id)}`", "`onClick={() => remove(id)}`", "`onClick=\"remove(id)\"`", "`onclick={remove}`"],
+      answer: 1,
+      explain: "Pass a function that runs on click. (List and event mistakes)",
+    },
+    {
+      q: "An effect starts a WebSocket. What must it return?",
+      options: ["The socket", "A cleanup that closes the socket", "A promise", "Nothing"],
+      answer: 1,
+      explain: "Every ongoing thing started in an effect is stopped in its cleanup. (More mistakes)",
+    },
+    {
+      q: "What's the best habit before opening a pull request?",
+      options: ["Run the checklist, lint and tests, and click through the change", "Push and let the reviewer find bugs", "Delete warnings from the console", "Disable StrictMode"],
+      answer: 0,
+      explain: "Catching your own mistakes first saves everyone time. (Before you push)",
+    },
+  ]}
+/>

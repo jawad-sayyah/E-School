@@ -1,0 +1,266 @@
+---
+id: effect-mistakes
+title: "Effect mistakes: infinite loops and missing dependencies"
+summary: The effect that never stops running, and the effect that silently uses stale values, with why each happens and how the lint rule saves you.
+minutes: 15
+tags: [mistakes, useEffect, infinite loop, dependency array, exhaustive-deps, stale closure]
+---
+
+Effects cause the hardest bugs to spot, because the code looks fine and the problem only shows up over time.
+
+<Concept name="Mistake 6: an effect with no dependency array that sets state" id="loop" warn>
+
+<Compare
+  wrong="Runs after every render, sets state, renders again: forever"
+  right="Runs once (or when its inputs change)"
+  wrongFile="Products.jsx"
+  rightFile="Products.jsx"
+>
+
+```jsx
+useEffect(() => {
+  fetchProducts().then(setProducts);
+});
+```
+
+```jsx
+useEffect(() => {
+  let ignore = false;
+  fetchProducts().then((data) => {
+    if (!ignore) setProducts(data);
+  });
+  return () => { ignore = true; };
+}, []);
+```
+
+</Compare>
+
+**Why:** with no array, the effect runs after **every** render. It sets state, which causes a render, which runs the effect again. Your network tab fills with identical requests, and the page may freeze. The same loop happens when a dependency is an object or array created during render (it's new every time), or when the effect sets the very state it depends on.
+
+</Concept>
+
+<Concept name="Mistake 7: a missing dependency" id="missing-dep" warn>
+
+<Compare
+  wrong="Reads category but doesn't list it: switching category shows old results"
+  right="Every value the effect reads is listed"
+  wrongFile="Results.jsx"
+  rightFile="Results.jsx"
+>
+
+```jsx
+useEffect(() => {
+  search(query, category).then(setResults);
+}, [query]);
+```
+
+```jsx
+useEffect(() => {
+  search(query, category).then(setResults);
+}, [query, category]);
+```
+
+</Compare>
+
+**Why:** the effect's function is created during a render and **closes over** that render's values. If `category` changes but isn't a dependency, React doesn't re-run the effect, so the results are for the old category. The `react-hooks/exhaustive-deps` lint rule finds these; treat its warnings as errors. If listing a dependency causes too many runs, fix the code (move a function inside the effect, use an updater, depend on a primitive, or use `useEffectEvent`), never by deleting it from the array.
+
+</Concept>
+
+<HowItWorks title="Dependencies aren't a choice">
+
+It's tempting to think of the array as "when do I want this to run?". It's really "**which values does this effect read?**". React needs the complete list to know when the effect is out of sync with the current render. Ask what the code reads, list it, and if it then runs too often, change what the code reads.
+
+</HowItWorks>
+
+<Practice>
+
+<SpotTheBug
+  id="bug-stale-interval"
+  bug={8}
+  prompt="The countdown shows the wrong product's name when the product changes, and the lint rule complains. Click the line it complains about."
+  explain="The effect reads `productName` but the array is `[]`, so the timer keeps the first product's name forever. List it: `[productName]` (the cleanup clears the old timer)."
+>
+
+```jsx
+function Countdown({ productName }) {
+  const [left, setLeft] = useState(10);
+  useEffect(() => {
+    const id = setInterval(() => {
+      setLeft((s) => { if (s === 1) alert(`${productName} is ready!`); return s - 1; });
+    }, 1000);
+    return () => clearInterval(id);
+  }, []);
+  return <p>{left}s</p>;
+}
+```
+
+</SpotTheBug>
+
+<SortBuckets
+  id="buckets-loops"
+  prompt="Will this effect loop forever?"
+  buckets={["Loops", "Fine"]}
+  items={[
+    ["`useEffect(() => setCount(count + 1))` with no array", 0],
+    ["`useEffect(() => setCount(count + 1), [count])`", 0],
+    ["`useEffect(() => { document.title = name; }, [name])`", 1],
+    ["`useEffect(() => load(filters), [filters])` with `filters` built during render", 0],
+    ["`useEffect(() => load(id).then(setData), [id])`", 1],
+  ]}
+  explain="An effect that sets state it depends on, runs on every render, or depends on a new object each render, keeps triggering itself."
+/>
+
+<TrueFalse
+  id="tf-effect-mistakes"
+  statements={[
+    { text: "Removing a dependency from the array is a good way to make an effect run less.", answer: false, explain: "It creates stale values. Change the code so it needs fewer dependencies." },
+    { text: "`react-hooks/exhaustive-deps` warns about values an effect reads but doesn't list.", answer: true, explain: "Keep it on, as an error." },
+    { text: "An object created during render is a different value on every render.", answer: true, explain: "So as a dependency it re-runs the effect every time." },
+  ]}
+/>
+
+</Practice>
+
+<ReactExercise
+  id="fix-effect-mistakes"
+  variant="fix"
+  title="Fix the search effect"
+  hints={[
+    "The effect reads both `query` and `category`, so both belong in the dependency array.",
+    "The array is `[query, category]`. Nothing else in the effect comes from the component except `setResults`, which never changes.",
+  ]}
+>
+
+Picking a different category doesn't update the results. Fix the effect so the results always match **both** the query and the category.
+
+```jsx starter file=/App.js
+import { useEffect, useState } from "react";
+import { search } from "./api";
+
+export default function App() {
+  const [query, setQuery] = useState("");
+  const [category, setCategory] = useState("hot");
+  const [results, setResults] = useState([]);
+
+  useEffect(() => {
+    search(query, category).then(setResults);
+  }, [query]);
+
+  return (
+    <>
+      <input aria-label="Search" value={query} onChange={(e) => setQuery(e.target.value)} />
+      <select aria-label="Category" value={category} onChange={(e) => setCategory(e.target.value)}>
+        <option value="hot">Hot</option>
+        <option value="cold">Cold</option>
+      </select>
+      <ul>
+        {results.map((r) => (
+          <li key={r}>{r}</li>
+        ))}
+      </ul>
+    </>
+  );
+}
+```
+
+```js starter file=/api.js
+const DATA = { hot: ["Coffee", "Tea", "Cocoa"], cold: ["Iced coffee", "Iced tea", "Lemonade"] };
+
+export function search(query, category) {
+  const q = query.toLowerCase();
+  return Promise.resolve(DATA[category].filter((d) => d.toLowerCase().includes(q)));
+}
+```
+
+```jsx tests file=/App.test.js
+import { act, fireEvent, render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import App from "./App";
+
+const flush = () => act(async () => {});
+const names = () => screen.queryAllByRole("listitem").map((li) => li.textContent);
+
+test("shows hot drinks first", async () => {
+  render(<App />);
+  await flush();
+  expect(names()).toEqual(["Coffee", "Tea", "Cocoa"]);
+});
+
+test("changing the category updates the results", async () => {
+  render(<App />);
+  await flush();
+  fireEvent.change(screen.getByLabelText("Category"), { target: { value: "cold" } });
+  await flush();
+  expect(names()).toEqual(["Iced coffee", "Iced tea", "Lemonade"]);
+});
+
+test("query and category work together", async () => {
+  render(<App />);
+  fireEvent.change(screen.getByLabelText("Search"), { target: { value: "tea" } });
+  await flush();
+  fireEvent.change(screen.getByLabelText("Category"), { target: { value: "cold" } });
+  await flush();
+  expect(names()).toEqual(["Iced tea"]);
+});
+```
+
+```jsx solution file=/App.js
+import { useEffect, useState } from "react";
+import { search } from "./api";
+
+export default function App() {
+  const [query, setQuery] = useState("");
+  const [category, setCategory] = useState("hot");
+  const [results, setResults] = useState([]);
+
+  useEffect(() => {
+    let ignore = false;
+    search(query, category).then((data) => {
+      if (!ignore) setResults(data);
+    });
+    return () => {
+      ignore = true;
+    };
+  }, [query, category]);
+
+  return (
+    <>
+      <input aria-label="Search" value={query} onChange={(e) => setQuery(e.target.value)} />
+      <select aria-label="Category" value={category} onChange={(e) => setCategory(e.target.value)}>
+        <option value="hot">Hot</option>
+        <option value="cold">Cold</option>
+      </select>
+      <ul>
+        {results.map((r) => (
+          <li key={r}>{r}</li>
+        ))}
+      </ul>
+    </>
+  );
+}
+```
+
+</ReactExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "What happens with `useEffect(() => { setX(x + 1); })` (no array)?",
+      options: ["It runs once", "It loops: every render runs it, and it causes a render", "React ignores it", "It runs only on unmount"],
+      answer: 1,
+      explain: "No array means after every render.",
+    },
+    {
+      q: "An effect reads `userId` and `lang` but lists `[userId]`. What breaks?",
+      options: ["Nothing", "Changing `lang` doesn't re-run it, so it uses the old language", "It loops forever", "It throws"],
+      answer: 1,
+      explain: "Missing dependencies cause stale values.",
+    },
+    {
+      q: "The lint rule asks you to add a function `loadData` as a dependency, and now the effect runs every render. Good fixes?",
+      options: ["Move `loadData` inside the effect", "Delete `loadData` from the array", "Wrap `loadData` in `useCallback` with its own dependencies", "Disable the lint rule"],
+      answer: [0, 2],
+      explain: "Change the code so the dependency is stable; never lie about dependencies.",
+    },
+  ]}
+/>

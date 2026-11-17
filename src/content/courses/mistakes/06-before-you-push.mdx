@@ -1,0 +1,308 @@
+---
+id: before-you-push
+title: The "Before you push" checklist
+summary: A checklist to run over every React change before you open a pull request, and a component with five bugs to practice it on.
+minutes: 18
+tags: [mistakes, checklist, code review, pull request, lint, keys, effects, accessibility]
+---
+
+Reviewers catch mistakes, but it's faster (and kinder to your reviewer) if you catch them first. Run this list over your diff before every push. It covers every mistake in this course, plus a few habits.
+
+<Concept name="The checklist" id="checklist">
+
+**State**
+1. No state is mutated: no `push`, `sort`, `splice`, `obj.x = …` on state. New arrays and objects only.
+2. Updates that depend on the previous value use an updater: `setQty((q) => q + 1)`.
+3. Nothing reads state right after setting it, expecting the new value.
+4. No derived state: totals, filtered lists and flags are calculated during render.
+
+**Lists and events**
+5. Every `.map()` that returns JSX has a stable `key` from the data (not the index, not random).
+6. Event props get functions: `onClick={handle}` or `onClick={() => handle(id)}`, never `onClick={handle(id)}`.
+
+**Effects**
+7. Every effect syncs with something outside React; otherwise it's a calculation or an event handler.
+8. Dependency arrays are complete, and `react-hooks/exhaustive-deps` shows no warnings.
+9. Every subscription, timer and listener is cleaned up; fetches ignore stale responses.
+
+**Components**
+10. No component is defined inside another component.
+11. Hooks are called unconditionally, at the top level.
+12. `&&` has a boolean on its left, so no stray `0`.
+
+**Before pushing**
+13. Buttons are `<button>`, inputs have labels, images have `alt`.
+14. `npm run lint` and `npm test` pass, and you clicked through the change in the browser.
+15. The console shows no React warnings (keys, act, controlled/uncontrolled, hydration).
+
+</Concept>
+
+<HowItWorks title="Let the tools do half of it">
+
+Many items are automatic if the project is set up well: `eslint-plugin-react-hooks` (rules of hooks, dependencies), `react/jsx-key`, `jsx-a11y`, TypeScript for wrong props, and the React Compiler's lint rules for impure renders. Turn their warnings into errors in CI, so a red build stops the mistake before review. The checklist is for what tools can't judge: whether state is derived, whether an effect is needed, whether a key is really stable.
+
+</HowItWorks>
+
+<Practice>
+
+<CodeReview
+  id="review-cart-badge"
+  answer={2}
+  prompt="Three versions of the cart badge. Which would you approve?"
+  reasons={[
+    "Derived state synced by an effect: an extra render with a stale count, and two sources of truth.",
+    "Calls `setCount` during render, which causes another render: an infinite loop.",
+    "Calculates the count during render from the cart prop: always correct, no extra state.",
+  ]}
+>
+
+```jsx
+function Badge({ cart }) {
+  const [count, setCount] = useState(0);
+  useEffect(() => setCount(cart.length), [cart]);
+  return <span>{count}</span>;
+}
+```
+
+```jsx
+function Badge({ cart }) {
+  const [count, setCount] = useState(0);
+  setCount(cart.length);
+  return <span>{count}</span>;
+}
+```
+
+```jsx
+function Badge({ cart }) {
+  const count = cart.length;
+  return <span>{count}</span>;
+}
+```
+
+</CodeReview>
+
+<SpotTheBug
+  id="bug-checklist-mix"
+  bug={[5, 9, 11]}
+  prompt="This component breaks three checklist items. Click any of the buggy lines."
+  explain="Line 5 mutates state (`push`). Line 9 uses the index as the key. Line 11 calls `remove` during render instead of passing a function."
+>
+
+```jsx
+function Wishlist() {
+  const [items, setItems] = useState([]);
+
+  function add(item) {
+    items.push(item);
+    setItems([...items]);
+  }
+
+  return items.map((item, i) => (
+    <p key={i}>
+      {item.name} <button onClick={remove(item.id)}>Remove</button>
+    </p>
+  ));
+}
+```
+
+</SpotTheBug>
+
+<SortBuckets
+  id="buckets-tools"
+  prompt="Which of these can a tool catch automatically, and which need a human?"
+  buckets={["A tool catches it", "Needs a human"]}
+  items={[
+    ["A hook called inside an `if`", 0],
+    ["A missing effect dependency", 0],
+    ["A `.map()` without a `key`", 0],
+    ["An effect that should have been a calculation", 1],
+    ["A key that's unique but not stable", 1],
+    ["An image without `alt`", 0],
+  ]}
+  explain="Linters catch the mechanical rules. Judgment calls (is this derived? is this id stable?) need you."
+/>
+
+</Practice>
+
+<ReactExercise
+  id="fix-five-bugs"
+  variant="fix"
+  title="Five bugs, one component"
+  hints={[
+    "Check the add function (mutation), the total (derived state + effect) and the effect's cleanup.",
+    "In the JSX: the key, and the Remove button's onClick.",
+    "Fixed: `setLines([...lines, product])`, `const total = lines.reduce(...)`, `return () => clearInterval(id)`, `key={line.id}`, `onClick={() => remove(line.id)}`.",
+  ]}
+>
+
+Run the checklist on this cart and fix every bug: adding doesn't show, the total lags behind, Remove misbehaves, a key is unstable, and a timer is never cleaned up. The tests check the behavior; your code review should catch the rest.
+
+```jsx starter file=/App.js
+import { useEffect, useState } from "react";
+
+const MENU = [
+  { id: "c", name: "Coffee", price: 4 },
+  { id: "t", name: "Tea", price: 2 },
+];
+
+export default function App() {
+  const [lines, setLines] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [seconds, setSeconds] = useState(0);
+
+  useEffect(() => {
+    setTotal(lines.reduce((sum, l) => sum + l.price, 0));
+  }, [lines]);
+
+  useEffect(() => {
+    const id = setInterval(() => setSeconds((s) => s + 1), 1000);
+  }, []);
+
+  function add(product) {
+    lines.push({ ...product, id: product.id + "-" + lines.length });
+    setLines(lines);
+  }
+
+  function remove(id) {
+    setLines(lines.filter((l) => l.id !== id));
+  }
+
+  return (
+    <>
+      {MENU.map((p) => (
+        <button key={p.id} onClick={() => add(p)}>Add {p.name}</button>
+      ))}
+      <ul>
+        {lines.map((line, i) => (
+          <li key={i}>
+            {line.name} <button onClick={remove(line.id)}>Remove {line.name}</button>
+          </li>
+        ))}
+      </ul>
+      <p>Total: ${total}</p>
+      <p>Session: {seconds}s</p>
+    </>
+  );
+}
+```
+
+```jsx tests file=/App.test.js
+import { fireEvent, render, screen } from "@testing-library/react";
+import { renderToString } from "react-dom/server";
+import "@testing-library/jest-dom";
+import App from "./App";
+
+test("adding shows the line and the total", () => {
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "Add Coffee" }));
+  fireEvent.click(screen.getByRole("button", { name: "Add Tea" }));
+  expect(screen.getAllByRole("listitem")).toHaveLength(2);
+  expect(screen.getByText("Total: $6")).toBeInTheDocument();
+});
+
+test("Remove removes only that line", () => {
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "Add Coffee" }));
+  fireEvent.click(screen.getByRole("button", { name: "Add Tea" }));
+  fireEvent.click(screen.getByRole("button", { name: "Remove Coffee" }));
+  expect(screen.getAllByRole("listitem")).toHaveLength(1);
+  expect(screen.getByText("Total: $2")).toBeInTheDocument();
+});
+
+test("the total is right on the very first render", () => {
+  expect(renderToString(<App />)).toMatch(/Total: \$(<!-- -->)?0/);
+});
+
+test("the timer is cleaned up on unmount", () => {
+  const cleared = [];
+  const targets = [...new Set([globalThis, window])];
+  const originals = targets.map((t) => t.clearInterval);
+  targets.forEach((t, i) => {
+    t.clearInterval = (id) => {
+      cleared.push(id);
+      return originals[i].call(t, id);
+    };
+  });
+  try {
+    const { unmount } = render(<App />);
+    unmount();
+    expect(cleared.length).toBeGreaterThan(0);
+  } finally {
+    targets.forEach((t, i) => {
+      t.clearInterval = originals[i];
+    });
+  }
+});
+```
+
+```jsx solution file=/App.js
+import { useEffect, useState } from "react";
+
+const MENU = [
+  { id: "c", name: "Coffee", price: 4 },
+  { id: "t", name: "Tea", price: 2 },
+];
+
+let nextId = 1;
+
+export default function App() {
+  const [lines, setLines] = useState([]);
+  const [seconds, setSeconds] = useState(0);
+  const total = lines.reduce((sum, l) => sum + l.price, 0);
+
+  useEffect(() => {
+    const id = setInterval(() => setSeconds((s) => s + 1), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  function add(product) {
+    setLines([...lines, { ...product, id: `${product.id}-${nextId++}` }]);
+  }
+
+  function remove(id) {
+    setLines(lines.filter((l) => l.id !== id));
+  }
+
+  return (
+    <>
+      {MENU.map((p) => (
+        <button key={p.id} onClick={() => add(p)}>Add {p.name}</button>
+      ))}
+      <ul>
+        {lines.map((line) => (
+          <li key={line.id}>
+            {line.name} <button onClick={() => remove(line.id)}>Remove {line.name}</button>
+          </li>
+        ))}
+      </ul>
+      <p>Total: ${total}</p>
+      <p>Session: {seconds}s</p>
+    </>
+  );
+}
+```
+
+</ReactExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "Which checklist items can ESLint enforce for you?",
+      options: ["Rules of Hooks", "Complete effect dependencies", "Keys in `.map()`", "Whether a value should be derived"],
+      answer: [0, 1, 2],
+      explain: "Deciding what's derived needs a human.",
+    },
+    {
+      q: "You see `useEffect(() => setFiltered(items.filter(match)), [items])`. What's the fix?",
+      options: ["Add `match` to the dependencies", "Delete the state and effect; calculate `filtered` during render", "Use `useLayoutEffect`", "Wrap it in `memo`"],
+      answer: 1,
+      explain: "It's derived state.",
+    },
+    {
+      q: "What should you do before pushing, besides the checklist?",
+      options: ["Run lint and tests", "Click through the change in the browser", "Check the console for React warnings", "Delete the tests that fail"],
+      answer: [0, 1, 2],
+      explain: "Never delete failing tests to go green.",
+    },
+  ]}
+/>

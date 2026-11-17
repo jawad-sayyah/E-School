@@ -448,7 +448,7 @@ It ends with a "What's next" page: a real backend, authentication and payments.
 **Phase 6 — Hooks and React 19** ✅
 - The React Hooks course (every built-in hook) and the React 19 course, with the state update and `useEffect` timeline visualizers.
 
-**Phase 7 — The React ecosystem + Common Mistakes**
+**Phase 7 — The React ecosystem + Common Mistakes** ✅
 - The React Ecosystem course and Common React Mistakes.
 
 **Phase 8 — The TypeScript track**

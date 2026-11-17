@@ -1,0 +1,235 @@
+---
+id: list-and-event-mistakes
+title: "List and event mistakes: keys and onClick"
+summary: Missing and index keys, and calling a function in onClick instead of passing one, with why each breaks and how to fix it.
+minutes: 13
+tags: [mistakes, key, index key, onClick, event handler, too many re-renders]
+---
+
+Two mistakes that show up in the very first lists and buttons you write.
+
+<Concept name="Mistake 4: a missing key, or the index as the key" id="keys" warn>
+
+<Compare
+  wrong="No key (a warning), or the index (wrong item keeps the state when the list changes)"
+  right="A stable id from the data"
+  wrongFile="CartList.jsx"
+  rightFile="CartList.jsx"
+>
+
+```jsx
+{cart.map((line) => (
+  <CartLine line={line} />
+))}
+
+{cart.map((line, i) => (
+  <CartLine key={i} line={line} />
+))}
+```
+
+```jsx
+{cart.map((line) => (
+  <CartLine key={line.id} line={line} />
+))}
+```
+
+</Compare>
+
+**Why:** keys tell React which item is which between renders. Without them, React matches items by position and warns. With the index, removing or inserting an item shifts every index after it, so a `CartLine`'s state (an open "edit" box, a typed note, focus) jumps to the **wrong** line. Use an id that belongs to the item. If the data has none, create one when the item is created (`crypto.randomUUID()`), never during render.
+
+</Concept>
+
+<Concept name="Mistake 5: calling the function in onClick" id="onclick" warn>
+
+<Compare
+  wrong="Runs during render: adds on every render, and often loops"
+  right="Passes a function that runs on click"
+  wrongFile="AddButton.jsx"
+  rightFile="AddButton.jsx"
+>
+
+```jsx
+<button onClick={add(product)}>Add</button>
+<button onClick={setOpen(true)}>Open</button>
+```
+
+```jsx
+<button onClick={() => add(product)}>Add</button>
+<button onClick={() => setOpen(true)}>Open</button>
+```
+
+</Compare>
+
+**Why:** whatever is inside `{ }` is evaluated during render. `add(product)` runs right away and its return value (`undefined`) becomes the handler. If it sets state, that state change triggers another render, which calls it again: React stops with "Too many re-renders". Pass a function: the function name alone (`onClick={handleAdd}`) when there are no arguments, or an arrow when there are.
+
+</Concept>
+
+<HowItWorks title="Spotting them in review">
+
+Both have quick tells in a diff:
+
+- `.map(` followed by JSX with **no `key=`**, or `key={i}` / `key={index}` / `key={Math.random()}`.
+- `onSomething={name(` — an open parenthesis right after the function name inside an event prop.
+
+ESLint catches both: `react/jsx-key` for keys, and React itself throws on the render loop. Code review catches the index keys the linter allows.
+
+</HowItWorks>
+
+<Practice>
+
+<SortBuckets
+  id="buckets-event-props"
+  prompt="Does each handler run on click, or during render?"
+  buckets={["On click (correct)", "During render (bug)"]}
+  items={[
+    ["`onClick={handleSave}`", 0],
+    ["`onClick={handleSave()}`", 1],
+    ["`onClick={() => remove(line.id)}`", 0],
+    ["`onClick={remove(line.id)}`", 1],
+    ["`onChange={(e) => setName(e.target.value)}`", 0],
+    ["`onSubmit={setSent(true)}`", 1],
+  ]}
+  explain="A function name or an arrow function is passed for later. Parentheses after a name call it now."
+/>
+
+<SpotTheBug
+  id="bug-index-key"
+  bug={4}
+  prompt="After removing the first cart line, the note typed for the second line shows up on the wrong item. Click the buggy line."
+  explain="With `key={i}`, removing the first line gives the second line key 0, so it inherits the first line's component and its typed note. Use `key={line.id}`."
+>
+
+```jsx
+function Cart({ lines, onRemove }) {
+  return lines.map((line, i) => (
+    <CartLine
+      key={i}
+      line={line}
+      onRemove={() => onRemove(line.id)}
+    />
+  ));
+}
+```
+
+</SpotTheBug>
+
+<Choice
+  id="choice-too-many-renders"
+  q="React throws 'Too many re-renders'. Which line is the most likely cause?"
+  options={["`<button onClick={() => setCount(count + 1)}>`", "`<button onClick={setCount(count + 1)}>`", "`const [count, setCount] = useState(0);`", "`{items.map((i) => <li key={i.id}>{i.name}</li>)}`"]}
+  answer={1}
+  explain="Calling `setCount` during render schedules another render, which calls it again, forever."
+/>
+
+</Practice>
+
+<ReactExercise
+  id="fix-list-events"
+  variant="fix"
+  title="Fix the order list"
+  hints={[
+    "Each `<li>` needs `key={order.id}` instead of the index.",
+    "`onClick={cancel(order.id)}` runs during render: wrap it, `onClick={() => cancel(order.id)}`.",
+  ]}
+>
+
+This order list crashes with **Too many re-renders**, and it uses index keys. Fix both: each Cancel button should cancel only its own order when clicked, and the list should use the orders' ids as keys.
+
+```jsx starter file=/App.js
+import { useState } from "react";
+
+const INITIAL = [
+  { id: "a1", name: "Coffee" },
+  { id: "b2", name: "Tea" },
+  { id: "c3", name: "Bagel" },
+];
+
+export default function App() {
+  const [orders, setOrders] = useState(INITIAL);
+
+  function cancel(id) {
+    setOrders(orders.filter((o) => o.id !== id));
+  }
+
+  return (
+    <ul>
+      {orders.map((order, i) => (
+        <li key={i}>
+          {order.name} <button onClick={cancel(order.id)}>Cancel {order.name}</button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+```
+
+```jsx tests file=/App.test.js
+import { fireEvent, render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import App from "./App";
+
+test("renders every order", () => {
+  render(<App />);
+  expect(screen.getAllByRole("listitem")).toHaveLength(3);
+});
+
+test("cancel removes only that order", () => {
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "Cancel Tea" }));
+  const names = screen.getAllByRole("listitem").map((li) => li.firstChild.textContent.trim());
+  expect(names).toEqual(["Coffee", "Bagel"]);
+});
+```
+
+```jsx solution file=/App.js
+import { useState } from "react";
+
+const INITIAL = [
+  { id: "a1", name: "Coffee" },
+  { id: "b2", name: "Tea" },
+  { id: "c3", name: "Bagel" },
+];
+
+export default function App() {
+  const [orders, setOrders] = useState(INITIAL);
+
+  function cancel(id) {
+    setOrders(orders.filter((o) => o.id !== id));
+  }
+
+  return (
+    <ul>
+      {orders.map((order) => (
+        <li key={order.id}>
+          {order.name} <button onClick={() => cancel(order.id)}>Cancel {order.name}</button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+```
+
+</ReactExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "Which keys are fine for a cart that can be reordered?",
+      options: ["`key={line.id}`", "`key={index}`", "`key={Math.random()}`", "`key={line.sku}` (unique per product line)"],
+      answer: [0, 3],
+      explain: "Stable and unique among siblings. Index and random keys break identity.",
+    },
+    {
+      q: "What does `onClick={save()}` pass to React?",
+      options: ["The `save` function", "Whatever `save()` returns, after calling it during render", "Nothing", "A promise"],
+      answer: 1,
+      explain: "Write `onClick={save}` or `onClick={() => save()}`.",
+    },
+    {
+      q: "What can go wrong with index keys when you remove an item?",
+      options: ["Nothing", "Items after it shift keys, so state and focus move to the wrong item", "React crashes", "The list becomes empty"],
+      answer: 1,
+      explain: "The removed item's state is reused by the one that moved into its index.",
+    },
+  ]}
+/>

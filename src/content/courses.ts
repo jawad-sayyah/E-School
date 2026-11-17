@@ -222,7 +222,15 @@ export const COURSES: CourseInfo[] = [
     color: 'mistakes',
     description:
       'The mistakes every React beginner makes, each with the wrong code, the fix and why.',
-    lessons: [],
+    lessons: [
+      'state-mistakes',
+      'list-and-event-mistakes',
+      'effect-mistakes',
+      'derived-state',
+      'more-mistakes',
+      'before-you-push',
+      'review',
+    ],
     phase: 7,
   },
   {
