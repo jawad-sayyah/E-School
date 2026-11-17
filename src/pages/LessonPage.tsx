@@ -144,21 +144,30 @@ export default function LessonPage() {
           </Suspense>
 
           <footer className="mt-14 border-t border-border pt-8">
-            <div className="flex flex-wrap items-center gap-3">
-              <Button
-                size="lg"
-                variant={completed ? 'outline' : 'default'}
-                onClick={() => void store.markComplete(course.id, meta.id, !completed)}
-                aria-pressed={completed}
-                className={cn(completed && 'border-success/60 text-success')}
-              >
-                <CheckIcon aria-hidden />
-                {completed ? 'Completed' : 'Mark as complete'}
-              </Button>
-              {completed && (
-                <span className="text-sm text-muted-foreground">Click again to undo.</span>
-              )}
-            </div>
+            {meta.kind === 'boss' ? (
+              <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                <CheckIcon aria-hidden className={cn('size-4', completed && 'text-success')} />
+                {completed
+                  ? 'Boss defeated: this lesson is complete.'
+                  : 'Defeat every challenge above to complete the boss.'}
+              </p>
+            ) : (
+              <div className="flex flex-wrap items-center gap-3">
+                <Button
+                  size="lg"
+                  variant={completed ? 'outline' : 'default'}
+                  onClick={() => void store.markComplete(course.id, meta.id, !completed)}
+                  aria-pressed={completed}
+                  className={cn(completed && 'border-success/60 text-success')}
+                >
+                  <CheckIcon aria-hidden />
+                  {completed ? 'Completed' : 'Mark as complete'}
+                </Button>
+                {completed && (
+                  <span className="text-sm text-muted-foreground">Click again to undo.</span>
+                )}
+              </div>
+            )}
             <nav aria-label="Lesson navigation" className="mt-8 grid gap-3 sm:grid-cols-2">
               {prev ? (
                 <Link

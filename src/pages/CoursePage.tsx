@@ -100,7 +100,21 @@ export default function CoursePage() {
                       {done ? <CheckIcon aria-label="Completed" className="size-4" /> : i + 1}
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block font-medium text-foreground">{lesson.title}</span>
+                      <span className="flex items-center gap-2 font-medium text-foreground">
+                        {lesson.title}
+                        {lesson.kind !== 'lesson' && (
+                          <span
+                            className={cn(
+                              'rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-wide uppercase',
+                              lesson.kind === 'boss'
+                                ? 'bg-danger/15 text-danger'
+                                : 'bg-syn-kw/15 text-syn-kw',
+                            )}
+                          >
+                            {lesson.kind === 'boss' ? 'Boss' : 'Review'}
+                          </span>
+                        )}
+                      </span>
                       <span className="block text-sm text-muted-foreground">{lesson.summary}</span>
                     </span>
                     <span className="hidden shrink-0 items-center gap-1 text-xs text-faint sm:inline-flex">

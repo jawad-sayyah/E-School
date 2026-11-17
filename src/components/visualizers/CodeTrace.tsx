@@ -1,11 +1,9 @@
 import type { ReactNode } from 'react';
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { ArrowRightIcon } from 'lucide-react';
+import { motion, useReducedMotion } from 'motion/react';
 import { EditorFrame } from '@/editor/EditorFrame';
-import { TOKEN_CLASS, VALUE_CLASS, tokenize, tokenizeValue } from '@/editor/highlight';
 import { getCodeBlocks } from '@/components/mdx/codeBlocks';
-import { TextWithCode } from '@/components/InlineCode';
 import { cn } from '@/lib/utils';
+import { CodeLines, ConsolePanel, PanelLabel, StepNote, Value, outputUpTo } from './parts';
 import { StepperControls } from './StepperControls';
 import { useStepper } from './useStepper';
 
@@ -29,18 +27,6 @@ const HEAP_COLORS = [
   'text-react border-react/60',
 ];
 
-function Value({ text }: { text: string }) {
-  return (
-    <>
-      {tokenizeValue(text).map((p, i) => (
-        <span key={i} className={VALUE_CLASS[p.kind]}>
-          {p.text}
-        </span>
-      ))}
-    </>
-  );
-}
-
 /**
  * Step through code one line at a time: the current line, every variable, objects in
  * memory (with arrows showing which variables share an object) and the console.
@@ -58,14 +44,9 @@ export function CodeTrace({
 }) {
   const reduce = useReducedMotion();
   const code = getCodeBlocks(children)[0]?.code ?? '';
-  const lines = code.split('\n');
   const stepper = useStepper(frames.length);
   const frame = frames[stepper.step];
   const prev = stepper.step > 0 ? frames[stepper.step - 1] : undefined;
-  const output = frames
-    .slice(0, stepper.step + 1)
-    .map((f) => f.out)
-    .filter((o): o is string => o !== undefined);
   const heapIds = Object.keys(
     frames.reduce((all, f) => ({ ...all, ...f.heap }), {} as Record<string, string>),
   );
@@ -80,43 +61,11 @@ export function CodeTrace({
         actions={<StepperControls stepper={stepper} count={frames.length} />}
       >
         <div className="grid bg-ed-bg md:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
-          <ol className="py-2 font-mono text-[13.5px] leading-[23px]" aria-label="Code">
-            {lines.map((line, i) => {
-              const current = frame?.line === i + 1;
-              return (
-                <li
-                  key={i}
-                  aria-current={current ? 'step' : undefined}
-                  className={cn(
-                    'relative flex transition-colors duration-200',
-                    current && 'bg-syn-fn/15',
-                  )}
-                >
-                  <span className="w-10 shrink-0 pr-2 text-right text-ed-gutter select-none">
-                    {current ? (
-                      <ArrowRightIcon aria-hidden className="ml-auto inline size-3.5 text-syn-fn" />
-                    ) : (
-                      i + 1
-                    )}
-                  </span>
-                  <code className="flex-1 overflow-x-auto px-3 whitespace-pre text-ed-text">
-                    {tokenize(line).map((t, j) => (
-                      <span key={j} className={TOKEN_CLASS[t.kind]}>
-                        {t.text}
-                      </span>
-                    ))}
-                    {line === '' && ' '}
-                  </code>
-                </li>
-              );
-            })}
-          </ol>
+          <CodeLines code={code} current={frame?.line} />
 
           <div className="space-y-3 border-t border-ed-line p-3 font-mono text-[13px] md:border-t-0 md:border-l">
             <div>
-              <p className="mb-1.5 font-sans text-[10px] font-semibold tracking-[0.08em] text-ed-gutter uppercase">
-                Variables
-              </p>
+              <PanelLabel>Variables</PanelLabel>
               <ul className="space-y-1">
                 {Object.entries(frame?.vars ?? {}).map(([name, value]) => {
                   const changed = prev?.vars?.[name] !== value;
@@ -151,9 +100,7 @@ export function CodeTrace({
 
             {heapIds.length > 0 && (
               <div>
-                <p className="mb-1.5 font-sans text-[10px] font-semibold tracking-[0.08em] text-ed-gutter uppercase">
-                  Memory
-                </p>
+                <PanelLabel>Memory</PanelLabel>
                 <ul className="space-y-1">
                   {Object.entries(frame?.heap ?? {}).map(([id, value]) => (
                     <li key={id} className={cn('rounded border px-2 py-1', heapColor(id))}>
@@ -167,40 +114,10 @@ export function CodeTrace({
               </div>
             )}
 
-            <div>
-              <p className="mb-1.5 font-sans text-[10px] font-semibold tracking-[0.08em] text-ed-gutter uppercase">
-                Console
-              </p>
-              <div className="min-h-7 rounded bg-con-bg px-2 py-1 text-con-text">
-                {output.length === 0 ? (
-                  <span className="text-ed-gutter italic">nothing yet</span>
-                ) : (
-                  output.map((o, i) => (
-                    <div key={i}>
-                      <span className="text-ed-gutter">› </span>
-                      <Value text={o} />
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
+            <ConsolePanel lines={outputUpTo(frames, stepper.step)} />
           </div>
         </div>
-        <AnimatePresence mode="wait" initial={false}>
-          {frame?.note && (
-            <motion.figcaption
-              key={stepper.step}
-              initial={reduce ? false : { opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={reduce ? undefined : { opacity: 0 }}
-              transition={{ duration: 0.15 }}
-              className="border-t border-ed-line bg-ed-tab px-4 py-2.5 font-sans text-sm text-ed-text"
-              aria-live="polite"
-            >
-              <TextWithCode text={frame.note} />
-            </motion.figcaption>
-          )}
-        </AnimatePresence>
+        <StepNote step={stepper.step} note={frame?.note} />
       </EditorFrame>
     </figure>
   );

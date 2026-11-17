@@ -2,6 +2,7 @@ import type { MDXComponents } from 'mdx/types';
 import { InlineCode } from '@/components/InlineCode';
 import { slugify } from '@/lib/slug';
 import { cn } from '@/lib/utils';
+import { BossChallenge } from './BossChallenge';
 import { Callout } from './Callout';
 import { MdxLink } from './MdxLink';
 import { CodeBlock } from './CodeBlock';
@@ -12,6 +13,7 @@ import { Playground } from './Playground';
 import { Quiz } from './Quiz';
 import { GoDeeper, HowItWorks } from '@/components/depth/GoDeeper';
 import { CodeTrace } from '@/components/visualizers/CodeTrace';
+import { EventLoop } from '@/components/visualizers/EventLoop';
 import { Choice } from '@/components/questions/Choice';
 import { CodeReview } from '@/components/questions/CodeReview';
 import { FillBlanks } from '@/components/questions/FillBlanks';
@@ -129,6 +131,8 @@ export const mdxComponents: MDXComponents = {
   HowItWorks,
   GoDeeper,
   CodeTrace,
+  EventLoop,
+  BossChallenge,
   // question types
   Practice,
   Choice,

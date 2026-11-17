@@ -6,9 +6,13 @@ export interface LessonMeta {
   summary: string;
   minutes: number;
   tags: string[];
+  /** A normal lesson, a course review, or a track's boss challenge. */
+  kind: LessonKind;
   /** Vite glob key, e.g. "/src/content/courses/js-basics/01-variables.mdx" */
   file: string;
 }
+
+export type LessonKind = 'lesson' | 'review' | 'boss';
 
 /** One searchable item: a whole lesson or a single concept inside it. */
 export interface SearchDoc {

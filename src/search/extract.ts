@@ -37,6 +37,7 @@ export function parseFrontmatter(source: string, fileForErrors = 'lesson'): Fron
     summary: typeof data.summary === 'string' ? data.summary : '',
     minutes: typeof data.minutes === 'number' ? data.minutes : 10,
     tags: Array.isArray(data.tags) ? data.tags.map(String) : [],
+    kind: data.kind === 'review' || data.kind === 'boss' ? data.kind : 'lesson',
   };
 }
 
