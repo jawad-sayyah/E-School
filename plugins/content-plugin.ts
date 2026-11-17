@@ -1,25 +1,30 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { Plugin } from 'vite';
-import { extractSearchDocs, parseFrontmatter } from '../src/search/extract.ts';
+import { extractSearchDocs, parseFrontmatter, referenceSearchDocs } from '../src/search/extract.ts';
+import { parseReference } from '../src/content/reference/parse.ts';
 import type { LessonMeta } from '../src/content/types.ts';
 
 const META_ID = 'virtual:lesson-meta';
 const SEARCH_ID = 'virtual:search-docs';
+const REFERENCE_ID = 'virtual:reference';
+const VIRTUAL = [META_ID, SEARCH_ID, REFERENCE_ID];
 
 /**
- * Reads every lesson file at build time and exposes two virtual modules:
+ * Reads the content files at build time and exposes three virtual modules:
  *  - virtual:lesson-meta  — small, eager: frontmatter of every lesson (titles, minutes…)
- *  - virtual:search-docs  — large, lazy: text + code for the search palette
+ *  - virtual:search-docs  — large, lazy: text + code of lessons and the reference, for search
+ *  - virtual:reference    — lazy: the JS Quick Reference entries, for /reference
  * Reading frontmatter through an eager import.meta.glob would pull every lesson body
  * into the main bundle, which is why this lives in a plugin.
  */
 export function contentPlugin(): Plugin {
   let root = process.cwd();
-  const contentDir = () => path.join(root, 'src', 'content', 'courses');
+  const contentDir = () => path.join(root, 'src', 'content');
+  const referenceFile = () => path.join(contentDir(), 'reference', 'js-reference.txt');
 
   function readLessons() {
-    const dir = contentDir();
+    const dir = path.join(contentDir(), 'courses');
     if (!fs.existsSync(dir)) return [];
     const lessons: { meta: LessonMeta; source: string; abs: string }[] = [];
     for (const course of fs.readdirSync(dir).sort()) {
@@ -37,29 +42,41 @@ export function contentPlugin(): Plugin {
     return lessons;
   }
 
+  function readReference() {
+    return parseReference(fs.readFileSync(referenceFile(), 'utf8'));
+  }
+
   return {
     name: 'eschool-content',
     configResolved(config) {
       root = config.root;
     },
     resolveId(id) {
-      if (id === META_ID || id === SEARCH_ID) return '\0' + id;
-      return undefined;
+      return VIRTUAL.includes(id) ? '\0' + id : undefined;
     },
     load(id) {
-      if (id !== '\0' + META_ID && id !== '\0' + SEARCH_ID) return undefined;
+      if (!id.startsWith('\0') || !VIRTUAL.includes(id.slice(1))) return undefined;
+      if (id === '\0' + REFERENCE_ID) {
+        this.addWatchFile(referenceFile());
+        return `export default ${JSON.stringify(readReference())};`;
+      }
       const lessons = readLessons();
       lessons.forEach((l) => this.addWatchFile(l.abs));
-      const data =
-        id === '\0' + META_ID
-          ? lessons.map((l) => l.meta)
-          : lessons.flatMap((l) => extractSearchDocs(l.source, l.meta));
-      return `export default ${JSON.stringify(data)};`;
+      if (id === '\0' + META_ID) {
+        return `export default ${JSON.stringify(lessons.map((l) => l.meta))};`;
+      }
+      this.addWatchFile(referenceFile());
+      const docs = [
+        ...lessons.flatMap((l) => extractSearchDocs(l.source, l.meta)),
+        ...referenceSearchDocs(readReference()),
+      ];
+      return `export default ${JSON.stringify(docs)};`;
     },
     configureServer(server) {
       const onChange = (file: string) => {
-        if (!file.endsWith('.mdx') || !path.resolve(file).startsWith(contentDir())) return;
-        for (const id of [META_ID, SEARCH_ID]) {
+        const abs = path.resolve(file);
+        if (!/\.(mdx|txt)$/.test(abs) || !abs.startsWith(contentDir())) return;
+        for (const id of VIRTUAL) {
           const mod = server.moduleGraph.getModuleById('\0' + id);
           if (mod) server.moduleGraph.invalidateModule(mod);
         }

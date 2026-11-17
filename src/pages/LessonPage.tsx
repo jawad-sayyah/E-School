@@ -4,6 +4,7 @@ import { ArrowLeftIcon, ArrowRightIcon, CheckIcon, ClockIcon } from 'lucide-reac
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Crumbs } from '@/components/layout/Crumbs';
+import { CourseSidebar } from '@/components/layout/CourseSidebar';
 import { DocsLayout } from '@/components/layout/DocsLayout';
 import { OnThisPage, type TocItem } from '@/components/layout/OnThisPage';
 import { LessonContext } from '@/components/mdx/LessonContext';
@@ -18,6 +19,7 @@ import {
 import type { LessonMeta } from '@/content/types';
 import { useProgress, useProgressStore } from '@/progress/ProgressContext';
 import { lessonKey } from '@/progress/ProgressStore';
+import { scrollToHash } from '@/hooks/scrollToHash';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 import { cn } from '@/lib/utils';
 import NotFoundPage from './NotFoundPage';
@@ -31,12 +33,6 @@ function lessonPromise(meta: LessonMeta) {
     lessonPromises.set(meta.file, promise);
   }
   return promise;
-}
-
-function scrollToHash(hash: string) {
-  if (!hash) return;
-  const el = document.getElementById(decodeURIComponent(hash.slice(1)));
-  el?.scrollIntoView({ block: 'start' });
 }
 
 function LessonBody({
@@ -99,8 +95,17 @@ export default function LessonPage() {
 
   return (
     <DocsLayout
-      course={course}
-      activeLesson={meta.id}
+      sidebar={(onNavigate) => (
+        <CourseSidebar
+          course={course}
+          activeLesson={meta.id}
+          onNavigate={onNavigate}
+          className="h-full px-4 pt-6 pb-12"
+        />
+      )}
+      sidebarLabel="Course navigation"
+      drawerLabel={course.title}
+      drawerButtonLabel="Open the lesson list"
       position={`Lesson ${index + 1} of ${total}`}
       toc={<OnThisPage items={headings} />}
     >

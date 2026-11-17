@@ -39,3 +39,7 @@ export interface CourseInfo {
   /** Build phase (PROMPT.md §13). Courses with no lessons yet show "Coming in phase N". */
   phase: number;
 }
+
+/** Search docs from the JS Quick Reference use this as their course id (URL: /reference#id). */
+export const REFERENCE_COURSE = 'reference';
+export const REFERENCE_TITLE = 'JS Quick Reference';

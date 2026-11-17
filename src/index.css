@@ -192,8 +192,8 @@
   }
   html {
     @apply font-sans;
+    /* Anchor targets use scroll-mt-24 (96px) to clear the sticky header. */
     scroll-behavior: smooth;
-    scroll-padding-top: 88px;
   }
   body {
     @apply bg-background text-foreground antialiased;
@@ -205,6 +205,17 @@
   h3,
   h4 {
     @apply font-heading;
+  }
+  /* JetBrains Mono would draw === as ≡ and => as ⇒: beginners must see the real characters. */
+  code,
+  kbd,
+  pre,
+  samp,
+  .font-mono {
+    font-variant-ligatures: none;
+    font-feature-settings:
+      'liga' 0,
+      'calt' 0;
   }
   :focus-visible {
     @apply outline-2 outline-offset-2 outline-ring;

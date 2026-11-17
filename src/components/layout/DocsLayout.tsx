@@ -2,32 +2,40 @@ import { useState, type ReactNode } from 'react';
 import { PanelLeftIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet';
-import type { CourseInfo } from '@/content/types';
-import { CourseSidebar } from './CourseSidebar';
 
 interface DocsLayoutProps {
-  course: CourseInfo;
-  activeLesson?: string;
+  /** Renders the left sidebar; `onNavigate` closes the mobile drawer after a click. */
+  sidebar: (onNavigate?: () => void) => ReactNode;
+  /** Accessible name of the sidebar, e.g. "Course navigation". */
+  sidebarLabel: string;
+  /** Text on the mobile drawer button, e.g. the course title. */
+  drawerLabel: string;
+  /** Accessible name of the mobile drawer button, e.g. "Open the lesson list". */
+  drawerButtonLabel: string;
   /** Mobile bar label, e.g. "Lesson 3 of 10". */
   position?: string;
   toc?: ReactNode;
   children: ReactNode;
 }
 
-/** Three columns: lessons sidebar | content | "On this page". Sidebar is a drawer on mobile. */
-export function DocsLayout({ course, activeLesson, position, toc, children }: DocsLayoutProps) {
+/** Three columns: sidebar | content | "On this page". The sidebar is a drawer on mobile. */
+export function DocsLayout({
+  sidebar,
+  sidebarLabel,
+  drawerLabel,
+  drawerButtonLabel,
+  position,
+  toc,
+  children,
+}: DocsLayoutProps) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   return (
     <div className="mx-auto grid max-w-[1440px] grid-cols-1 md:grid-cols-[240px_minmax(0,1fr)] toc:grid-cols-[260px_minmax(0,1fr)_220px]">
       <aside
-        aria-label="Course navigation"
+        aria-label={sidebarLabel}
         className="sticky top-16 hidden h-[calc(100vh-4rem)] border-r border-border bg-sidebar md:block"
       >
-        <CourseSidebar
-          course={course}
-          activeLesson={activeLesson}
-          className="h-full px-4 pt-6 pb-12"
-        />
+        {sidebar()}
       </aside>
 
       <div className="min-w-0">
@@ -36,10 +44,10 @@ export function DocsLayout({ course, activeLesson, position, toc, children }: Do
             variant="ghost"
             size="sm"
             onClick={() => setDrawerOpen(true)}
-            aria-label="Open the lesson list"
+            aria-label={drawerButtonLabel}
           >
             <PanelLeftIcon aria-hidden />
-            {course.title}
+            {drawerLabel}
           </Button>
           {position && <span className="ml-auto text-xs text-faint">{position}</span>}
         </div>
@@ -54,14 +62,9 @@ export function DocsLayout({ course, activeLesson, position, toc, children }: Do
 
       <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
         <SheetContent side="left" className="w-80 bg-sidebar p-0">
-          <SheetTitle className="sr-only">{course.title} lessons</SheetTitle>
-          <SheetDescription className="sr-only">Pick a lesson</SheetDescription>
-          <CourseSidebar
-            course={course}
-            activeLesson={activeLesson}
-            onNavigate={() => setDrawerOpen(false)}
-            className="h-full px-4 pt-6 pb-12"
-          />
+          <SheetTitle className="sr-only">{sidebarLabel}</SheetTitle>
+          <SheetDescription className="sr-only">Pick a page</SheetDescription>
+          {drawerOpen && sidebar(() => setDrawerOpen(false))}
         </SheetContent>
       </Sheet>
     </div>

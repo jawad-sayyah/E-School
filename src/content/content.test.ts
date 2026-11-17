@@ -72,11 +72,21 @@ test('every lesson file is listed in the manifest', () => {
   }
 });
 
+test('every course with lessons has at least one exercise (PROMPT.md §10)', () => {
+  const courses = new Set(lessonFiles.map((l) => l.course));
+  for (const course of courses) {
+    const exercises = lessonFiles
+      .filter((l) => l.course === course)
+      .flatMap((l) => findAll(parser.parse(fs.readFileSync(l.abs, 'utf8')) as Node, 'Exercise'));
+    expect(exercises.length, course).toBeGreaterThanOrEqual(1);
+  }
+});
+
 describe.each(lessonFiles)('$course/$file', ({ abs }) => {
   const source = fs.readFileSync(abs, 'utf8');
   const tree = parser.parse(source) as Node;
 
-  test('has a quiz with valid answers and at least one exercise', () => {
+  test('has one quiz with 3–5 valid questions', () => {
     const quizzes = findAll(tree, 'Quiz');
     expect(quizzes).toHaveLength(1);
     const questions = attr(quizzes[0], 'questions') as { options: string[]; answer: number }[];
@@ -86,7 +96,6 @@ describe.each(lessonFiles)('$course/$file', ({ abs }) => {
       expect(q.answer).toBeGreaterThanOrEqual(0);
       expect(q.answer).toBeLessThan(q.options.length);
     }
-    expect(findAll(tree, 'Exercise').length).toBeGreaterThanOrEqual(1);
   });
 
   const playgrounds = findAll(tree, 'Playground').filter((p) => !attr(p, 'browserOnly'));

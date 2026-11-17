@@ -22,6 +22,7 @@
     "e2e",
     "src/search/extract.ts",
     "src/lib/slug.ts",
-    "src/content/types.ts"
+    "src/content/types.ts",
+    "src/content/reference/parse.ts"
   ]
 }

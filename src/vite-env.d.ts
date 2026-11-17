@@ -11,3 +11,9 @@ declare module 'virtual:search-docs' {
   const docs: SearchDoc[];
   export default docs;
 }
+
+declare module 'virtual:reference' {
+  import type { ReferenceData } from '@/content/reference/parse';
+  const reference: ReferenceData;
+  export default reference;
+}

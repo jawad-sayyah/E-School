@@ -35,13 +35,3 @@ export function ProjectPage() {
     />
   );
 }
-
-export function ReferencePage() {
-  return (
-    <ComingSoon
-      title="JavaScript Quick Reference"
-      phase={2}
-      description="Every JavaScript concept in one sentence, with code you can edit and run."
-    />
-  );
-}

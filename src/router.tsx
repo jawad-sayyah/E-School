@@ -30,7 +30,7 @@ export const router = createBrowserRouter([
       },
       {
         path: 'reference',
-        lazy: async () => ({ Component: (await import('@/pages/ComingSoonPage')).ReferencePage }),
+        lazy: async () => ({ Component: (await import('@/pages/ReferencePage')).default }),
       },
       {
         path: 'progress',

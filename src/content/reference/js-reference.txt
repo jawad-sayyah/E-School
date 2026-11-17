@@ -1,0 +1,954 @@
+JavaScript Quick Reference: the content of /reference (ported from js-reference.html).
+
+Format
+  # section-id :: Title :: One-sentence intro
+  @@ entry-id :: section-id :: Name :: flags   (flags: react, warn, static, varies)
+  Description lines (one or two sentences).
+  note: an optional note shown in italics
+  a fenced code block
+  >> an expected console line
+  !! an expected uncaught error (shown as "Uncaught …")
+  ~~ a muted note in the console (for "static" entries that need a real page)
+
+  static = needs a real web page (DOM, import/export): no Run button.
+  varies = output changes between runs (random numbers, dates).
+
+Every runnable entry is run by the unit tests and must print exactly its >> lines.
+
+# basics :: Basics :: The building blocks: storing values, the types they come in, and how to combine them.
+# conditions :: Conditions & loops :: Make decisions and repeat work. The ternary and && show up constantly in React JSX.
+# functions :: Functions :: Functions package logic you can reuse. Arrow functions and callbacks are everywhere in React.
+# arrays :: Arrays :: Arrays hold ordered lists. Most of these methods return a new array and leave the original alone, which is exactly how React wants you to work.
+# objects :: Objects :: Objects describe one thing with key–value pairs. Most of your app’s data, and every React prop, is an object.
+# strings :: Strings :: Text work you’ll do daily: cleaning user input, searching and formatting.
+# async :: Async :: Some work takes time, like loading data from a server. These tools let you wait for it without freezing the page.
+# dom :: DOM & events :: How plain JavaScript talks to the page. These examples need a real web page, so the console shows what you’d see in the browser.
+# modules :: Modules & extras :: Connecting files, saving data and other everyday tools.
+# gotchas :: Gotchas :: Small JavaScript surprises that cause real bugs. Learn them once and save hours.
+
+@@ let-const :: basics :: let & const
+Use const by default, and let only when the value will change. Avoid the old var.
+```
+const name = "Coffee";
+let qty = 1;
+qty = qty + 1;
+
+console.log(name, qty);
+```
+>> Coffee 2
+
+@@ typeof :: basics :: typeof
+JavaScript has a few basic types, and typeof tells you which one a value is.
+```
+console.log(typeof 42);
+console.log(typeof "hi");
+console.log(typeof true);
+console.log(typeof undefined);
+console.log(typeof { a: 1 });
+console.log(typeof [1, 2]);   // arrays are objects!
+```
+>> number
+>> string
+>> boolean
+>> undefined
+>> object
+>> object
+
+@@ template-literals :: basics :: Template literals :: react
+Build strings with backticks and ${} instead of joining pieces with +.
+```
+const item = "Coffee";
+const price = 4;
+
+console.log(`${item} costs $${price}`);
+```
+>> Coffee costs $4
+
+@@ arithmetic :: basics :: + - * / % **
+The usual math operators, plus % for the remainder and ** for powers.
+```
+console.log(7 + 2, 7 - 2, 7 * 2);
+console.log(7 / 2);
+console.log(7 % 2);   // remainder
+console.log(2 ** 3);  // power
+```
+>> 9 5 14
+>> 3.5
+>> 1
+>> 8
+
+@@ comparison :: basics :: === !== < >
+Comparisons always give true or false. Use === and !== for equality.
+```
+console.log(5 === 5);
+console.log(5 !== 3);
+console.log(4 >= 5);
+```
+>> true
+>> true
+>> false
+
+@@ truthy-falsy :: basics :: Truthy & falsy
+In conditions, 0, "", null, undefined, NaN and false count as false. Everything else counts as true.
+```
+console.log(Boolean(0));
+console.log(Boolean(""));
+console.log(Boolean("0"));   // non-empty text!
+console.log(Boolean([]));    // empty array is truthy
+```
+>> false
+>> false
+>> true
+>> true
+
+@@ number-conversion :: basics :: Number()
+Turns text into a number. Bad input gives NaN, which you can check with Number.isNaN().
+```
+console.log(Number("42"));
+console.log(parseFloat("3.5kg"));
+console.log(Number("abc"));
+console.log(Number.isNaN(Number("abc")));
+```
+>> 42
+>> 3.5
+>> NaN
+>> true
+
+@@ if-else :: conditions :: if / else
+Runs different code depending on whether a condition is true.
+```
+const qty = 0;
+
+if (qty === 0) {
+  console.log("Cart is empty");
+} else {
+  console.log(`${qty} items`);
+}
+```
+>> Cart is empty
+
+@@ ternary :: conditions :: condition ? a : b :: react
+A one-line if/else that gives back a value. You’ll use it inside JSX all the time.
+```
+const qty = 3;
+const label = qty === 1 ? "item" : "items";
+
+console.log(`${qty} ${label}`);
+```
+>> 3 items
+
+@@ and-or :: conditions :: && and || :: react
+&& gives the right side only if the left side is truthy. || gives a fallback when the left side is falsy.
+```
+const isLoggedIn = true;
+
+console.log(isLoggedIn && "Welcome back!");
+console.log("" || "Guest");
+```
+>> Welcome back!
+>> Guest
+
+@@ switch :: conditions :: switch
+Picks one branch out of many by matching a value. Reducers in React use it.
+```
+const action = "add";
+
+switch (action) {
+  case "add":
+    console.log("Adding item");
+    break;
+  case "remove":
+    console.log("Removing item");
+    break;
+  default:
+    console.log("Unknown action");
+}
+```
+>> Adding item
+
+@@ for-loop :: conditions :: for
+Repeats code a set number of times using a counter.
+```
+for (let i = 1; i <= 3; i++) {
+  console.log("Step", i);
+}
+```
+>> Step 1
+>> Step 2
+>> Step 3
+
+@@ for-of :: conditions :: for...of
+Loops over every value in an array (or string). Cleaner than a counter.
+```
+const cart = ["Coffee", "Bagel"];
+
+for (const item of cart) {
+  console.log(item);
+}
+```
+>> Coffee
+>> Bagel
+
+@@ while :: conditions :: while
+Repeats while a condition stays true. Make sure it eventually becomes false.
+```
+let stock = 3;
+
+while (stock > 0) {
+  console.log("In stock:", stock);
+  stock--;
+}
+```
+>> In stock: 3
+>> In stock: 2
+>> In stock: 1
+
+@@ function-declaration :: functions :: function
+A named, reusable block of code that takes inputs and returns a result.
+```
+function add(a, b) {
+  return a + b;
+}
+
+console.log(add(2, 3));
+```
+>> 5
+
+@@ arrow-functions :: functions :: () => :: react
+A shorter way to write functions. With a single expression, the value is returned automatically.
+```
+const double = n => n * 2;
+const add = (a, b) => a + b;
+
+console.log(double(4), add(2, 3));
+```
+>> 8 5
+
+@@ default-params :: functions :: Default parameters
+Gives a parameter a value when the caller leaves it out.
+```
+function addItem(name, qty = 1) {
+  return `${qty} × ${name}`;
+}
+
+console.log(addItem("Coffee"));
+console.log(addItem("Bagel", 3));
+```
+>> 1 × Coffee
+>> 3 × Bagel
+
+@@ rest-params :: functions :: ...rest
+Collects any number of arguments into an array.
+```
+function total(...prices) {
+  return prices.reduce((sum, p) => sum + p, 0);
+}
+
+console.log(total(4, 3, 5));
+```
+>> 12
+
+@@ callbacks :: functions :: Callbacks :: react
+A function you pass to another function, to be called later. Event handlers are callbacks.
+```
+function forEachItem(items, callback) {
+  for (const item of items) callback(item);
+}
+
+forEachItem(["Coffee", "Bagel"], item => console.log("Got", item));
+```
+>> Got Coffee
+>> Got Bagel
+
+@@ early-return :: functions :: Early return
+Returning early skips the rest of the function. Great for rejecting bad input first.
+```
+function checkout(cart) {
+  if (cart.length === 0) return "Cart is empty";
+  return `Paying for ${cart.length} item(s)`;
+}
+
+console.log(checkout([]));
+console.log(checkout(["Coffee"]));
+```
+>> Cart is empty
+>> Paying for 1 item(s)
+
+@@ closures :: functions :: Closures
+A function remembers the variables around where it was created, even after that code has finished.
+```
+function makeCounter() {
+  let count = 0;
+  return () => ++count;
+}
+
+const next = makeCounter();
+console.log(next(), next(), next());
+```
+>> 1 2 3
+
+@@ push-pop :: arrays :: push() / pop()
+push adds to the end and pop removes from the end. Both change the original array, so don’t use them on React state.
+```
+const cart = ["Coffee"];
+
+cart.push("Bagel");
+console.log(cart, cart.length);
+
+cart.pop();
+console.log(cart);
+```
+>> [ 'Coffee', 'Bagel' ] 2
+>> [ 'Coffee' ]
+
+@@ for-each :: arrays :: forEach()
+Runs a function for every item. It returns nothing, so use map() when you need a new array.
+```
+const cart = ["Coffee", "Bagel"];
+
+cart.forEach((item, index) => {
+  console.log(index, item);
+});
+```
+>> 0 Coffee
+>> 1 Bagel
+
+@@ map :: arrays :: map() :: react
+Transforms every item and returns a new array of the same length.
+```
+const prices = [4, 3, 5];
+const doubled = prices.map(p => p * 2);
+
+console.log(doubled);
+```
+>> [ 8, 6, 10 ]
+
+@@ filter :: arrays :: filter() :: react
+Keeps only the items that pass a test.
+```
+const prices = [4, 3, 5];
+const cheap = prices.filter(p => p < 5);
+
+console.log(cheap);
+```
+>> [ 4, 3 ]
+
+@@ reduce :: arrays :: reduce()
+Combines all items into a single value, like a total.
+```
+const prices = [4, 3, 5];
+const total = prices.reduce((sum, p) => sum + p, 0);
+
+console.log(total);
+```
+>> 12
+
+@@ find :: arrays :: find()
+Returns the first item that matches, or undefined if none does.
+```
+const cart = [
+  { id: 1, name: "Coffee" },
+  { id: 2, name: "Bagel" },
+];
+
+console.log(cart.find(i => i.id === 2));
+```
+>> { id: 2, name: 'Bagel' }
+
+@@ some-every :: arrays :: some() / every()
+some asks whether at least one item passes. every asks whether all of them do.
+```
+const prices = [4, 3, 5];
+
+console.log(prices.some(p => p > 4));
+console.log(prices.every(p => p > 4));
+```
+>> true
+>> false
+
+@@ includes :: arrays :: includes()
+Checks whether an array contains a value.
+```
+const fruits = ["apple", "pear"];
+
+console.log(fruits.includes("pear"));
+console.log(fruits.includes("kiwi"));
+```
+>> true
+>> false
+
+@@ slice :: arrays :: slice()
+Copies part of an array, from a start index up to (not including) an end index. The original stays the same.
+```
+const items = ["a", "b", "c", "d"];
+
+console.log(items.slice(1, 3));
+console.log(items);
+```
+>> [ 'b', 'c' ]
+>> [ 'a', 'b', 'c', 'd' ]
+
+@@ sort :: arrays :: sort() :: warn
+Sorts the array in place, comparing as text by default. Pass a compare function for numbers.
+```
+const nums = [10, 1, 5];
+
+console.log([...nums].sort());
+console.log([...nums].sort((a, b) => a - b));
+```
+>> [ 1, 10, 5 ]
+>> [ 1, 5, 10 ]
+
+@@ join :: arrays :: join()
+Joins all items into one string with a separator.
+```
+const cart = ["Coffee", "Bagel"];
+
+console.log(cart.join(", "));
+```
+>> Coffee, Bagel
+
+@@ spread-array :: arrays :: [...spread] :: react
+Copies an array or adds items without changing the original.
+```
+const cart = ["Coffee"];
+const next = [...cart, "Bagel"];
+
+console.log(cart);
+console.log(next);
+```
+>> [ 'Coffee' ]
+>> [ 'Coffee', 'Bagel' ]
+
+@@ array-destructuring :: arrays :: const [a, b] = arr :: react
+Pulls items out by position. This is exactly how useState gives you [value, setValue].
+```
+const [first, second] = ["Coffee", "Bagel"];
+
+console.log(first);
+console.log(second);
+```
+>> Coffee
+>> Bagel
+
+@@ object-basics :: objects :: { key: value }
+Groups related values under named keys. Read them with a dot or with brackets.
+```
+const item = { name: "Coffee", price: 4 };
+
+console.log(item.name);
+console.log(item["price"]);
+
+item.qty = 2;
+console.log(item);
+```
+>> Coffee
+>> 4
+>> { name: 'Coffee', price: 4, qty: 2 }
+
+@@ shorthand :: objects :: Shorthand properties :: react
+When a key and a variable have the same name, write it once.
+```
+const name = "Coffee";
+const price = 4;
+const item = { name, price };
+
+console.log(item);
+```
+>> { name: 'Coffee', price: 4 }
+
+@@ destructuring :: objects :: Destructuring :: react
+Pulls properties out into variables in one line. React props use this all the time.
+```
+const item = { name: "Coffee", price: 4, qty: 2 };
+const { name, price } = item;
+
+console.log(name, price);
+```
+>> Coffee 4
+
+@@ spread-object :: objects :: {...spread} :: react
+Copies an object and overrides some of its fields.
+```
+const item = { name: "Coffee", qty: 1 };
+const updated = { ...item, qty: 3 };
+
+console.log(item);
+console.log(updated);
+```
+>> { name: 'Coffee', qty: 1 }
+>> { name: 'Coffee', qty: 3 }
+
+@@ object-keys :: objects :: Object.keys / values / entries
+Turns an object into arrays you can loop over.
+```
+const stock = { coffee: 5, bagel: 2 };
+
+console.log(Object.keys(stock));
+console.log(Object.values(stock));
+console.log(Object.entries(stock));
+```
+>> [ 'coffee', 'bagel' ]
+>> [ 5, 2 ]
+>> [ [ 'coffee', 5 ], [ 'bagel', 2 ] ]
+
+@@ computed-keys :: objects :: { [key]: value } :: react
+Uses a variable as the key name. Handy for updating form fields.
+```
+const field = "email";
+const form = { [field]: "sara@mail.com" };
+
+console.log(form);
+```
+>> { email: 'sara@mail.com' }
+
+@@ optional-chaining :: objects :: ?. :: react
+Reads a nested value safely: you get undefined instead of a crash.
+```
+const user = { name: "Sara" };
+
+console.log(user.address?.city);
+console.log(user.address.city);  // crashes
+```
+>> undefined
+!! TypeError: Cannot read properties of undefined (reading 'city')
+
+@@ nullish :: objects :: ??
+Uses a fallback only when the value is null or undefined, unlike || which also replaces 0 and "".
+```
+console.log(0 ?? 1);     // keeps 0
+console.log(0 || 1);     // replaces 0
+console.log(null ?? 1);
+```
+>> 0
+>> 1
+>> 1
+
+@@ string-length :: strings :: length & [index]
+length counts characters. Use [i] or at() to read one, and at(-1) for the last.
+```
+const word = "Coffee";
+
+console.log(word.length);
+console.log(word[0], word.at(-1));
+```
+>> 6
+>> C e
+
+@@ string-case :: strings :: toUpperCase() / toLowerCase()
+Changes letter case. Lowercase both sides before comparing user input.
+```
+const input = "CoFFee";
+
+console.log(input.toUpperCase());
+console.log(input.toLowerCase() === "coffee");
+```
+>> COFFEE
+>> true
+
+@@ trim :: strings :: trim()
+Removes spaces from both ends. Always trim what users type.
+```
+const email = "  sara@mail.com  ";
+
+console.log(`[${email}]`);
+console.log(`[${email.trim()}]`);
+```
+>> [  sara@mail.com  ]
+>> [sara@mail.com]
+
+@@ string-includes :: strings :: includes() / startsWith()
+Checks whether text contains, starts with or ends with something. Perfect for search boxes.
+```
+const name = "Iced Coffee";
+
+console.log(name.includes("Coffee"));
+console.log(name.startsWith("Iced"));
+console.log(name.endsWith("Tea"));
+```
+>> true
+>> true
+>> false
+
+@@ split :: strings :: split()
+Breaks a string into an array at a separator.
+```
+const tags = "coffee,hot,large";
+
+console.log(tags.split(","));
+```
+>> [ 'coffee', 'hot', 'large' ]
+
+@@ replace :: strings :: replace() / replaceAll()
+Swaps part of a string. replace changes the first match, replaceAll changes every one.
+```
+const slug = "iced coffee latte";
+
+console.log(slug.replace(" ", "-"));
+console.log(slug.replaceAll(" ", "-"));
+```
+>> iced-coffee latte
+>> iced-coffee-latte
+
+@@ string-slice :: strings :: slice()
+Cuts out part of a string by position, like slice() on arrays.
+```
+const code = "ORDER-2026-0042";
+
+console.log(code.slice(0, 5));
+console.log(code.slice(-4));
+```
+>> ORDER
+>> 0042
+
+@@ to-fixed :: strings :: toFixed()
+Formats a number with a fixed number of decimals. It returns a string, ready to display.
+```
+const price = 4.5;
+
+console.log(price.toFixed(2));
+console.log(`$${(19.999).toFixed(2)}`);
+```
+>> 4.50
+>> $20.00
+
+@@ set-timeout :: async :: setTimeout()
+Runs code once after a delay in milliseconds. The rest of the code doesn’t wait for it.
+```
+console.log("Order placed");
+
+setTimeout(() => {
+  console.log("Order shipped!");
+}, 500);
+
+console.log("Waiting…");
+```
+>> Order placed
+>> Waiting…
+>> Order shipped!
+
+@@ set-interval :: async :: setInterval()
+Repeats code every few milliseconds until you stop it with clearInterval.
+```
+let n = 0;
+
+const id = setInterval(() => {
+  n++;
+  console.log("Tick", n);
+  if (n === 3) clearInterval(id);
+}, 300);
+```
+>> Tick 1
+>> Tick 2
+>> Tick 3
+
+@@ promises :: async :: Promise
+A value that arrives later. .then() runs once it’s ready.
+```
+const ready = new Promise(resolve => {
+  setTimeout(() => resolve("Coffee is ready"), 500);
+});
+
+ready.then(msg => console.log(msg));
+```
+>> Coffee is ready
+
+@@ async-await :: async :: async / await :: react
+Waits for slow work, like a server request, while the code still reads top to bottom.
+note: fetch is simulated in this playground.
+```
+async function loadCart() {
+  const res = await fetch("/api/cart");
+  const data = await res.json();
+  console.log(data);
+}
+
+loadCart();
+```
+>> [ { id: 1, name: 'Coffee', price: 4 } ]
+
+@@ fetch-ok :: async :: fetch() + res.ok :: react
+fetch only fails on network errors, so check res.ok to catch 404s and 500s.
+note: fetch is simulated in this playground.
+```
+async function load() {
+  const res = await fetch("/api/cart");
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+  const cart = await res.json();
+  console.log(cart.length, "item(s) loaded");
+}
+
+load();
+```
+>> 1 item(s) loaded
+
+@@ try-catch :: async :: try / catch
+Catches errors from code that might fail, so the app doesn’t crash.
+```
+function parse(text) {
+  try {
+    return JSON.parse(text);
+  } catch (err) {
+    console.log("Invalid JSON!");
+    return null;
+  }
+}
+
+console.log(parse('{"qty": 2}'));
+console.log(parse("{ oops"));
+```
+>> { qty: 2 }
+>> Invalid JSON!
+>> null
+
+@@ promise-all :: async :: Promise.all()
+Runs several async tasks at the same time and waits until all of them finish.
+```
+const wait = (ms, value) =>
+  new Promise(resolve => setTimeout(() => resolve(value), ms));
+
+const [cart, user] = await Promise.all([
+  wait(300, "cart loaded"),
+  wait(500, "user loaded"),
+]);
+
+console.log(cart, "+", user);
+```
+>> cart loaded + user loaded
+
+@@ query-selector :: dom :: querySelector() :: static
+Finds the first element that matches a CSS selector. querySelectorAll finds all of them.
+```
+const title = document.querySelector("h1");
+const button = document.querySelector("#add-btn");
+const items = document.querySelectorAll(".cart-item");
+
+console.log(items.length);
+```
+>> 2
+
+@@ text-content :: dom :: textContent :: static
+Reads or changes the text inside an element. Prefer it over innerHTML, which parses HTML.
+```
+const badge = document.querySelector(".badge");
+
+badge.textContent = "3";
+console.log(badge.textContent);
+```
+>> 3
+
+@@ add-event-listener :: dom :: addEventListener() :: static
+Runs a function when something happens on an element, like a click.
+```
+const button = document.querySelector("#add-btn");
+
+button.addEventListener("click", () => {
+  console.log("Added to cart");
+});
+```
+~~ After clicking the button:
+>> Added to cart
+
+@@ prevent-default :: dom :: event.preventDefault() :: static
+Stops the browser’s default action, like a form reloading the page on submit.
+```
+const form = document.querySelector("form");
+
+form.addEventListener("submit", (event) => {
+  event.preventDefault();
+  console.log("Saved without reloading");
+});
+```
+~~ After submitting the form:
+>> Saved without reloading
+
+@@ class-list :: dom :: classList :: static
+Adds, removes or toggles CSS classes on an element.
+```
+const menu = document.querySelector(".menu");
+
+menu.classList.add("open");
+menu.classList.toggle("dark");
+console.log(menu.classList.contains("open"));
+```
+>> true
+
+@@ create-element :: dom :: createElement() :: static
+Builds a new element in JavaScript and adds it to the page. React does this for you.
+```
+const li = document.createElement("li");
+li.textContent = "Coffee";
+
+document.querySelector("ul").append(li);
+```
+~~ A new “Coffee” item appears in the list.
+
+@@ input-value :: dom :: input.value :: static
+Reads what the user typed. It’s always a string, so convert numbers.
+```
+const input = document.querySelector("#qty");  // user typed 2
+
+console.log(typeof input.value);
+console.log(Number(input.value) + 1);
+```
+>> string
+>> 3
+
+@@ import-export :: modules :: import / export :: react static
+Splits code into files: export from one file, import in another. Every React project works this way.
+```
+// cart.js
+export function addItem(item) { /* ... */ }
+export default function Cart() { /* ... */ }
+
+// App.js
+import Cart, { addItem } from "./cart.js";
+```
+~~ Nothing to print: this connects files together.
+
+@@ json :: modules :: JSON.stringify / parse
+Turns objects into text (to save or send) and text back into objects.
+```
+const cart = [{ name: "Coffee", qty: 2 }];
+const text = JSON.stringify(cart);
+
+console.log(text);
+console.log(JSON.parse(text)[0].name);
+```
+>> [{"name":"Coffee","qty":2}]
+>> Coffee
+
+@@ local-storage :: modules :: localStorage
+Saves small strings in the browser, even after a refresh. Store objects as JSON.
+note: localStorage is simulated in this playground.
+```
+const cart = [{ name: "Coffee" }];
+localStorage.setItem("cart", JSON.stringify(cart));
+
+const saved = JSON.parse(localStorage.getItem("cart"));
+console.log(saved);
+```
+>> [ { name: 'Coffee' } ]
+
+@@ math :: modules :: Math :: varies
+Rounding, min/max and random numbers.
+```
+console.log(Math.round(4.6), Math.floor(4.6), Math.ceil(4.1));
+console.log(Math.max(4, 9, 2));
+console.log(Math.floor(Math.random() * 10));  // 0 to 9
+```
+>> 5 4 5
+>> 9
+>> 7
+
+@@ date :: modules :: Date :: varies
+Gets the current date and time, and formats it for display.
+```
+const now = new Date();
+
+console.log(now.getFullYear());
+console.log(now.toLocaleDateString("en-GB"));
+```
+>> 2026
+>> 16/11/2026
+
+@@ throw :: modules :: throw
+Stops the function and sends an error to the nearest catch.
+```
+function setQty(qty) {
+  if (qty < 0) throw new Error("Quantity can't be negative");
+  return qty;
+}
+
+try {
+  setQty(-1);
+} catch (err) {
+  console.log(err.message);
+}
+```
+>> Quantity can't be negative
+
+@@ string-plus :: gotchas :: "5" + 1 :: warn
++ with a string joins text instead of adding. Values from inputs are always strings.
+```
+console.log("5" + 1);
+console.log(Number("5") + 1);
+```
+>> 51
+>> 6
+
+@@ equality :: gotchas :: == vs === :: warn
+== converts types before comparing, which gives surprises. Always use ===.
+```
+console.log(0 == "");
+console.log(0 === "");
+```
+>> true
+>> false
+
+@@ decimals :: gotchas :: 0.1 + 0.2 :: warn
+Decimal math isn’t exact. Round money with toFixed(), or work in cents.
+```
+console.log(0.1 + 0.2);
+console.log((0.1 + 0.2).toFixed(2));
+```
+>> 0.30000000000000004
+>> 0.30
+
+@@ typeof-null :: gotchas :: typeof null :: warn
+typeof null says "object", an old bug in the language. Check for null with === null.
+```
+const user = null;
+
+console.log(typeof user);
+console.log(user === null);
+```
+>> object
+>> true
+
+@@ reference-copy :: gotchas :: Copy by reference :: warn react
+Assigning an object or array doesn’t copy it: both names point to the same thing.
+```
+const a = { qty: 1 };
+const b = a;
+b.qty = 5;
+
+console.log(a.qty);  // a changed too!
+```
+>> 5
+
+@@ compare-arrays :: gotchas :: [1] === [1] :: warn
+=== compares whether two arrays or objects are the same thing, not whether their contents match.
+```
+console.log([1, 2] === [1, 2]);
+
+const a = [1, 2];
+const b = a;
+console.log(a === b);
+```
+>> false
+>> true
+
+@@ const-not-frozen :: gotchas :: const isn’t frozen :: warn
+const stops you from reassigning the variable, but you can still change what’s inside it.
+```
+const cart = ["Coffee"];
+cart.push("Bagel");   // allowed!
+
+console.log(cart);
+// cart = [];         // TypeError: Assignment to constant
+```
+>> [ 'Coffee', 'Bagel' ]
+
+@@ arrow-return :: gotchas :: Missing return in { } :: warn react
+An arrow function with { } needs return. Without it you get undefined, a classic map() bug.
+```
+const a = [1, 2].map(n => { n * 2 });
+const b = [1, 2].map(n => n * 2);
+
+console.log(a);
+console.log(b);
+```
+>> [ undefined, undefined ]
+>> [ 2, 4 ]

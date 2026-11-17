@@ -4,7 +4,8 @@ import remarkMdx from 'remark-mdx';
 import remarkFrontmatter from 'remark-frontmatter';
 import { parse as parseYaml } from 'yaml';
 import { slugify } from '../lib/slug.ts';
-import type { LessonMeta, SearchDoc } from '../content/types.ts';
+import { REFERENCE_COURSE, type LessonMeta, type SearchDoc } from '../content/types.ts';
+import type { ReferenceData } from '../content/reference/parse.ts';
 
 /* Runs at build time (inside the Vite plugin) and in unit tests. No browser APIs here. */
 
@@ -125,4 +126,21 @@ export function extractSearchDocs(source: string, meta: LessonMeta): SearchDoc[]
       code: c.code.join('\n'),
     })),
   ];
+}
+
+/** One search doc per reference entry, linking to /reference#entry-id. */
+export function referenceSearchDocs(data: ReferenceData): SearchDoc[] {
+  const sectionTitle = new Map(data.sections.map((s) => [s.id, s.title]));
+  return data.entries.map((e) => ({
+    id: `${REFERENCE_COURSE}#${e.id}`,
+    kind: 'concept',
+    course: REFERENCE_COURSE,
+    lesson: REFERENCE_COURSE,
+    lessonTitle: sectionTitle.get(e.section) ?? 'Reference',
+    title: e.name,
+    anchor: e.id,
+    tags: sectionTitle.get(e.section) ?? '',
+    text: [e.desc, e.note].filter(Boolean).join(' '),
+    code: e.code,
+  }));
 }

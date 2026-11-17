@@ -1,5 +1,6 @@
 import { Outlet, ScrollRestoration } from 'react-router';
 import { SearchProvider } from '@/components/search/SearchContext';
+import { scrollKey } from '@/lib/scrollKey';
 import { Header } from './Header';
 
 export function AppShell() {
@@ -14,7 +15,7 @@ export function AppShell() {
         </a>
         <Header />
         <Outlet />
-        <ScrollRestoration />
+        <ScrollRestoration getKey={scrollKey} />
       </div>
     </SearchProvider>
   );

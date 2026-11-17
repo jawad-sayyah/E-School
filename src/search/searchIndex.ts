@@ -1,6 +1,6 @@
 import MiniSearch from 'minisearch';
 import { COURSES } from '@/content/courses';
-import type { SearchDoc } from '@/content/types';
+import { REFERENCE_COURSE, REFERENCE_TITLE, type SearchDoc } from '@/content/types';
 
 export interface SearchHit {
   id: string;
@@ -38,10 +38,11 @@ export function createSearchIndex(docs: SearchDoc[]) {
 }
 
 export function urlFor(doc: Pick<SearchDoc, 'course' | 'lesson' | 'anchor'>) {
+  if (doc.course === REFERENCE_COURSE) return `/reference${doc.anchor ? `#${doc.anchor}` : ''}`;
   return `/courses/${doc.course}/${doc.lesson}${doc.anchor ? `#${doc.anchor}` : ''}`;
 }
 
-/** Searches and groups the hits by course, in course order. */
+/** Searches and groups the hits by course, in course order (the reference comes last). */
 export function searchGrouped(
   index: MiniSearch<SearchDoc>,
   query: string,
@@ -66,9 +67,11 @@ export function searchGrouped(
         score: r.score,
       };
     });
-  return COURSES.map((c) => ({
-    course: c.id,
-    courseTitle: c.title,
-    hits: hits.filter((h) => h.course === c.id),
-  })).filter((g) => g.hits.length > 0);
+  const groups = [
+    ...COURSES.map((c) => ({ course: c.id, courseTitle: c.title })),
+    { course: REFERENCE_COURSE, courseTitle: REFERENCE_TITLE },
+  ];
+  return groups
+    .map((g) => ({ ...g, hits: hits.filter((h) => h.course === g.course) }))
+    .filter((g) => g.hits.length > 0);
 }

@@ -19,6 +19,8 @@ interface PlaygroundProps {
   browserOnly?: boolean;
   fetchMocks?: FetchMocks;
   fetchDelay?: number;
+  /** The code, when it doesn't come from a fenced block inside (e.g. reference entries). */
+  code?: string;
   children?: ReactNode;
 }
 
@@ -30,9 +32,10 @@ export function Playground({
   browserOnly = false,
   fetchMocks,
   fetchDelay,
+  code: codeProp,
   children,
 }: PlaygroundProps) {
-  const initial = getCodeBlocks(children)[0]?.code ?? '';
+  const initial = codeProp ?? getCodeBlocks(children)[0]?.code ?? '';
   const [code, setCode] = useState(initial);
   const { lines, phase, run, reset } = useRunner({ fetchMocks, fetchDelay });
   const edited = code !== initial;
