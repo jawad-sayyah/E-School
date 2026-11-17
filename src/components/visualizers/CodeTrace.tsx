@@ -3,7 +3,8 @@ import { motion, useReducedMotion } from 'motion/react';
 import { EditorFrame } from '@/editor/EditorFrame';
 import { getCodeBlocks } from '@/components/mdx/codeBlocks';
 import { cn } from '@/lib/utils';
-import { CodeLines, ConsolePanel, PanelLabel, StepNote, Value, outputUpTo } from './parts';
+import { outputUpTo } from './output';
+import { CodeLines, ConsolePanel, PanelLabel, StepNote, Value } from './parts';
 import { StepperControls } from './StepperControls';
 import { useStepper } from './useStepper';
 

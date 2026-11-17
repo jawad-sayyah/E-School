@@ -109,10 +109,10 @@ test('the reference page filters entries and runs examples', async ({ page }) =>
   await expect(
     page.getByRole('heading', { level: 1, name: 'JavaScript Quick Reference' }),
   ).toBeVisible();
-  await expect(page.getByText('78 entries')).toBeVisible();
+  await expect(page.getByText('96 entries')).toBeVisible();
 
   await page.getByLabel('Filter the reference').fill('fetch');
-  await expect(page.getByText('2 of 78 entries')).toBeVisible();
+  await expect(page.getByText('2 of 96 entries')).toBeVisible();
   await expect(page.getByRole('heading', { level: 3, name: /fetch\(\) \+ res\.ok/ })).toBeVisible();
   await expect(page.getByRole('heading', { level: 3, name: /^Callbacks/ })).toBeHidden();
 
@@ -192,4 +192,90 @@ test('tracks and certificates', async ({ page }) => {
   await expect(page.getByRole('link', { name: 'JavaScript Basics' })).toBeVisible();
   await page.getByRole('link', { name: 'Preview' }).click();
   await expect(page.getByText(/This is a preview/)).toBeVisible();
+});
+
+test('the event loop visualizer steps through the queues', async ({ page }) => {
+  await page.goto('/courses/js-depth/event-loop');
+  const viz = page.getByRole('figure', { name: 'The event loop, step by step' });
+  await viz.scrollIntoViewIfNeeded();
+  await expect(viz.getByText('1 / 9')).toBeVisible();
+  for (let i = 0; i < 5; i++) await viz.getByRole('button', { name: 'Next step' }).click();
+  await expect(viz.getByLabel(/^Call stack: promise callback$/)).toBeVisible();
+  await expect(viz.getByLabel(/^Task queue: timeout callback$/)).toBeVisible();
+  await expect(viz.getByText('promise', { exact: true })).toBeVisible();
+});
+
+test('defeating the boss completes the track and unlocks the certificate', async ({ page }) => {
+  const js = {
+    'js-basics': [
+      'variables',
+      'operators',
+      'conditions',
+      'loops',
+      'functions',
+      'callbacks-closures',
+      'arrays-basics',
+      'arrays-methods',
+      'objects',
+      'strings',
+      'review',
+    ],
+    'modern-js': [
+      'spread-rest',
+      'timers-promises',
+      'async-await',
+      'modules',
+      'dom-events',
+      'json-storage',
+      'gotchas',
+      'review',
+    ],
+    'js-depth': [
+      'scope-hoisting',
+      'this',
+      'classes',
+      'prototypes',
+      'event-loop',
+      'map-set',
+      'generators',
+      'errors',
+      'regex',
+      'dates-intl',
+      'modern-syntax',
+      'review',
+    ],
+  };
+  const lessons: Record<string, { completed: boolean; completedAt: number }> = {};
+  for (const [course, ids] of Object.entries(js)) {
+    for (const id of ids) lessons[`${course}/${id}`] = { completed: true, completedAt: 1 };
+  }
+  const exercises = Object.fromEntries(
+    ['boss-inventory', 'boss-catalog', 'boss-slugify'].map((id) => [
+      `js-depth/boss/${id}`,
+      { passed: true, at: 1 },
+    ]),
+  );
+  const questions = Object.fromEntries(
+    ['boss-predict-loop', 'boss-bug', 'boss-match'].map((id) => [
+      `js-depth/boss/${id}`,
+      { correct: true, attempts: 1, revealed: false, at: 1 },
+    ]),
+  );
+  const snapshot = { version: 1, lessons, quizzes: {}, exercises, questions, activity: [] };
+  await page.addInitScript((value) => {
+    if (!sessionStorage.getItem('seeded')) {
+      localStorage.setItem('eschool-progress-v1', value);
+      sessionStorage.setItem('seeded', '1');
+    }
+  }, JSON.stringify(snapshot));
+
+  await page.goto('/courses/js-depth/boss');
+  await expect(page.getByText('6 of 6 defeated')).toBeVisible();
+  await expect(page.getByText('Boss defeated!')).toBeVisible();
+  await expect(page.getByText('Boss defeated: this lesson is complete.')).toBeVisible();
+
+  await page.goto('/certificates/javascript');
+  await expect(page.getByText(/This is a preview/)).toHaveCount(0);
+  await page.getByLabel('Your name on the certificate').fill('Sara Ahmad');
+  await expect(page.getByRole('region', { name: 'Certificate' })).toContainText('Sara Ahmad');
 });

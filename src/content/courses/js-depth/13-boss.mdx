@@ -1,0 +1,276 @@
+---
+id: boss
+title: "Boss challenge: the JavaScript track"
+summary: Six challenges that pull together the whole JavaScript track. Defeat them all to finish the track and unlock your certificate.
+minutes: 40
+kind: boss
+tags: [boss, challenge, javascript, classes, async, regex, event loop, map, errors]
+---
+
+This is it: the final challenge of the JavaScript track. Each challenge mixes ideas from several courses. You can use hints, look back at lessons, and try as many times as you like. When every challenge is defeated, the track is complete and your certificate unlocks.
+
+<BossChallenge>
+
+<Exercise
+  id="boss-inventory"
+  title="An inventory with rules"
+  hints={[
+    "Keep stock in a private Map: `#stock = new Map();`.",
+    "`remove` should throw `new RangeError(\"Not enough \" + name)` when there isn't enough.",
+    "`get names()` can return `[...this.#stock.keys()].toSorted()`.",
+  ]}
+>
+
+Write a class `Inventory` with `add(name, qty)`, `remove(name, qty)`, `count(name)` (0 for unknown items) and a `names` getter (item names, sorted A–Z). Removing more than is in stock throws a `RangeError` whose message contains `Not enough`. Keep the stock private.
+
+```js starter
+class Inventory {
+}
+```
+
+```js tests
+test("adds and counts", () => {
+  const inv = new Inventory();
+  inv.add("Tea", 3);
+  inv.add("Tea", 2);
+  expect(inv.count("Tea")).toBe(5);
+  expect(inv.count("Cake")).toBe(0);
+});
+
+test("removes stock", () => {
+  const inv = new Inventory();
+  inv.add("Tea", 3);
+  inv.remove("Tea", 2);
+  expect(inv.count("Tea")).toBe(1);
+});
+
+test("refuses to remove more than there is", () => {
+  const inv = new Inventory();
+  inv.add("Tea", 1);
+  expect(() => inv.remove("Tea", 2)).toThrow(RangeError);
+  expect(() => inv.remove("Cake", 1)).toThrow("Not enough");
+});
+
+test("lists names sorted", () => {
+  const inv = new Inventory();
+  inv.add("Tea", 1);
+  inv.add("Cake", 1);
+  expect(inv.names).toEqual(["Cake", "Tea"]);
+});
+
+test("keeps the stock private", () => {
+  expect(Object.keys(new Inventory())).toEqual([]);
+});
+```
+
+```js solution
+class Inventory {
+  #stock = new Map();
+  add(name, qty) {
+    this.#stock.set(name, this.count(name) + qty);
+  }
+  remove(name, qty) {
+    if (this.count(name) < qty) throw new RangeError(`Not enough ${name}`);
+    this.#stock.set(name, this.count(name) - qty);
+  }
+  count(name) {
+    return this.#stock.get(name) ?? 0;
+  }
+  get names() {
+    return [...this.#stock.keys()].toSorted();
+  }
+}
+```
+
+</Exercise>
+
+<Exercise
+  id="boss-catalog"
+  title="Load and sort the catalog"
+  hints={[
+    "Check `res.ok` and throw `new Error(\"HTTP \" + res.status)` when it's false.",
+    "Sort a copy by price with `toSorted((a, b) => a.price - b.price)`, then map to names.",
+  ]}
+>
+
+Write `async function cheapestFirst(url = "/api/products")` that loads the products and returns their names, cheapest first. Throw an error with the message `HTTP <status>` when the response isn't ok.
+
+```js starter
+async function cheapestFirst(url = "/api/products") {
+  return [];
+}
+```
+
+```js tests
+test("returns names, cheapest first", async () => {
+  expect(await cheapestFirst()).toEqual(["Bagel", "Coffee", "Muffin"]);
+});
+
+test("throws for a bad response", async () => {
+  let message = "no error";
+  try {
+    await cheapestFirst("/api/missing");
+  } catch (err) {
+    message = err.message;
+  }
+  expect(message).toBe("HTTP 404");
+});
+```
+
+```js solution
+async function cheapestFirst(url = "/api/products") {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const products = await res.json();
+  return products.toSorted((a, b) => a.price - b.price).map((p) => p.name);
+}
+```
+
+</Exercise>
+
+<Exercise
+  id="boss-slugify"
+  title="Product slugs"
+  hints={[
+    "Lowercase and trim first.",
+    "Replace every run of characters that aren't letters or digits with one dash: `/[^a-z0-9]+/g`.",
+    "Remove dashes at the start and end: `/^-|-$/g`.",
+  ]}
+>
+
+Write `slugify(name)` that turns a product name into a URL slug: lowercase, words joined by single dashes, no dashes at either end, and only letters, digits and dashes.
+
+```js starter
+function slugify(name) {
+  return name.toLowerCase().replace(" ", "-");
+}
+```
+
+```js tests
+test("joins words with dashes", () => {
+  expect(slugify("Iced Coffee")).toBe("iced-coffee");
+});
+
+test("removes symbols and extra spaces", () => {
+  expect(slugify("  Iced   Coffee (Large)! ")).toBe("iced-coffee-large");
+});
+
+test("keeps digits", () => {
+  expect(slugify("Mug 2.0")).toBe("mug-2-0");
+});
+```
+
+```js solution
+function slugify(name) {
+  return name
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+```
+
+</Exercise>
+
+<Predict
+  id="boss-predict-loop"
+  prompt="Predict every line, in order. (The event loop, async/await, closures)"
+  answer={["A", "B", "E", "C", "D 2", "F"]}
+  explain="A and B are synchronous (B runs inside `run` before its first await). E is the last synchronous line. Then microtasks: C (after the await), then D with the closure's count of 2. The timer F comes last."
+  hint="Mark each line as sync, microtask or task, then follow the order: all sync, all microtasks, then tasks."
+>
+
+```js
+let count = 0;
+const bump = () => ++count;
+
+async function run() {
+  console.log("B");
+  await null;
+  console.log("C");
+  bump();
+  return bump();
+}
+
+console.log("A");
+setTimeout(() => console.log("F"), 0);
+run().then((n) => console.log("D", n));
+console.log("E");
+```
+
+</Predict>
+
+<SpotTheBug
+  id="boss-bug"
+  bug={4}
+  prompt="This cart total is wrong after `applyCoupon`, and the original cart changes too. Click the line with the bug."
+  explain="`sort` mutates the cart that was passed in. Use `toSorted` (or copy first) so the caller's cart stays the same."
+>
+
+```js
+function applyCoupon(cart) {
+  // the coupon makes the cheapest item free
+  if (cart.length === 0) return cart;
+  const byPrice = cart.sort((a, b) => a.price - b.price);
+  return [{ ...byPrice[0], price: 0 }, ...byPrice.slice(1)];
+}
+
+const cart = [{ name: "Cake", price: 6 }, { name: "Tea", price: 2 }];
+applyCoupon(cart);
+console.log(cart[0].name);
+```
+
+```js fixed
+function applyCoupon(cart) {
+  // the coupon makes the cheapest item free
+  if (cart.length === 0) return cart;
+  const byPrice = cart.toSorted((a, b) => a.price - b.price);
+  return [{ ...byPrice[0], price: 0 }, ...byPrice.slice(1)];
+}
+
+const cart = [{ name: "Cake", price: 6 }, { name: "Tea", price: 2 }];
+applyCoupon(cart);
+console.log(cart[0].name);
+```
+
+</SpotTheBug>
+
+<MatchPairs
+  id="boss-match"
+  prompt="Match each bug with the tool that fixes it."
+  columns={["Bug", "Fix"]}
+  pairs={[
+    ["A callback loses `this`", "An arrow function or `bind`"],
+    ["All loop callbacks see the last value", "`let` instead of `var`"],
+    ["A 404 is treated as success", "Check `res.ok`"],
+    ["Sorting changes React state", "`toSorted()`"],
+    ["Duplicate ids in a list", "`new Set()`"],
+    ["A low-level error loses its details", "`new Error(msg, { cause })`"],
+  ]}
+/>
+
+</BossChallenge>
+
+<Quiz
+  title="Bonus round"
+  questions={[
+    {
+      q: "You need private state, a few methods and many instances. What fits best?",
+      options: ["A class with `#private` fields", "A global variable", "A Set", "A generator"],
+      answer: 0,
+      explain: "A class bundles methods with per-instance private data.",
+    },
+    {
+      q: "Which keeps a page responsive during a heavy calculation?",
+      options: ["A `while` loop", "A Web Worker", "`setTimeout(fn, 0)` around the whole thing", "`async` on the function"],
+      answer: 1,
+      explain: "A Web Worker runs on another thread. `async` alone doesn't move work off the main thread.",
+    },
+    {
+      q: "Which of these are safe for React state updates?",
+      options: ["`[...items, item]`", "`items.push(item)`", "`items.toSorted(fn)`", "`items.with(0, x)`"],
+      answer: [0, 2, 3],
+      explain: "Everything except `push` returns a new array.",
+    },
+  ]}
+/>

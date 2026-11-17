@@ -167,6 +167,12 @@ Every lesson mixes **at least 3 question types** (the content test enforces it).
 
 Depth: `<HowItWorks>` (always visible) and `<GoDeeper title="…">` (expandable). Visualizer: `<CodeTrace frames={[{ line, vars, heap, out, note }]}>` around a fenced block steps through the code; a variable value like `"#a"` points at a `heap` object, so shared references are visible.
 
+`<EventLoop frames={[{ line, stack, apis, micro, tasks, out, note }]}>` around a fenced block animates the call stack, the browser's timers, the microtask and task queues and the console. A callback keeps its label as it moves between boxes, so it slides from one to the next.
+
+**Lesson kinds.** Add `kind: review` or `kind: boss` to the frontmatter. A review is labeled on the course page. A boss lesson wraps its challenges in `<BossChallenge>`: it counts the exercises and questions inside it and completes the lesson by itself once every one is passed (boss lessons have no "Mark as complete" button). A track's certificate unlocks when every lesson in its courses, boss included, is complete; the boss is set in `src/content/tracks.ts`.
+
+**YAML note:** a frontmatter value that contains `: ` (like a summary with a colon) must be in quotes.
+
 **Quoting rule:** MDX string attributes (`explain="…"`) can't contain `\"`. When the text needs double quotes, use an expression: `explain={"say \"hi\""}`.
 
 ## Gamification

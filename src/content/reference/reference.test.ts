@@ -9,7 +9,7 @@ import { parseReference } from './parse';
 const data = parseReference(fs.readFileSync(path.resolve(__dirname, 'js-reference.txt'), 'utf8'));
 
 describe('parseReference', () => {
-  test('reads all 10 sections and 78 entries from the reference', () => {
+  test('has the 10 original sections plus JavaScript in depth, and at least 78 entries', () => {
     expect(data.sections.map((s) => s.title)).toEqual([
       'Basics',
       'Conditions & loops',
@@ -21,8 +21,9 @@ describe('parseReference', () => {
       'DOM & events',
       'Modules & extras',
       'Gotchas',
+      'JavaScript in depth',
     ]);
-    expect(data.entries).toHaveLength(78);
+    expect(data.entries.length).toBeGreaterThanOrEqual(78 + 18);
   });
 
   test('reads flags, notes, code and expected output', () => {

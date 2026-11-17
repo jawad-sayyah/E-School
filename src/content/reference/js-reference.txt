@@ -25,6 +25,7 @@ Every runnable entry is run by the unit tests and must print exactly its >> line
 # dom :: DOM & events :: How plain JavaScript talks to the page. These examples need a real web page, so the console shows what you’d see in the browser.
 # modules :: Modules & extras :: Connecting files, saving data and other everyday tools.
 # gotchas :: Gotchas :: Small JavaScript surprises that cause real bugs. Learn them once and save hours.
+# depth :: JavaScript in depth :: How the language really works: scope, this, classes, the event loop, collections, generators, errors, regex, dates and modern syntax.
 
 @@ let-const :: basics :: let & const
 Use const by default, and let only when the value will change. Avoid the old var.
@@ -952,3 +953,221 @@ console.log(b);
 ```
 >> [ undefined, undefined ]
 >> [ 2, 4 ]
+
+@@ block-scope :: depth :: Block scope
+let and const only exist inside the nearest { } block.
+```
+const x = 1;
+{
+  const x = 2;
+  console.log(x);
+}
+console.log(x);
+```
+>> 2
+>> 1
+
+@@ hoisting :: depth :: Hoisting :: warn
+Function declarations work before their line; var gives undefined; let and const throw.
+```
+console.log(add(1, 2));
+console.log(typeof later);
+
+function add(a, b) {
+  return a + b;
+}
+var later = 1;
+```
+>> 3
+>> undefined
+
+@@ this :: depth :: this :: warn react
+In obj.method(), this is obj. Pass the method around on its own and this is lost, so bind it.
+```
+const cart = {
+  items: [1, 2],
+  count() {
+    return this.items.length;
+  },
+};
+
+const count = cart.count.bind(cart);
+console.log(cart.count(), count());
+```
+>> 2 2
+
+@@ class :: depth :: class
+A blueprint for objects, with a constructor, methods, getters and #private fields.
+```
+class Item {
+  #qty = 1;
+  constructor(name) {
+    this.name = name;
+  }
+  get label() {
+    return `${this.#qty} × ${this.name}`;
+  }
+}
+
+console.log(new Item("Tea").label);
+```
+>> 1 × Tea
+
+@@ extends :: depth :: extends & super
+Builds one class on another; super calls the parent's version.
+```
+class Product {
+  label() {
+    return "Product";
+  }
+}
+class Sale extends Product {
+  label() {
+    return `${super.label()} (sale)`;
+  }
+}
+
+console.log(new Sale().label());
+```
+>> Product (sale)
+
+@@ prototype :: depth :: Prototypes
+Objects inherit from their prototype: a missing property is looked up along the chain.
+```
+const base = { hi() { return "hi"; } };
+const obj = Object.create(base);
+
+console.log(obj.hi(), Object.hasOwn(obj, "hi"));
+```
+>> hi false
+
+@@ event-loop :: depth :: Event loop order :: react
+Synchronous code runs first, then every microtask (promises), then one task (timers).
+```
+setTimeout(() => console.log("task"), 0);
+Promise.resolve().then(() => console.log("microtask"));
+console.log("sync");
+```
+>> sync
+>> microtask
+>> task
+
+@@ map-collection :: depth :: Map
+A dictionary whose keys can be any value, with set, get, has and size.
+```
+const stock = new Map([["tea", 2]]);
+stock.set("coffee", 5);
+
+console.log(stock.get("coffee"), stock.size);
+```
+>> 5 2
+
+@@ set-collection :: depth :: Set :: react
+A collection of unique values. [...new Set(arr)] removes duplicates.
+```
+console.log([...new Set([1, 2, 2, 3])]);
+```
+>> [ 1, 2, 3 ]
+
+@@ generator :: depth :: function* / yield
+A generator pauses at each yield and hands back one value at a time.
+```
+function* ids() {
+  let id = 1;
+  while (true) yield id++;
+}
+
+const next = ids();
+console.log(next.next().value, next.next().value);
+```
+>> 1 2
+
+@@ custom-error :: depth :: Custom errors
+Extend Error to make your own error types, then catch them by type.
+```
+class OutOfStock extends Error {
+  constructor(item) {
+    super(`${item} is out of stock`);
+    this.name = "OutOfStock";
+  }
+}
+
+try {
+  throw new OutOfStock("Tea");
+} catch (err) {
+  console.log(err instanceof OutOfStock, err.message);
+}
+```
+>> true Tea is out of stock
+
+@@ finally :: depth :: finally
+Always runs after try or catch, even after a return. Use it for cleanup.
+```
+try {
+  throw new Error("offline");
+} catch {
+  console.log("caught");
+} finally {
+  console.log("cleanup");
+}
+```
+>> caught
+>> cleanup
+
+@@ regex :: depth :: Regular expressions
+Patterns for searching, validating and cleaning text.
+```
+console.log(/^\d{5}$/.test("12345"));
+console.log("a  b   c".replace(/\s+/g, "-"));
+```
+>> true
+>> a-b-c
+
+@@ intl-number :: depth :: Intl.NumberFormat :: react
+Formats numbers and money the way each country expects.
+```
+const usd = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
+
+console.log(usd.format(1234.5));
+```
+>> $1,234.50
+
+@@ intl-date :: depth :: Intl.DateTimeFormat
+Formats dates the way each country writes them.
+```
+const d = new Date(Date.UTC(2026, 10, 17));
+const long = { dateStyle: "long", timeZone: "UTC" };
+
+console.log(new Intl.DateTimeFormat("en-GB", long).format(d));
+```
+>> 17 November 2026
+
+@@ to-sorted :: depth :: toSorted() / with() :: react
+The copying versions of sort and index assignment: the original array stays the same.
+```
+const a = [3, 1, 2];
+
+console.log(a.toSorted(), a.with(0, 9), a);
+```
+>> [ 1, 2, 3 ] [ 9, 1, 2 ] [ 3, 1, 2 ]
+
+@@ logical-assignment :: depth :: ??= ||= &&=
+Assigns only when needed: ??= for null or undefined, ||= for falsy, &&= for truthy.
+```
+let qty = 0;
+let name = null;
+qty ||= 1;
+name ??= "Guest";
+
+console.log(qty, name);
+```
+>> 1 Guest
+
+@@ group-by :: depth :: Object.groupBy()
+Sorts items into groups by a key you choose.
+```
+const groups = Object.groupBy([1, 2, 3, 4], (n) => (n % 2 ? "odd" : "even"));
+
+console.log(groups.odd, groups.even);
+```
+>> [ 1, 3 ] [ 2, 4 ]

@@ -1,0 +1,268 @@
+---
+id: review
+title: "Review: JavaScript in Depth"
+summary: Mixed questions across scope, this, classes, prototypes, the event loop, collections, generators, errors, regex and dates.
+minutes: 20
+kind: review
+tags: [review, scope, this, classes, prototypes, event loop, Map, Set, generators, errors, regex, dates]
+---
+
+This review mixes the whole course. If a question stumps you, the lesson name in brackets is where to look. After this comes the boss challenge for the whole JavaScript track.
+
+<Practice title="How the language works">
+
+<Predict
+  id="predict-review-scope"
+  answer={["inner 1", "outer"]}
+  explain="The inner `name` shadows the outer one only inside the function. `count` lives in the closure, so the returned function can still update it."
+>
+
+```js
+const name = "outer";
+
+function make() {
+  const name = "inner";
+  let count = 0;
+  return () => `${name} ${++count}`;
+}
+
+console.log(make()());
+console.log(name);
+```
+
+</Predict>
+
+<SpotTheBug
+  id="bug-review-this"
+  bug={9}
+  prompt="This prints `NaN` instead of 1. Click the buggy line. (this)"
+  explain="Passing `counter.increment` loses `this`. Pass `() => counter.increment()` or `counter.increment.bind(counter)`."
+>
+
+```js
+const counter = {
+  count: 0,
+  increment() {
+    this.count++;
+    return this.count;
+  },
+};
+
+const result = [1].map(counter.increment)[0];
+console.log(result);
+```
+
+```js fixed
+const counter = {
+  count: 0,
+  increment() {
+    this.count++;
+    return this.count;
+  },
+};
+
+const result = [1].map(() => counter.increment())[0];
+console.log(result);
+```
+
+</SpotTheBug>
+
+<TraceState
+  id="trace-review-loop"
+  track="the number printed at that point, in order"
+  steps={[
+    { action: "1st line printed", answer: "1" },
+    { action: "2nd line printed", answer: "4" },
+    { action: "3rd line printed", answer: "3" },
+    { action: "4th line printed", answer: "2" },
+  ]}
+  explain="Synchronous code first (1, 4), then the microtask (3), then the timer task (2). (The event loop)"
+>
+
+```js
+setTimeout(() => console.log(2), 0);
+Promise.resolve().then(() => console.log(3));
+console.log(1);
+console.log(4);
+```
+
+</TraceState>
+
+</Practice>
+
+<Practice title="Objects, classes and collections">
+
+<MatchPairs
+  id="match-review-depth"
+  prompt="Match each feature with what it gives you."
+  columns={["Feature", "Gives you"]}
+  pairs={[
+    ["`#field`", "Data only the class can touch"],
+    ["`extends` + `super`", "Building one class on another"],
+    ["`Object.create(proto)`", "An object that inherits from proto"],
+    ["`new Map()`", "A dictionary with keys of any type"],
+    ["`new Set()`", "A collection of unique values"],
+    ["`function*`", "Values produced one at a time, on demand"],
+  ]}
+/>
+
+<CodeReview
+  id="review-unique-ids"
+  answer={2}
+  prompt="Which `uniqueIds(orders)` would you approve? (Map & Set)"
+  reasons={[
+    "Correct, but `includes` scans the whole result array for every order, so it gets slow with many orders.",
+    "`filter` with `indexOf` works too, but it's just as slow and harder to read.",
+    "A Set drops duplicates in one fast pass, and the spread turns it back into an array.",
+  ]}
+>
+
+```js
+function uniqueIds(orders) {
+  const ids = [];
+  for (const o of orders) {
+    if (!ids.includes(o.id)) ids.push(o.id);
+  }
+  return ids;
+}
+```
+
+```js
+function uniqueIds(orders) {
+  const ids = orders.map((o) => o.id);
+  return ids.filter((id, i) => ids.indexOf(id) === i);
+}
+```
+
+```js
+function uniqueIds(orders) {
+  return [...new Set(orders.map((o) => o.id))];
+}
+```
+
+</CodeReview>
+
+<SortBuckets
+  id="buckets-review-errors"
+  prompt="Which error does each line throw? (Error handling)"
+  buckets={["TypeError", "ReferenceError", "SyntaxError", "RangeError"]}
+  items={[
+    ["`null.qty`", 0],
+    ["`undefinedName + 1`", 1],
+    ["`JSON.parse(\"{\")`", 2],
+    ["`(1).toFixed(500)`", 3],
+    ["`class A {}; A()`", 0],
+  ]}
+  explain="Calling a class without `new` is a TypeError too: you're using the value the wrong way."
+/>
+
+</Practice>
+
+<Practice title="Text and time">
+
+<FillBlanks
+  id="blanks-review-regex"
+  prompt="Fill in the blanks to turn every run of spaces into one dash. (Regular expressions)"
+  explain="`\\s+` matches a run of whitespace, and the `g` flag replaces every run."
+>
+
+```js
+const slug = "iced   coffee  latte".replace(/\s__[+]__/__[g]__, "-");
+console.log(slug);
+```
+
+</FillBlanks>
+
+<TrueFalse
+  id="tf-review-depth"
+  statements={[
+    { text: "`new Date(Date.UTC(2026, 0, 1))` is the 1st of January 2026.", answer: true, explain: "Month 0 is January." },
+    { text: "`let` variables can be used before their line, as `undefined`.", answer: false, explain: "That's `var`. `let` throws in the temporal dead zone." },
+    { text: "Class methods live on the class's prototype, shared by every instance.", answer: true, explain: "That's why instances don't each carry a copy." },
+    { text: "`arr.toSorted()` sorts the array in place.", answer: false, explain: "It returns a sorted copy." },
+    { text: "A generator's body runs only when `next()` is called.", answer: true, explain: "Generators are lazy." },
+  ]}
+/>
+
+</Practice>
+
+<Exercise
+  id="review-price-tags"
+  title="Price tags from a menu"
+  hints={[
+    "Find every `name: price` pair with `matchAll` and a regex like `/(\\w+): (\\d+(?:\\.\\d+)?)/g`.",
+    "Build a Map from name to the formatted price.",
+    "Format prices with `new Intl.NumberFormat(\"en-US\", { style: \"currency\", currency: \"USD\" })`.",
+  ]}
+>
+
+Write `priceTags(menu)`. `menu` is text like `"Tea: 2, Cake: 4.5"`. Return a **Map** from each item name to its price formatted as US dollars, like `"$2.00"`.
+
+```js starter
+function priceTags(menu) {
+  return new Map();
+}
+
+console.log(priceTags("Tea: 2, Cake: 4.5"));
+```
+
+```js tests
+test("returns a Map", () => {
+  expect(priceTags("") instanceof Map).toBe(true);
+});
+
+test("formats each price", () => {
+  const tags = priceTags("Tea: 2, Cake: 4.5");
+  expect(tags.get("Tea")).toBe("$2.00");
+  expect(tags.get("Cake")).toBe("$4.50");
+});
+
+test("keeps every item", () => {
+  expect(priceTags("A: 1, B: 2, C: 3").size).toBe(3);
+});
+```
+
+```js solution
+function priceTags(menu) {
+  const usd = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
+  const tags = new Map();
+  for (const m of menu.matchAll(/(\w+): (\d+(?:\.\d+)?)/g)) {
+    tags.set(m[1], usd.format(Number(m[2])));
+  }
+  return tags;
+}
+
+console.log(priceTags("Tea: 2, Cake: 4.5"));
+```
+
+</Exercise>
+
+<Quiz
+  title="Final quiz"
+  questions={[
+    {
+      q: "Which runs first after the current code finishes?",
+      options: ["A `setTimeout(fn, 0)` callback", "A `.then` callback", "A click handler", "They run in random order"],
+      answer: 1,
+      explain: "Microtasks (promise callbacks) always run before the next task.",
+    },
+    {
+      q: "What is `this` in a plain function call `fn()` inside a class method's code?",
+      options: ["The class", "The instance", "`undefined` (classes are strict)", "The function"],
+      answer: 2,
+      explain: "Class bodies are strict mode, so a plain call gets `this === undefined`.",
+    },
+    {
+      q: "Which data structure fits \"has this user already voted?\" checks best?",
+      options: ["Array", "Set", "String", "Generator"],
+      answer: 1,
+      explain: "`set.has(id)` is fast and duplicates are impossible.",
+    },
+    {
+      q: "Which of these keep the original array unchanged?",
+      options: ["`toSorted()`", "`sort()`", "`with(0, x)`", "`toReversed()`"],
+      answer: [0, 2, 3],
+      explain: "Only `sort()` mutates.",
+    },
+  ]}
+/>
