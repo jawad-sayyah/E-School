@@ -16,3 +16,10 @@ export {
 export { DEFAULT_FETCH_MOCKS, type FetchMock, type FetchMocks } from './prelude';
 export { checkExercise, type ExerciseCheck } from './checkExercise';
 export type { TestResultMessage } from './testApi';
+export {
+  checkTests,
+  metaAttrs,
+  type BugVariant,
+  type BugResult,
+  type TestsCheck,
+} from './checkTests';

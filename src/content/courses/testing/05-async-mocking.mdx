@@ -1,0 +1,328 @@
+---
+id: async-mocking
+title: Async tests and mocking
+summary: Test async code with async/await, replace functions and fetch with vi.fn mocks, check how they were called, and control time with fake timers.
+minutes: 20
+tags: [testing, async, await, vi.fn, mocks, toHaveBeenCalledWith, fetch, stubGlobal, fake timers, resolves, rejects]
+---
+
+Real code talks to the network, waits for timers and calls other functions. Tests shouldn't depend on a real server or wait real seconds. **Mocks** stand in for the outside world, and **fake timers** let you move time forward instantly.
+
+<Concept name="Async tests" id="async">
+
+Mark the test `async` and `await` the code. Without the `await`, the test finishes before the promise settles, and passes no matter what.
+
+```js file=api.test.js
+test("loads the menu", async () => {
+  const menu = await loadMenu();
+  expect(menu).toHaveLength(3);
+});
+
+test("the same, with resolves / rejects", async () => {
+  await expect(loadMenu()).resolves.toHaveLength(3);
+  await expect(loadMenu("broken")).rejects.toThrow("Couldn't load");
+});
+```
+
+</Concept>
+
+<Concept name="Mock functions: vi.fn" id="vi-fn">
+
+`vi.fn()` creates a fake function that records every call. Pass it where the code expects a callback, then assert on how it was used:
+
+```js file=onAdd.test.js
+test("the Add handler reports the product", () => {
+  const onAdd = vi.fn();
+  addToCart({ id: 1, name: "Tea" }, onAdd);
+  expect(onAdd).toHaveBeenCalledTimes(1);
+  expect(onAdd).toHaveBeenCalledWith({ id: 1, name: "Tea" });
+});
+
+// Give it behavior when the code needs a return value:
+const getPrice = vi.fn().mockReturnValue(4);
+const fetchUser = vi.fn().mockResolvedValue({ name: "Ada" });   // async: returns a promise
+const failing = vi.fn().mockRejectedValue(new Error("Server down"));
+```
+
+`vi.spyOn(object, "method")` wraps an existing method the same way (and can be restored).
+
+</Concept>
+
+<Concept name="Mocking fetch" id="fetch">
+
+`fetch` is a global, so replace it for the test with `vi.stubGlobal`. The mock returns an object shaped like a `Response`:
+
+```js file=products.test.js
+test("asks the API for the category, and returns the products", async () => {
+  const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ["Tea", "Coffee"] });
+  vi.stubGlobal("fetch", fetchMock);
+
+  await expect(fetchProducts("hot")).resolves.toEqual(["Tea", "Coffee"]);
+  expect(fetchMock).toHaveBeenCalledWith("/api/products?category=hot");
+});
+
+test("throws on a server error", async () => {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 500 }));
+  await expect(fetchProducts("hot")).rejects.toThrow();
+});
+```
+
+In these lessons, stubs, spies and fake timers are restored after every test automatically. In a real project, call `vi.unstubAllGlobals()` / `vi.restoreAllMocks()` in an `afterEach` (or enable the matching Vitest config options).
+
+</Concept>
+
+<Concept name="Fake timers" id="fake-timers">
+
+A debounced search waits 300 ms; a "your session expires" notice waits 15 minutes. With fake timers, `setTimeout` and `setInterval` don't run until you advance the clock yourself:
+
+```js file=debounce.test.js
+test("only searches once the user stops typing", () => {
+  vi.useFakeTimers();
+  const search = vi.fn();
+  const onType = debounce(search, 300);
+
+  onType("t");
+  onType("te");
+  onType("tea");
+  vi.advanceTimersByTime(299);
+  expect(search).not.toHaveBeenCalled();
+
+  vi.advanceTimersByTime(1);
+  expect(search).toHaveBeenCalledTimes(1);
+  expect(search).toHaveBeenCalledWith("tea");
+});
+```
+
+`vi.runAllTimers()` runs everything pending; `vi.setSystemTime(date)` fixes `Date.now()` for date logic; `vi.useRealTimers()` switches back.
+
+</Concept>
+
+<HowItWorks title="What to mock, and what not to">
+
+Mock the **boundaries** of your code: the network, timers, the current date, randomness, and callbacks you were given. Don't mock the code you're testing, or its small internal helpers: then the test only proves your mocks work. A good rule: if a function could be replaced by a different implementation without the user noticing, its internals shouldn't appear in the test.
+
+</HowItWorks>
+
+<Practice>
+
+<SpotTheBug
+  id="bug-missing-await"
+  bug={2}
+  prompt="This test passes even when `loadMenu` rejects. Click the line that causes it."
+  explain="Without `await`, the assertion's promise is never waited for: the test ends first and passes. Write `await expect(loadMenu()).resolves.toHaveLength(3);` (and make the test `async`)."
+>
+
+```js
+test("loads three items", () => {
+  expect(loadMenu()).resolves.toHaveLength(3);
+});
+```
+
+</SpotTheBug>
+
+<MatchPairs
+  id="match-mock-apis"
+  prompt="Match each API with what it does."
+  columns={["API", "Does"]}
+  pairs={[
+    ["`vi.fn()`", "Creates a mock function that records its calls"],
+    ["`mockResolvedValue(x)`", "Makes the mock return a promise of x"],
+    ["`vi.stubGlobal(\"fetch\", mock)`", "Replaces a global like fetch for the test"],
+    ["`vi.useFakeTimers()`", "Stops timers from running until you advance time"],
+    ["`vi.advanceTimersByTime(300)`", "Runs every timer due in the next 300 ms"],
+    ["`toHaveBeenCalledWith(…)`", "Checks a mock was called with these arguments"],
+  ]}
+/>
+
+<SortBuckets
+  id="buckets-mock-or-not"
+  prompt="Mock it, or use the real thing?"
+  buckets={["Mock it", "Use the real code"]}
+  items={[
+    ["`fetch` to the product API", 0],
+    ["A 5-minute `setTimeout`", 0],
+    ["`Math.random()` in a coupon generator", 0],
+    ["The `formatPrice` helper used by the code under test", 1],
+    ["The function you're testing", 1],
+    ["The `onAdd` callback prop", 0],
+  ]}
+  explain="Mock the outside world and the callbacks you were given; keep your own logic real."
+/>
+
+</Practice>
+
+<TestExercise
+  id="test-fetch-products"
+  title="Test fetchProducts with a mocked fetch"
+  hints={[
+    "Stub fetch: `vi.stubGlobal(\"fetch\", vi.fn().mockResolvedValue({ ok: true, json: async () => [\"Tea\"] }))`.",
+    "Check the URL with `expect(fetch).toHaveBeenCalledWith(\"/api/products?category=hot\")`.",
+    "For errors: `mockResolvedValue({ ok: false, status: 500 })` and `await expect(fetchProducts(\"hot\")).rejects.toThrow()`.",
+  ]}
+>
+
+`fetchProducts(category)` calls the API for one category, throws when the response isn't ok, and returns the parsed JSON. Write tests (with a mocked `fetch`) that catch every buggy version.
+
+```js code file=products.js
+async function fetchProducts(category) {
+  const res = await fetch(`/api/products?category=${category}`);
+  if (!res.ok) throw new Error("Couldn't load products");
+  return res.json();
+}
+```
+
+```js starter
+test("returns the products", async () => {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ["Tea"] }));
+  // add your assertions, and more tests
+});
+```
+
+```js bug title="Ignores the category" hint="Check which URL fetch was called with."
+async function fetchProducts(category) {
+  const res = await fetch("/api/products");
+  if (!res.ok) throw new Error("Couldn't load products");
+  return res.json();
+}
+```
+
+```js bug title="Never checks res.ok" hint="What should happen when the server answers 500?"
+async function fetchProducts(category) {
+  const res = await fetch(`/api/products?category=${category}`);
+  return res.json();
+}
+```
+
+```js bug title="Returns the response, not the data" hint="Assert on the value fetchProducts resolves to."
+async function fetchProducts(category) {
+  const res = await fetch(`/api/products?category=${category}`);
+  if (!res.ok) throw new Error("Couldn't load products");
+  return res;
+}
+```
+
+```js solution
+test("asks for the category and returns the products", async () => {
+  const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ["Tea", "Coffee"] });
+  vi.stubGlobal("fetch", fetchMock);
+  await expect(fetchProducts("hot")).resolves.toEqual(["Tea", "Coffee"]);
+  expect(fetchMock).toHaveBeenCalledWith("/api/products?category=hot");
+});
+
+test("throws when the server fails", async () => {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 500, json: async () => ({}) }));
+  await expect(fetchProducts("hot")).rejects.toThrow("Couldn't load products");
+});
+```
+
+</TestExercise>
+
+<TestExercise
+  id="test-autosave"
+  title="Fake timers: test the autosave"
+  hints={[
+    "Start with `vi.useFakeTimers()` and a mock: `const save = vi.fn();`.",
+    "Call `note.change(…)` a few times, then `vi.advanceTimersByTime(…)` just below and at 1000 ms.",
+    "Check the mock was called once, with the latest text.",
+  ]}
+>
+
+`createAutosave(save)` returns an object whose `change(text)` waits until the user has stopped typing for **1 second**, then calls `save(text)` once with the latest text. Test it with fake timers.
+
+```js code file=autosave.js
+function createAutosave(save) {
+  let timer;
+  return {
+    change(text) {
+      clearTimeout(timer);
+      timer = setTimeout(() => save(text), 1000);
+    },
+  };
+}
+```
+
+```js starter
+test("saves after a pause", () => {
+  vi.useFakeTimers();
+  const save = vi.fn();
+  const note = createAutosave(save);
+  note.change("Hello");
+});
+```
+
+```js bug title="Saves immediately" hint="Before 1000 ms have passed, save must not have been called."
+function createAutosave(save) {
+  return { change(text) { save(text); } };
+}
+```
+
+```js bug title="Saves every change" hint="Type several times quickly: how many saves should there be?"
+function createAutosave(save) {
+  return {
+    change(text) {
+      setTimeout(() => save(text), 1000);
+    },
+  };
+}
+```
+
+```js bug title="Saves the first text, not the latest" hint="Check which text was saved after several changes."
+function createAutosave(save) {
+  let timer;
+  let first;
+  return {
+    change(text) {
+      if (first === undefined) first = text;
+      clearTimeout(timer);
+      timer = setTimeout(() => save(first), 1000);
+    },
+  };
+}
+```
+
+```js solution
+test("saves once, with the latest text, after a 1 s pause", () => {
+  vi.useFakeTimers();
+  const save = vi.fn();
+  const note = createAutosave(save);
+  note.change("H");
+  note.change("He");
+  note.change("Hello");
+  vi.advanceTimersByTime(999);
+  expect(save).not.toHaveBeenCalled();
+  vi.advanceTimersByTime(1);
+  expect(save).toHaveBeenCalledTimes(1);
+  expect(save).toHaveBeenCalledWith("Hello");
+});
+```
+
+</TestExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "Why must async tests `await`?",
+      options: ["For speed", "Otherwise the test ends before the promise settles, and may pass no matter what", "Vitest requires async everywhere", "To use mocks"],
+      answer: 1,
+      explain: "A forgotten await makes a test that can't fail.",
+    },
+    {
+      q: "How do you check a callback was called with a product?",
+      options: ["`expect(onAdd).toBe(product)`", "`expect(onAdd).toHaveBeenCalledWith(product)`", "`expect(product).toHaveBeenCalled()`", "`onAdd.calls === product`"],
+      answer: 1,
+      explain: "Call matchers work on `vi.fn()` mocks.",
+    },
+    {
+      q: "What do fake timers let you do?",
+      options: ["Make tests sleep", "Run timers instantly by advancing a fake clock", "Disable timers forever", "Measure speed"],
+      answer: 1,
+      explain: "A 15-minute timeout tested in a millisecond.",
+    },
+    {
+      q: "Which should you usually mock?",
+      options: ["The network", "Timers and the date", "The function under test", "Callbacks passed in"],
+      answer: [0, 1, 3],
+      explain: "Keep the code under test real.",
+    },
+  ]}
+/>

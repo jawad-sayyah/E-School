@@ -1,0 +1,271 @@
+---
+id: testing-reducers
+title: Testing reducers
+summary: Test cartReducer action by action, as a plain function, checking the new state and that the old state was never mutated.
+minutes: 15
+tags: [testing, reducer, cartReducer, actions, immutability, pure functions, useReducer]
+---
+
+Reducers are the easiest React code to test: they're **pure functions**. Give one a state and an action, check the state that comes back. No rendering, no DOM, no mocks.
+
+<Concept name="One describe per reducer, one test per behavior" id="structure">
+
+```js file=cartReducer.test.js
+describe("cartReducer", () => {
+  const tea = { id: 1, name: "Tea", price: 2 };
+
+  test("added: a new product becomes a line with qty 1", () => {
+    expect(cartReducer([], { type: "added", product: tea })).toEqual([{ ...tea, qty: 1 }]);
+  });
+
+  test("added: the same product again increases qty", () => {
+    const cart = [{ ...tea, qty: 1 }];
+    expect(cartReducer(cart, { type: "added", product: tea })).toEqual([{ ...tea, qty: 2 }]);
+  });
+
+  test("removed: takes the line out", () => {
+    expect(cartReducer([{ ...tea, qty: 1 }], { type: "removed", id: 1 })).toEqual([]);
+  });
+});
+```
+
+- Name tests after the **action and the behavior**, so a failure reads like a sentence.
+- Build the starting state right in the test (or with a small helper): each test stands on its own.
+- Use `toEqual`: the reducer returns new arrays and objects.
+
+</Concept>
+
+<Concept name="Test that nothing was mutated" id="immutability">
+
+A reducer that mutates its input can pass a naive test (the returned value looks right) and still break React, which compares old and new state. Freeze the input, or compare it after the call:
+
+```js file=immutability.test.js
+test("never mutates the previous state", () => {
+  const cart = Object.freeze([Object.freeze({ id: 1, name: "Tea", price: 2, qty: 1 })]);
+  const next = cartReducer(cart, { type: "added", product: { id: 1, name: "Tea", price: 2 } });
+  expect(next).not.toBe(cart);           // a new array
+  expect(cart[0].qty).toBe(1);          // the old line is untouched
+});
+```
+
+`Object.freeze` makes any accidental `push` or `line.qty++` throw (in strict mode) or silently do nothing, so the test catches it either way.
+
+</Concept>
+
+<HowItWorks title="Why reducers deserve thorough tests">
+
+The reducer holds the rules of your app's state: what adding twice does, what happens at quantity zero, whether an unknown product id is ignored. Those rules break silently in the UI (a wrong badge number), but a reducer test pinpoints them in milliseconds. A handful of reducer tests often covers more real logic than a dozen component tests. Test every action, plus the edge cases: unknown ids, zero and negative quantities, an empty state.
+
+</HowItWorks>
+
+<Practice>
+
+<FillBlanks
+  id="blanks-reducer-test"
+  run="false"
+  prompt="Fill in the blanks to test the emptied action."
+  explain="Call the reducer with a state and an action, and compare the new state's contents."
+>
+
+```js
+test("emptied: clears the cart", () => {
+  const cart = [{ id: 1, name: "Tea", price: 2, qty: 3 }];
+  expect(cartReducer(cart, { type: "__[emptied]__" })).__[toEqual]__([]);
+});
+```
+
+</FillBlanks>
+
+<SpotTheBug
+  id="bug-reducer-test"
+  bug={4}
+  prompt="This test passes even when the reducer mutates the cart. Click the line that makes it weak."
+  explain="`next` and `cart` are the same array when the reducer mutates, and `toEqual` still passes. Assert that a new array came back (`expect(next).not.toBe(cart)`) and that the old line wasn't changed."
+>
+
+```js
+test("added increases qty", () => {
+  const cart = [{ id: 1, name: "Tea", price: 2, qty: 1 }];
+  const next = cartReducer(cart, { type: "added", product: { id: 1, name: "Tea", price: 2 } });
+  expect(next).toEqual([{ id: 1, name: "Tea", price: 2, qty: 2 }]);
+});
+```
+
+</SpotTheBug>
+
+<TrueFalse
+  id="tf-reducer-tests"
+  statements={[
+    { text: "Testing a reducer needs a rendered React component.", answer: false, explain: "It's a plain function: call it." },
+    { text: "Each test should build its own starting state.", answer: true, explain: "So tests don't depend on each other's order." },
+    { text: "`Object.freeze` on the input helps catch mutation.", answer: true, explain: "Mutating a frozen object fails." },
+  ]}
+/>
+
+</Practice>
+
+<TestExercise
+  id="test-cart-reducer"
+  title="Test cartReducer"
+  hints={[
+    "Cover every action: added (new and existing product), removed, qtyChanged, and qtyChanged to 0.",
+    "Freeze the input state to catch the mutating bug: `Object.freeze([Object.freeze(line)])`.",
+    "One bug changes the wrong line's qty: use a cart with two lines.",
+  ]}
+>
+
+Write tests for `cartReducer` that catch every buggy version. It handles `"added"`, `"removed"` and `"qtyChanged"` (a qty of 0 or less removes the line), and must never mutate the previous state.
+
+```js code file=cartReducer.js
+function cartReducer(cart, action) {
+  switch (action.type) {
+    case "added": {
+      const line = cart.find((l) => l.id === action.product.id);
+      if (line) return cart.map((l) => (l === line ? { ...l, qty: l.qty + 1 } : l));
+      return [...cart, { ...action.product, qty: 1 }];
+    }
+    case "removed":
+      return cart.filter((l) => l.id !== action.id);
+    case "qtyChanged":
+      if (action.qty <= 0) return cart.filter((l) => l.id !== action.id);
+      return cart.map((l) => (l.id === action.id ? { ...l, qty: action.qty } : l));
+    default:
+      return cart;
+  }
+}
+```
+
+```js starter
+const tea = { id: 1, name: "Tea", price: 2 };
+
+test("added: a new product gets qty 1", () => {
+  expect(cartReducer([], { type: "added", product: tea })).toEqual([{ ...tea, qty: 1 }]);
+});
+```
+
+```js bug title="Adding twice creates a second line" hint="Add the same product to a cart that already has it."
+function cartReducer(cart, action) {
+  switch (action.type) {
+    case "added":
+      return [...cart, { ...action.product, qty: 1 }];
+    case "removed":
+      return cart.filter((l) => l.id !== action.id);
+    case "qtyChanged":
+      if (action.qty <= 0) return cart.filter((l) => l.id !== action.id);
+      return cart.map((l) => (l.id === action.id ? { ...l, qty: action.qty } : l));
+    default:
+      return cart;
+  }
+}
+```
+
+```js bug title="Mutates the old line" hint="Freeze the starting cart, or check that the old line still has its old qty."
+function cartReducer(cart, action) {
+  switch (action.type) {
+    case "added": {
+      const line = cart.find((l) => l.id === action.product.id);
+      if (line) {
+        line.qty++;
+        return [...cart];
+      }
+      return [...cart, { ...action.product, qty: 1 }];
+    }
+    case "removed":
+      return cart.filter((l) => l.id !== action.id);
+    case "qtyChanged":
+      if (action.qty <= 0) return cart.filter((l) => l.id !== action.id);
+      return cart.map((l) => (l.id === action.id ? { ...l, qty: action.qty } : l));
+    default:
+      return cart;
+  }
+}
+```
+
+```js bug title="qtyChanged to 0 keeps the line" hint="Set a quantity to 0: the line should disappear."
+function cartReducer(cart, action) {
+  switch (action.type) {
+    case "added": {
+      const line = cart.find((l) => l.id === action.product.id);
+      if (line) return cart.map((l) => (l === line ? { ...l, qty: l.qty + 1 } : l));
+      return [...cart, { ...action.product, qty: 1 }];
+    }
+    case "removed":
+      return cart.filter((l) => l.id !== action.id);
+    case "qtyChanged":
+      return cart.map((l) => (l.id === action.id ? { ...l, qty: action.qty } : l));
+    default:
+      return cart;
+  }
+}
+```
+
+```js bug title="removed deletes the wrong lines" hint="Remove one line from a cart with two lines, and check the other one stays."
+function cartReducer(cart, action) {
+  switch (action.type) {
+    case "added": {
+      const line = cart.find((l) => l.id === action.product.id);
+      if (line) return cart.map((l) => (l === line ? { ...l, qty: l.qty + 1 } : l));
+      return [...cart, { ...action.product, qty: 1 }];
+    }
+    case "removed":
+      return cart.filter((l) => l.id === action.id);
+    case "qtyChanged":
+      if (action.qty <= 0) return cart.filter((l) => l.id !== action.id);
+      return cart.map((l) => (l.id === action.id ? { ...l, qty: action.qty } : l));
+    default:
+      return cart;
+  }
+}
+```
+
+```js solution
+const tea = { id: 1, name: "Tea", price: 2 };
+const cake = { id: 2, name: "Cake", price: 4 };
+
+describe("cartReducer", () => {
+  test("added: a new product gets qty 1", () => {
+    expect(cartReducer([], { type: "added", product: tea })).toEqual([{ ...tea, qty: 1 }]);
+  });
+  test("added: the same product again increases qty, without mutating", () => {
+    const line = Object.freeze({ ...tea, qty: 1 });
+    const cart = Object.freeze([line]);
+    const next = cartReducer(cart, { type: "added", product: tea });
+    expect(next).toEqual([{ ...tea, qty: 2 }]);
+    expect(line.qty).toBe(1);
+  });
+  test("removed: takes out only that line", () => {
+    const cart = [{ ...tea, qty: 1 }, { ...cake, qty: 1 }];
+    expect(cartReducer(cart, { type: "removed", id: 1 })).toEqual([{ ...cake, qty: 1 }]);
+  });
+  test("qtyChanged: sets the quantity, and 0 removes the line", () => {
+    const cart = [{ ...tea, qty: 1 }];
+    expect(cartReducer(cart, { type: "qtyChanged", id: 1, qty: 5 })).toEqual([{ ...tea, qty: 5 }]);
+    expect(cartReducer(cart, { type: "qtyChanged", id: 1, qty: 0 })).toEqual([]);
+  });
+});
+```
+
+</TestExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "Why are reducers easy to test?",
+      options: ["They're pure functions: same state and action in, same state out", "React tests them automatically", "They have no logic", "They use the DOM"],
+      answer: 0,
+      explain: "No rendering or mocking needed.",
+    },
+    {
+      q: "How can a test catch a reducer that mutates its input?",
+      options: ["Freeze the input, or check the old state is unchanged after the call", "Use toBe on the result", "Run it twice", "It can't"],
+      answer: 0,
+      explain: "Mutation is invisible to a plain toEqual on the result.",
+    },
+    {
+      q: "Which test name is best?",
+      options: ["`test(\"test 1\")`", "`test(\"removed: takes out only that line\")`", "`test(\"reducer\")`", "`test(\"works\")`"],
+      answer: 1,
+      explain: "A failure should read like a sentence about the broken behavior.",
+    },
+  ]}
+/>

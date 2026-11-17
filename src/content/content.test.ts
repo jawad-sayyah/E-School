@@ -8,6 +8,7 @@ import remarkMdx from 'remark-mdx';
 import remarkFrontmatter from 'remark-frontmatter';
 import { createNodeWorker } from '../../test/nodeWorker';
 import { checkExercise } from '@/runner/checkExercise';
+import { checkTests, metaAttrs } from '@/runner/checkTests';
 import { runToEnd } from '@/runner/runCode';
 import { parseFrontmatter } from '@/search/extract';
 import { COURSES } from './courses';
@@ -89,7 +90,7 @@ test('every course with lessons has at least one exercise (PROMPT.md §10)', () 
       .filter((l) => l.course === course)
       .flatMap((l) => {
         const tree = parser.parse(fs.readFileSync(l.abs, 'utf8')) as Node;
-        return ['Exercise', 'ReactExercise', 'BuildUI', 'TSExercise'].flatMap((n) =>
+        return ['Exercise', 'ReactExercise', 'BuildUI', 'TSExercise', 'TestExercise'].flatMap((n) =>
           findAll(tree, n),
         );
       });
@@ -356,6 +357,43 @@ describe.each(tsLessons)('$course/$file TypeScript', ({ abs }) => {
       const starterPasses =
         tests && !tsx ? (await checkExercise(transpile(start), tests, run)).passed : true;
       expect(starterTypeErrors > 0 || !starterPasses, 'the starter must not pass').toBe(true);
+    },
+  );
+});
+
+/* ── <TestExercise>: the example tests pass on the real code and catch every bug ── */
+
+const testExerciseLessons = lessonFiles.filter(({ abs }) =>
+  fs.readFileSync(abs, 'utf8').includes('<TestExercise'),
+);
+
+describe.each(testExerciseLessons)('$course/$file test exercises', ({ abs }) => {
+  const tree = parser.parse(fs.readFileSync(abs, 'utf8')) as Node;
+  const exercises = findAll(tree, 'TestExercise');
+  test.each(exercises.map((e) => ({ e, id: String(attr(e, 'id')) })))(
+    'test exercise $id: the example tests catch every bug, the starter does not',
+    async ({ e }) => {
+      const blocks = codeIn(e);
+      const word = (b: Node, w: string) => (b.meta ?? '').split(/\s+/).includes(w);
+      const code = String(blocks.find((b) => word(b, 'code'))?.value ?? '');
+      const bugs = blocks
+        .filter((b) => word(b, 'bug'))
+        .map((b) => {
+          const attrs = metaAttrs(b.meta ?? '');
+          return { title: attrs.title ?? 'bug', hint: attrs.hint, code: String(b.value) };
+        });
+      expect(bugs.length, 'at least 3 buggy versions').toBeGreaterThanOrEqual(3);
+      expect(
+        bugs.every((b) => b.hint),
+        'every bug needs a hint',
+      ).toBe(true);
+      const solution = String(blocks.find((b) => word(b, 'solution'))?.value ?? '');
+      const solved = await checkTests(code, bugs, solution, run);
+      expect(solved.correct.results.filter((r) => r.status === 'fail')).toEqual([]);
+      expect(solved.bugs.filter((b) => !b.caught).map((b) => b.title)).toEqual([]);
+      expect(solved.passed).toBe(true);
+      const starter = String(blocks.find((b) => word(b, 'starter'))?.value ?? '');
+      expect((await checkTests(code, bugs, starter, run)).passed).toBe(false);
     },
   );
 });

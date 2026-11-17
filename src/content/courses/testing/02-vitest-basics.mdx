@@ -1,0 +1,218 @@
+---
+id: vitest-basics
+title: "Vitest basics: describe, test and expect"
+summary: Write real Vitest tests with describe, test and expect, choose between toBe and toEqual, and use toContain, toHaveLength, toThrow and friends.
+minutes: 16
+tags: [Vitest, describe, test, it, expect, toBe, toEqual, toContain, toHaveLength, toThrow, matchers]
+---
+
+**Vitest** is the test runner most Vite projects use (its API matches Jest's, so everything here works there too). The exercises in this course run in the browser with a Vitest-compatible API, so the tests you write here work unchanged in a real project.
+
+<Concept name="A test file" id="file">
+
+In a project, tests live next to the code, in files ending in `.test.js` / `.test.ts`:
+
+```js file=src/cart.test.js
+import { describe, test, expect } from "vitest";
+import { getTotal } from "./cart";
+
+describe("getTotal", () => {
+  test("adds price × qty for every line", () => {
+    expect(getTotal([{ price: 4, qty: 2 }, { price: 3, qty: 1 }])).toBe(11);
+  });
+
+  test("an empty cart is 0", () => {
+    expect(getTotal([])).toBe(0);
+  });
+});
+```
+
+```bash file=terminal
+npx vitest          # watch mode: re-runs the affected tests on every save
+npx vitest run      # run everything once (what CI does)
+```
+
+- `describe` groups related tests (it can nest). `test` and `it` are the same thing.
+- `expect(actual)` followed by a **matcher** (`.toBe(expected)`) makes an assertion. A failed assertion throws, and the runner reports the test as failed with expected vs. received.
+- In these lessons, `describe`, `test`, `it`, `expect` and `vi` are available without imports.
+
+</Concept>
+
+<Concept name="toBe or toEqual?" id="tobe-toequal">
+
+<Playground file="equality.js" expected={["toBe for 4 === 4: true", "toBe for two equal arrays: false", "toEqual compares contents: true"]}>
+
+```js
+const a = [1, 2];
+const b = [1, 2];
+
+console.log("toBe for 4 === 4:", Object.is(4, 4));
+console.log("toBe for two equal arrays:", Object.is(a, b));
+console.log("toEqual compares contents:", JSON.stringify(a) === JSON.stringify(b));
+```
+
+</Playground>
+
+- **`toBe`** checks **identity** (`Object.is`): use it for numbers, strings, booleans, `null`, and "is this the very same object".
+- **`toEqual`** checks **contents**, recursively: use it for arrays and objects.
+
+`expect(addLine(cart, tea)).toBe([tea])` always fails, because the function returns a new array; `toEqual` is what you mean.
+
+</Concept>
+
+<Concept name="The matchers you'll use most" id="matchers">
+
+| Matcher | Passes when |
+| --- | --- |
+| `toBe(x)` / `toEqual(x)` | same value / same contents |
+| `toBeCloseTo(0.3)` | a decimal is close enough (`0.1 + 0.2`!) |
+| `toContain(item)` | an array or string contains it |
+| `toHaveLength(n)` | `.length` is n |
+| `toMatchObject({…})` | an object has (at least) these properties |
+| `toMatch(/regex/)` | a string matches |
+| `toBeTruthy()` / `toBeFalsy()` / `toBeNull()` / `toBeUndefined()` | the obvious |
+| `toBeGreaterThan(n)` / `toBeLessThan(n)` | comparisons |
+| `toThrow("message")` | calling the function throws (wrap it: `expect(() => fn()).toThrow()`) |
+
+Every matcher can be negated with `.not`: `expect(cart).not.toContain(cake)`.
+
+</Concept>
+
+<HowItWorks title="Why toThrow needs a function">
+
+`expect(divide(1, 0)).toThrow()` calls `divide` **before** `expect` even runs, so the error escapes and crashes the test instead of being checked. Wrapping it, `expect(() => divide(1, 0)).toThrow()`, hands `expect` a function it can call inside a try/catch. The same idea appears with async code next lessons: `await expect(promise).rejects.toThrow()`.
+
+</HowItWorks>
+
+<Practice>
+
+<MatchPairs
+  id="match-matchers"
+  prompt="Match each check with the right matcher."
+  columns={["Check", "Matcher"]}
+  pairs={[
+    ["`getTotal([])` is 0", "`toBe(0)`"],
+    ["`addLine([], tea)` gives `[tea]`", "`toEqual([tea])`"],
+    ["`0.1 + 0.2` is 0.3", "`toBeCloseTo(0.3)`"],
+    ["The cart has 3 lines", "`toHaveLength(3)`"],
+    ["`parseQty(\"abc\")` throws", "`toThrow()`"],
+  ]}
+/>
+
+<SpotTheBug
+  id="bug-tobe-array"
+  bug={3}
+  prompt="This test fails even though `addLine` works. Click the buggy line."
+  explain="`addLine` returns a new array, so it can never be the same object as the array literal. Compare contents with `toEqual`."
+>
+
+```js
+test("adds a line", () => {
+  const tea = { name: "Tea", qty: 1 };
+  expect(addLine([], tea)).toBe([tea]);
+});
+```
+
+</SpotTheBug>
+
+<Predict
+  id="predict-close"
+  answer={["0.30000000000000004", "false", "true"]}
+  explain="Decimals can't be stored exactly in binary, so `0.1 + 0.2` is a hair above 0.3. That's why money tests use `toBeCloseTo` (or work in cents)."
+>
+
+```js
+const sum = 0.1 + 0.2;
+console.log(sum);
+console.log(sum === 0.3);
+console.log(Math.abs(sum - 0.3) < 0.005);
+```
+
+</Predict>
+
+</Practice>
+
+<TestExercise
+  id="test-format-price"
+  title="Test formatPrice"
+  hints={[
+    "Check a whole number, a decimal that needs rounding, and the currency argument.",
+    "One bug forgets to round; one ignores the currency; one throws for 0.",
+    "Use `toBe` for strings: `expect(formatPrice(4)).toBe(\"$4.00\")`.",
+  ]}
+>
+
+`formatPrice(amount, currency = "$")` returns the amount with two decimals and the currency in front. Write tests that pass here and catch every buggy version.
+
+```js code file=formatPrice.js
+function formatPrice(amount, currency = "$") {
+  return currency + amount.toFixed(2);
+}
+```
+
+```js starter
+describe("formatPrice", () => {
+  test("formats dollars", () => {
+    expect(formatPrice(4)).toBe("$4.00");
+  });
+});
+```
+
+```js bug title="No rounding to two decimals" hint="What does 4.567 become? And 4.5?"
+function formatPrice(amount, currency = "$") {
+  return currency + amount;
+}
+```
+
+```js bug title="Ignores the currency" hint="Pass a currency like € and check it's used."
+function formatPrice(amount, currency = "$") {
+  return "$" + amount.toFixed(2);
+}
+```
+
+```js bug title="Breaks on zero" hint="Free items exist: what about formatPrice(0)?"
+function formatPrice(amount, currency = "$") {
+  if (!amount) throw new Error("No amount");
+  return currency + amount.toFixed(2);
+}
+```
+
+```js solution
+describe("formatPrice", () => {
+  test("formats dollars with two decimals", () => {
+    expect(formatPrice(4)).toBe("$4.00");
+    expect(formatPrice(4.567)).toBe("$4.57");
+  });
+  test("uses the currency given", () => {
+    expect(formatPrice(2.5, "€")).toBe("€2.50");
+  });
+  test("handles zero", () => {
+    expect(formatPrice(0)).toBe("$0.00");
+  });
+});
+```
+
+</TestExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "Which matcher compares the contents of two arrays?",
+      options: ["`toBe`", "`toEqual`", "`toContain`", "`toBeTruthy`"],
+      answer: 1,
+      explain: "`toBe` checks identity.",
+    },
+    {
+      q: "Which is the right way to test that `parse(\"x\")` throws?",
+      options: ["`expect(parse(\"x\")).toThrow()`", "`expect(() => parse(\"x\")).toThrow()`", "`expect(parse).toThrow(\"x\")`", "`toThrow(parse(\"x\"))`"],
+      answer: 1,
+      explain: "Give expect a function it can call.",
+    },
+    {
+      q: "What does `describe` do?",
+      options: ["Runs a test", "Groups related tests under a name", "Mocks a module", "Prints output"],
+      answer: 1,
+      explain: "It also scopes hooks like beforeEach (a later lesson).",
+    },
+  ]}
+/>

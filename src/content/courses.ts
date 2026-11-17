@@ -269,7 +269,7 @@ export const COURSES: CourseInfo[] = [
     color: 'testing',
     description:
       'Test functions and React components the way real teams do: Vitest, Testing Library, mocking, MSW, jest-axe and Playwright.',
-    lessons: [],
+    lessons: ['why-test', 'vitest-basics', 'edge-cases-tdd', 'testing-reducers', 'async-mocking'],
     phase: 9,
   },
 ];

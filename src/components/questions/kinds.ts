@@ -1,6 +1,7 @@
 import {
   ArrowDownUpIcon,
   BugIcon,
+  FlaskConicalIcon,
   CircleHelpIcon,
   Code2Icon,
   FootprintsIcon,
@@ -30,7 +31,8 @@ export type QuestionKind =
   | 'trace'
   | 'code-review'
   | 'true-false'
-  | 'build-ui';
+  | 'build-ui'
+  | 'write-tests';
 
 export const QUESTION_KINDS: Record<QuestionKind, { label: string; icon: LucideIcon }> = {
   choice: { label: 'Multiple choice', icon: ListChecksIcon },
@@ -46,6 +48,7 @@ export const QUESTION_KINDS: Record<QuestionKind, { label: string; icon: LucideI
   'code-review': { label: 'Code review', icon: GitPullRequestIcon },
   'true-false': { label: 'True or false', icon: CircleHelpIcon },
   'build-ui': { label: 'Build the UI', icon: LayoutTemplateIcon },
+  'write-tests': { label: 'Write the tests', icon: FlaskConicalIcon },
 };
 
 /** MDX component name → question kind (used by content tests to count kinds per lesson). */
@@ -65,6 +68,7 @@ export const COMPONENT_KINDS: Record<string, QuestionKind | 'quiz'> = {
   ReactExercise: 'write-code',
   BuildUI: 'build-ui',
   TSExercise: 'write-code',
+  TestExercise: 'write-tests',
 };
 
 export const CODE_ICON = Code2Icon;

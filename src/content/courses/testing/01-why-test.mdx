@@ -1,0 +1,196 @@
+---
+id: why-test
+title: Why test?
+summary: Compare clicking around by hand with automated tests, meet the testing pyramid, and see what a test is made of.
+minutes: 12
+tags: [testing, automated tests, unit tests, integration tests, end-to-end, testing pyramid, regression]
+---
+
+You change the discount code logic. Does the cart total still work? The badge? Checkout? Clicking through every flow after every change takes ten minutes, so nobody does it, and bugs slip out. An **automated test** is code that checks your code: it runs in seconds, every time, on every change.
+
+<Concept name="What a test looks like" id="anatomy">
+
+<Playground file="cart.test.js" expected={["✓ adds price × qty for every line", "✓ an empty cart is 0"]}>
+
+```js
+function getTotal(cart) {
+  return cart.reduce((sum, line) => sum + line.price * line.qty, 0);
+}
+
+// A tiny test: run the code, compare the result with what you expect
+function test(name, fn) {
+  try {
+    fn();
+    console.log("✓ " + name);
+  } catch (e) {
+    console.log("✗ " + name + ": " + e.message);
+  }
+}
+function expectToBe(actual, expected) {
+  if (actual !== expected) throw new Error(`expected ${expected}, got ${actual}`);
+}
+
+test("adds price × qty for every line", () => {
+  expectToBe(getTotal([{ price: 4, qty: 2 }, { price: 3, qty: 1 }]), 11);
+});
+test("an empty cart is 0", () => {
+  expectToBe(getTotal([]), 0);
+});
+```
+
+</Playground>
+
+That's all a test is: **arrange** some input, **act** by calling the code, **assert** the result. Test runners like **Vitest** give you `test`, `expect` and dozens of matchers ready-made, run every test file, and report what failed and why. Change `price * qty` to `price + qty` in the playground and run it: the first test fails.
+
+</Concept>
+
+<Concept name="The testing pyramid" id="pyramid">
+
+| Level | Tests… | Speed | How many |
+| --- | --- | --- | --- |
+| **Unit** | one function or component on its own (`getTotal`, `cartReducer`, `<Price />`) | milliseconds | lots |
+| **Integration** | several pieces together (the cart page with its reducer and context) | fast | some |
+| **End-to-end (E2E)** | the real app in a real browser, like a user (add to cart → checkout) | seconds | a few |
+
+Lower levels are fast and pinpoint the broken line; higher levels give confidence that the whole thing works. A healthy project has many unit tests, a good layer of integration tests (for React, that's where Testing Library shines), and a handful of E2E tests for the critical paths.
+
+</Concept>
+
+<HowItWorks title="What tests buy you">
+
+- **Regression safety:** a bug fixed once, with a test, stays fixed.
+- **Fearless refactoring:** change how the code works; if the tests still pass, what it does hasn't changed.
+- **Documentation:** a test named "removes the line when qty drops to 0" says what the code is supposed to do.
+- **Faster reviews and deploys:** CI runs the suite on every pull request, so reviewers and the deploy pipeline trust the change.
+
+Tests aren't free: they're code to write and maintain. That's why this course is about writing **good** tests: ones that catch real bugs and don't break when you refactor.
+
+</HowItWorks>
+
+<Practice>
+
+<SortBuckets
+  id="buckets-pyramid"
+  prompt="Which level of the testing pyramid does each test belong to?"
+  buckets={["Unit", "Integration", "End-to-end"]}
+  items={[
+    ["`formatPrice(4)` returns `\"$4.00\"`", 0],
+    ["`cartReducer` handles the `\"removed\"` action", 0],
+    ["Clicking Add on the product page updates the header badge", 1],
+    ["A real browser signs in, adds two items and pays", 2],
+    ["The checkout form shows errors for empty fields", 1],
+  ]}
+  explain="Unit: one piece alone. Integration: pieces working together, rendered in a test DOM. E2E: the deployed app in a real browser."
+/>
+
+<OrderLines
+  id="order-aaa"
+  prompt="Order the lines of a test: arrange, act, assert."
+  explain="Set up the input, call the code, then check the result."
+>
+
+```js
+test("applies a 10% coupon", () => {
+  const cart = [{ price: 20, qty: 1 }];
+  const total = applyCoupon(cart, "SAVE10");
+  expect(total).toBe(18);
+});
+```
+
+</OrderLines>
+
+<TrueFalse
+  id="tf-why-test"
+  statements={[
+    { text: "Automated tests replace all manual checking.", answer: false, explain: "They cover what you thought of; exploratory clicking still finds surprises." },
+    { text: "A failing test after a refactor means something the code does has changed.", answer: true, explain: "That's the safety net (or the test was checking implementation details, a later lesson)." },
+    { text: "End-to-end tests should be the majority of a test suite.", answer: false, explain: "They're slow and brittle; keep a few for critical paths." },
+  ]}
+/>
+
+</Practice>
+
+<TestExercise
+  id="first-tests"
+  title="Your first tests: isFreeShipping"
+  hints={[
+    "Test both sides of the line: a total just under 50 and exactly 50.",
+    "One bug uses `>` instead of `>=`; another ignores the quantity; another treats an empty cart as free.",
+  ]}
+>
+
+`isFreeShipping(cart)` returns `true` when the cart total is **$50 or more**. Write tests that pass on this code and catch the hidden buggy versions. The starter has one test; it isn't enough.
+
+```js code file=shipping.js
+function isFreeShipping(cart) {
+  const total = cart.reduce((sum, line) => sum + line.price * line.qty, 0);
+  return total >= 50;
+}
+```
+
+```js starter
+test("a big order ships free", () => {
+  expect(isFreeShipping([{ price: 60, qty: 1 }])).toBe(true);
+});
+```
+
+```js bug title="Uses > instead of >=" hint="What should happen at exactly $50?"
+function isFreeShipping(cart) {
+  const total = cart.reduce((sum, line) => sum + line.price * line.qty, 0);
+  return total > 50;
+}
+```
+
+```js bug title="Ignores the quantity" hint="Try a cheap item bought many times, like 10 × $5."
+function isFreeShipping(cart) {
+  const total = cart.reduce((sum, line) => sum + line.price, 0);
+  return total >= 50;
+}
+```
+
+```js bug title="Always free" hint="Do you have a test where shipping is NOT free?"
+function isFreeShipping(cart) {
+  return true;
+}
+```
+
+```js solution
+test("$50 or more ships free", () => {
+  expect(isFreeShipping([{ price: 60, qty: 1 }])).toBe(true);
+  expect(isFreeShipping([{ price: 50, qty: 1 }])).toBe(true);
+});
+
+test("quantity counts towards the total", () => {
+  expect(isFreeShipping([{ price: 5, qty: 10 }])).toBe(true);
+});
+
+test("under $50 doesn't", () => {
+  expect(isFreeShipping([{ price: 49, qty: 1 }])).toBe(false);
+  expect(isFreeShipping([])).toBe(false);
+});
+```
+
+</TestExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "What are the three parts of a typical test?",
+      options: ["Arrange, act, assert", "Write, run, deploy", "Mock, spy, stub", "Render, click, wait"],
+      answer: 0,
+      explain: "Set up, do the thing, check the result.",
+    },
+    {
+      q: "Which tests should a project have the most of?",
+      options: ["End-to-end", "Unit (and integration)", "Manual", "Snapshot"],
+      answer: 1,
+      explain: "They're fast and precise; E2E covers a few critical flows.",
+    },
+    {
+      q: "What makes a test \"good\"?",
+      options: ["It always passes", "It fails when the behavior it checks is broken, and passes otherwise", "It has many lines", "It checks private variables"],
+      answer: 1,
+      explain: "That's exactly what the Write the tests exercises measure.",
+    },
+  ]}
+/>

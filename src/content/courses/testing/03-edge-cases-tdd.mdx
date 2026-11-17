@@ -1,0 +1,232 @@
+---
+id: edge-cases-tdd
+title: Edge cases and test-first
+summary: Find the inputs where code breaks (empty, zero, negative, decimals, boundaries), and practice writing the test first, watching it fail, then making it pass.
+minutes: 16
+tags: [testing, edge cases, boundary values, TDD, test-driven development, red green refactor]
+---
+
+Most bugs don't live in the "normal" case. They hide at the **edges**: an empty cart, a quantity of 0, a negative number, a price with decimals, exactly the free-shipping threshold. Good tests go looking for them.
+
+<Concept name="A checklist of edge cases" id="checklist">
+
+| Kind | Try |
+| --- | --- |
+| Empty | `[]`, `""`, `{}`, `null`, `undefined` |
+| Zero and one | `0`, a single item, `qty: 1` |
+| Negative | `-1`, a negative quantity or price |
+| Boundaries | exactly 50 when the rule is "50 or more", and 49.99 |
+| Decimals | `0.1 + 0.2`, prices like 2.995 that round |
+| Big | very long lists, huge quantities |
+| Wrong type | `"3"` instead of `3`, missing properties |
+| Duplicates | the same product added twice |
+
+You don't need every row for every function: ask "what inputs could this realistically receive?" and test those, especially the boundaries of every `if`.
+
+</Concept>
+
+<Concept name="Test-first: red, green, refactor" id="tdd">
+
+**Test-driven development** (TDD) flips the order:
+
+1. **Red:** write a test for the behavior you want. Run it: it fails (the code doesn't exist yet, or doesn't do it).
+2. **Green:** write the simplest code that makes it pass.
+3. **Refactor:** clean the code up, with the test as a safety net. Repeat with the next behavior.
+
+Writing the test first forces you to decide what the code should do *before* how, and guarantees every behavior has a test. Even if you don't do strict TDD, writing a failing test that reproduces a **bug** before fixing it is a habit worth keeping: the test proves the fix, and keeps the bug from coming back.
+
+</Concept>
+
+<HowItWorks title="Why watch it fail?">
+
+A test that has never failed might not be testing anything: a typo in the assertion, a forgotten `await`, a matcher on the wrong value. Seeing it **red** first proves it can detect the problem; seeing it turn **green** proves your change fixed it. That's also what the Write the tests exercises check from the other direction: your tests must go red on each buggy version.
+
+</HowItWorks>
+
+<Practice>
+
+<SortBuckets
+  id="buckets-edge"
+  prompt="`discount(total)` gives 10% off orders of $100 or more. Which inputs are boundary or edge cases worth a test?"
+  buckets={["Worth a test", "Adds little"]}
+  items={[
+    ["`discount(100)`", 0],
+    ["`discount(99.99)`", 0],
+    ["`discount(0)`", 0],
+    ["`discount(250)` after already testing `discount(200)`", 1],
+    ["`discount(-5)`", 0],
+    ["`discount(150)` and `discount(151)`", 1],
+  ]}
+  explain="Test both sides of every boundary and the odd inputs (0, negative). More values deep inside the same range rarely find new bugs."
+/>
+
+<OrderLines
+  id="order-tdd"
+  prompt="Put the TDD steps in order."
+  explain="Red, green, refactor, then the next test."
+>
+
+```js
+// Write a test for the next behavior
+// Run it and watch it fail
+// Write the simplest code that passes
+// Run the tests: green
+// Clean up the code, keeping the tests green
+```
+
+</OrderLines>
+
+<Choice
+  id="choice-bug-first"
+  q="A user reports that a $0.50 discount shows as $0.5. What do you do first?"
+  options={["Fix the formatting and ship", "Write a failing test that reproduces it, then fix it", "Add a console.log", "Ask the user to round it"]}
+  answer={1}
+  explain="The test proves the fix and stops the bug from coming back."
+/>
+
+</Practice>
+
+<Exercise
+  id="tdd-parse-qty"
+  title="Test-first: make parseQty pass"
+  hints={[
+    "Trim the text, then convert with `Number(text)`.",
+    "Throw a `RangeError` when the result isn't a whole number from 1 to 99: `Number.isInteger(n) && n >= 1 && n <= 99`.",
+  ]}
+>
+
+The tests are already written (red). Write `parseQty(text)` so they pass (green): it turns what's typed in a quantity box into a whole number from 1 to 99, and throws a `RangeError` for anything else.
+
+```js starter
+function parseQty(text) {
+  // make the tests pass
+}
+```
+
+```js tests
+describe("parseQty", () => {
+  test("parses whole numbers", () => {
+    expect(parseQty("3")).toBe(3);
+    expect(parseQty(" 12 ")).toBe(12);
+  });
+  test("accepts the boundaries 1 and 99", () => {
+    expect(parseQty("1")).toBe(1);
+    expect(parseQty("99")).toBe(99);
+  });
+  test("rejects 0, negatives and too many", () => {
+    expect(() => parseQty("0")).toThrow(RangeError);
+    expect(() => parseQty("-2")).toThrow(RangeError);
+    expect(() => parseQty("100")).toThrow(RangeError);
+  });
+  test("rejects decimals and text", () => {
+    expect(() => parseQty("1.5")).toThrow(RangeError);
+    expect(() => parseQty("two")).toThrow(RangeError);
+    expect(() => parseQty("")).toThrow(RangeError);
+  });
+});
+```
+
+```js solution
+function parseQty(text) {
+  const n = Number(String(text).trim());
+  if (!Number.isInteger(n) || n < 1 || n > 99) {
+    throw new RangeError("Quantity must be a whole number from 1 to 99");
+  }
+  return n;
+}
+```
+
+</Exercise>
+
+<TestExercise
+  id="test-discount"
+  title="Edge cases: test discount()"
+  hints={[
+    "Test exactly 100 and just under it (99.99).",
+    "A $0 order and a negative total should both get no discount.",
+    "Compare money with `toBeCloseTo`.",
+  ]}
+>
+
+`discount(total)` returns the discount for an order: 10% for totals of **$100 or more**, otherwise 0 (and 0 for zero or negative totals). Write tests that catch every buggy version.
+
+```js code file=discount.js
+function discount(total) {
+  if (total >= 100) return total * 0.1;
+  return 0;
+}
+```
+
+```js starter
+test("10% off big orders", () => {
+  expect(discount(200)).toBeCloseTo(20);
+});
+```
+
+```js bug title="Off by one at the threshold" hint="What does an order of exactly $100 get?"
+function discount(total) {
+  if (total > 100) return total * 0.1;
+  return 0;
+}
+```
+
+```js bug title="Discounts small orders too" hint="Test an order under $100."
+function discount(total) {
+  return total * 0.1;
+}
+```
+
+```js bug title="Wrong rate" hint="Check the actual amount, not just that there is a discount."
+function discount(total) {
+  if (total >= 100) return total * 0.15;
+  return 0;
+}
+```
+
+```js bug title="Negative totals get money back" hint="What about a negative total, like after a refund?"
+function discount(total) {
+  if (total >= 100 || total < 0) return total * 0.1;
+  return 0;
+}
+```
+
+```js solution
+describe("discount", () => {
+  test("10% off at $100 and above", () => {
+    expect(discount(100)).toBeCloseTo(10);
+    expect(discount(250)).toBeCloseTo(25);
+  });
+  test("nothing under $100", () => {
+    expect(discount(99.99)).toBe(0);
+    expect(discount(0)).toBe(0);
+  });
+  test("nothing for negative totals", () => {
+    expect(discount(-50)).toBe(0);
+  });
+});
+```
+
+</TestExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "Which value is the most important to test for a rule \"free shipping at $50 or more\"?",
+      options: ["$20", "Exactly $50 (and just under it)", "$1000", "$75"],
+      answer: 1,
+      explain: "Boundaries are where `>` vs `>=` bugs live.",
+    },
+    {
+      q: "In TDD, what comes right after writing a test?",
+      options: ["Refactoring", "Running it and seeing it fail", "Deploying", "Writing more tests"],
+      answer: 1,
+      explain: "Red first proves the test can fail.",
+    },
+    {
+      q: "Why write a failing test before fixing a reported bug?",
+      options: ["It's required by Vitest", "It proves the fix works and keeps the bug from returning", "It's faster", "To blame someone"],
+      answer: 1,
+      explain: "A regression test.",
+    },
+  ]}
+/>
