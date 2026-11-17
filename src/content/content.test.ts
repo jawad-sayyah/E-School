@@ -303,7 +303,7 @@ describe.each(lessonFiles)('$course/$file questions', ({ abs }) => {
 /* ── TypeScript (PROMPT.md: TS exercises must have no type errors and pass the tests) ── */
 
 const tsLessons = lessonFiles.filter(({ abs }) =>
-  /<TS(Playground|Exercise)/.test(fs.readFileSync(abs, 'utf8')),
+  /<TS(Playground|Exercise)/.test(fs.readFileSync(abs, 'utf8')),
 );
 
 describe.each(tsLessons)('$course/$file TypeScript', ({ abs }) => {
