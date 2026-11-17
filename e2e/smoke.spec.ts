@@ -103,3 +103,45 @@ test.describe('on a phone', () => {
     expect(width).toBeLessThanOrEqual(390);
   });
 });
+
+test('the reference page filters entries and runs examples', async ({ page }) => {
+  await page.goto('/reference');
+  await expect(
+    page.getByRole('heading', { level: 1, name: 'JavaScript Quick Reference' }),
+  ).toBeVisible();
+  await expect(page.getByText('78 entries')).toBeVisible();
+
+  await page.getByLabel('Filter the reference').fill('fetch');
+  await expect(page.getByText('2 of 78 entries')).toBeVisible();
+  await expect(page.getByRole('heading', { level: 3, name: /fetch\(\) \+ res\.ok/ })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 3, name: /^Callbacks/ })).toBeHidden();
+
+  const entry = page.locator('article#fetch-ok');
+  await entry.getByRole('button', { name: 'Run fetch-ok.js' }).click();
+  await expect(entry.getByRole('log')).toContainText('1 item(s) loaded');
+
+  await page.getByLabel('Filter the reference').fill('zzzz');
+  await expect(page.getByText(/No results for/)).toBeVisible();
+});
+
+test('search finds reference entries and jumps to them', async ({ page }) => {
+  await page.goto('/courses');
+  await expect(page.getByRole('heading', { level: 1, name: 'All courses' })).toBeVisible();
+  await page.keyboard.press('Control+k');
+  await page.getByPlaceholder('Search lessons, concepts and code…').fill('preventDefault');
+  await expect(page.getByRole('group', { name: 'JS Quick Reference' })).toBeVisible();
+  await page.getByRole('group', { name: 'JS Quick Reference' }).getByRole('option').first().click();
+  await expect(page).toHaveURL(/\/reference#prevent-default$/);
+  await expect(page.locator('#prevent-default')).toBeInViewport();
+});
+
+test('a new page load never restores another page’s scroll position', async ({ page }) => {
+  await page.goto('/reference#gotchas');
+  await page.goto('/reference#arrow-return');
+  await expect(page.locator('#arrow-return')).toBeInViewport();
+  await page.goto('/courses/js-basics/objects#nullish');
+  await expect(page.getByRole('heading', { level: 2, name: '??' })).toBeInViewport();
+  await expect(
+    page.getByRole('navigation', { name: 'On this page' }).locator('[aria-current="location"]'),
+  ).toHaveText('??');
+});

@@ -147,6 +147,21 @@ function getTotal(cart) {
 - `tests` and `solution` blocks are never added to the search index.
 - Passing marks the exercise as completed in the student's progress.
 
+## Edit the JS Quick Reference
+
+The `/reference` page is built from `src/content/reference/js-reference.txt`, in the same format as the original `js-reference.html` (the format is described at the top of the file):
+
+```text
+@@ entry-id :: section-id :: Name :: react warn
+One sentence that explains it.
+```js
+console.log("code");
+```
+>> code
+```
+
+Flags: `react` (Used in React badge), `warn` (Watch out badge), `static` (needs a real page: no Run button), `varies` (random or date output). `!!` lines are expected errors and `~~` lines are muted notes. `npm test` runs every entry that isn't `static` and checks its output.
+
 ## Progress
 
 Components only talk to the `ProgressStore` interface (`src/progress/ProgressStore.ts`). The app uses `LocalProgressStore` (localStorage, wrapped in try/catch so blocked storage never breaks the page). To move to a backend, write another class that implements the interface, load its snapshot, call the subscribers, and pass it to `<ProgressProvider>` in `src/main.tsx`.
