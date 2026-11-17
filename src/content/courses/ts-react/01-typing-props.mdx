@@ -1,0 +1,231 @@
+---
+id: typing-props
+title: Typing props and children
+summary: Give components typed props with optional and default values, type children with ReactNode, pass callbacks, and reuse the props of HTML elements.
+minutes: 18
+tags: [TypeScript, React, props, children, ReactNode, ComponentProps, tsx, callback props]
+---
+
+React with TypeScript uses `.tsx` files. The biggest win comes first: **typed props**. Every place that renders a component is checked, so a missing prop, a misspelled prop or a wrong type is an error before you open the browser.
+
+<Concept name="A props type" id="props-type">
+
+<TSPlayground file="ProductCard.tsx" errors={[17, 18]} checkOnly>
+
+```tsx
+type ProductCardProps = {
+  name: string;
+  price: number;
+  onSale?: boolean;                    // optional
+  onAdd: (name: string) => void;       // a callback prop
+};
+
+function ProductCard({ name, price, onSale = false, onAdd }: ProductCardProps) {
+  return (
+    <article>
+      <h2>{name}{onSale && " (sale)"}</h2>
+      <button onClick={() => onAdd(name)}>Add · ${price.toFixed(2)}</button>
+    </article>
+  );
+}
+
+const a = <ProductCard name="Coffee" price="4" onAdd={() => {}} />;   // error: price is a number
+const b = <ProductCard name="Tea" price={2} />;                         // error: onAdd is missing
+const c = <ProductCard name="Bagel" price={3} onSale onAdd={(n) => console.log(n)} />;
+```
+
+</TSPlayground>
+
+- Write the props as a `type` (or `interface`) named `ComponentNameProps`, and destructure it in the parameter.
+- Optional props get `?`; give them a default in the destructuring (`onSale = false`).
+- Callback props are function types. In `onAdd={(n) => …}`, `n` is inferred as `string` from the props type.
+- Don't annotate the return type; TypeScript infers it (a component returns JSX).
+
+</Concept>
+
+<Concept name="children" id="children">
+
+`children` is just a prop. Type it as `ReactNode`: anything React can render (elements, strings, numbers, arrays, `null`).
+
+<TSPlayground file="Panel.tsx" errors={[12]} checkOnly>
+
+```tsx
+import type { ReactNode } from "react";
+
+type PanelProps = { title: string; children: ReactNode; footer?: ReactNode };
+
+function Panel({ title, children, footer }: PanelProps) {
+  return <section><h2>{title}</h2>{children}{footer}</section>;
+}
+
+const ok = <Panel title="Cart"><p>Coffee × 2</p></Panel>;
+const text = <Panel title="Note">Just text is fine too</Panel>;
+const withFooter = <Panel title="Cart" footer={<button>Checkout</button>}>…</Panel>;
+const empty = <Panel title="Oops" />;                               // error: children is required
+```
+
+</TSPlayground>
+
+Type imports use `import type { … }`: they're erased completely, so nothing extra is bundled.
+
+</Concept>
+
+<Concept name="Reusing HTML props" id="html-props">
+
+A `Button` component that wraps `<button>` should accept everything a button does (`disabled`, `type`, `aria-label`, `onClick`…). Don't list them by hand; extend React's own type:
+
+```tsx file=Button.tsx
+import type { ComponentProps } from "react";
+
+type ButtonProps = ComponentProps<"button"> & { variant?: "primary" | "danger" };
+
+export function Button({ variant = "primary", className, ...rest }: ButtonProps) {
+  return <button className={`btn btn-${variant} ${className ?? ""}`} {...rest} />;
+}
+
+<Button variant="danger" disabled onClick={() => {}}>Empty cart</Button>;
+```
+
+`ComponentProps<"input">`, `ComponentProps<"a">`, and `ComponentProps<typeof OtherComponent>` work the same way.
+
+</Concept>
+
+<HowItWorks title="How TSX is checked">
+
+When TypeScript sees `<ProductCard name="Tea" />`, it looks up `ProductCard`'s first parameter type and checks the attributes against it, like a function call (which it is, after compilation). For lowercase tags like `<button>`, it uses the `JSX.IntrinsicElements` table from `@types/react`, which lists every HTML element and its attributes. That's why `<button onClick={…}>` knows the event type, and `<img src>` without `alt` is allowed but `<img srcc>` isn't.
+
+</HowItWorks>
+
+<Practice>
+
+<SpotTheBug
+  id="bug-props"
+  bug={[7, 8]}
+  prompt="TypeScript reports two errors. Click either line."
+  explain="Line 7 misspells the prop (`count` vs `qty`). Line 8 passes a string where `qty` needs a number."
+>
+
+```tsx
+type QtyBadgeProps = { qty: number; label?: string };
+
+function QtyBadge({ qty, label = "items" }: QtyBadgeProps) {
+  return <span>{qty} {label}</span>;
+}
+
+const a = <QtyBadge count={2} />;
+const b = <QtyBadge qty="2" />;
+const c = <QtyBadge qty={2} label="drinks" />;
+```
+
+</SpotTheBug>
+
+<FillBlanks
+  id="blanks-props"
+  prompt="Fill in the blanks to type an Alert with a tone and children."
+  explain="`children` is a `ReactNode`, and `tone` is an optional union of literals."
+>
+
+```tsx
+import type { ReactNode } from "react";
+
+type AlertProps = { tone__[?]__: "info" | "error"; children: __[ReactNode]__ };
+
+function Alert({ tone = "info", children }: AlertProps) {
+  return <p role="status" className={tone}>{children}</p>;
+}
+```
+
+</FillBlanks>
+
+<MatchPairs
+  id="match-prop-types"
+  prompt="Match each prop with its type."
+  columns={["Prop", "Type"]}
+  pairs={[
+    ["`children` that can be any content", "`ReactNode`"],
+    ["`onSelect` that receives an id", "`(id: number) => void`"],
+    ["All the props of a `<button>`", "`ComponentProps<\"button\">`"],
+    ["A size that's one of three", "`\"s\" | \"m\" | \"l\"`"],
+  ]}
+/>
+
+</Practice>
+
+<TSExercise
+  id="type-cart-line"
+  title="Type the CartLine component"
+  hints={[
+    "`type CartLineProps = { name: string; qty: number; price: number; onRemove: () => void; note?: string };`",
+    "Use it in the parameter: `function CartLine({ name, qty, price, onRemove, note }: CartLineProps)`.",
+  ]}
+>
+
+Give `CartLine` a props type: `name` (string), `qty` and `price` (numbers), an `onRemove` callback with no arguments, and an optional `note` (string). Wrong or missing props must be errors.
+
+```tsx starter
+function CartLine({ name, qty, price, onRemove, note }) {
+  return (
+    <li>
+      {name} × {qty} = ${(qty * price).toFixed(2)}
+      {note && <small>{note}</small>}
+      <button onClick={onRemove}>Remove</button>
+    </li>
+  );
+}
+```
+
+```tsx types
+const ok = <CartLine name="Tea" qty={2} price={2} onRemove={() => {}} />;
+const withNote = <CartLine name="Tea" qty={2} price={2} note="No sugar" onRemove={() => {}} />;
+// @ts-expect-error qty must be a number
+const badQty = <CartLine name="Tea" qty="2" price={2} onRemove={() => {}} />;
+// @ts-expect-error onRemove is required
+const noRemove = <CartLine name="Tea" qty={2} price={2} />;
+// @ts-expect-error onRemove takes no arguments and returns nothing useful; a string isn't a function
+const notFn = <CartLine name="Tea" qty={2} price={2} onRemove="remove" />;
+```
+
+```tsx solution
+type CartLineProps = {
+  name: string;
+  qty: number;
+  price: number;
+  onRemove: () => void;
+  note?: string;
+};
+
+function CartLine({ name, qty, price, onRemove, note }: CartLineProps) {
+  return (
+    <li>
+      {name} × {qty} = ${(qty * price).toFixed(2)}
+      {note && <small>{note}</small>}
+      <button onClick={onRemove}>Remove</button>
+    </li>
+  );
+}
+```
+
+</TSExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "Which type should `children` usually have?",
+      options: ["`string`", "`ReactNode`", "`JSX.Element[]`", "`any`"],
+      answer: 1,
+      explain: "It accepts everything React can render.",
+    },
+    {
+      q: "How do you make a prop optional with a default?",
+      options: ["`label?: string` in the type and `label = \"items\"` when destructuring", "`label: string = \"items\"` in the type", "`label!: string`", "You can't"],
+      answer: 0,
+      explain: "Types can't hold default values; the destructuring does.",
+    },
+    {
+      q: "How do you accept every `<button>` attribute in your own Button?",
+      options: ["List them all", "Extend `ComponentProps<\"button\">`", "Use `any`", "Use `HTMLButtonElement`"],
+      answer: 1,
+      explain: "Then spread `...rest` onto the `<button>`.",
+    },
+  ]}
+/>

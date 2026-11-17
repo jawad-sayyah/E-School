@@ -1,0 +1,194 @@
+---
+id: generic-components
+title: Generic components
+summary: Write components like List<T> and Select<T> whose props depend on the type of their data, so render functions and callbacks are typed for each use.
+minutes: 15
+tags: [TypeScript, React, generic components, render props, List<T>, Select<T>, keyof]
+---
+
+Some components don't care what they display: a list, a table, a dropdown. With `any`, their callbacks would lose the item type. A **generic component** keeps it: `List<Product>` calls `renderItem` with a `Product`.
+
+<Concept name="A generic List" id="list">
+
+<TSPlayground file="List.tsx" errors={[21]} checkOnly>
+
+```tsx
+import type { ReactNode, Key } from "react";
+
+type ListProps<T> = {
+  items: T[];
+  getKey: (item: T) => Key;
+  renderItem: (item: T) => ReactNode;
+  empty?: ReactNode;
+};
+
+function List<T>({ items, getKey, renderItem, empty = <p>Nothing here.</p> }: ListProps<T>) {
+  if (items.length === 0) return <>{empty}</>;
+  return <ul>{items.map((item) => <li key={getKey(item)}>{renderItem(item)}</li>)}</ul>;
+}
+
+type Product = { id: number; name: string; price: number };
+const products: Product[] = [{ id: 1, name: "Coffee", price: 4 }];
+
+const ok = (
+  <List items={products} getKey={(p) => p.id} renderItem={(p) => `${p.name} · $${p.price}`} />
+);
+const typo = <List items={products} getKey={(p) => p.id} renderItem={(p) => p.title} />; // error
+const words = <List items={["hot", "iced"]} getKey={(w) => w} renderItem={(w) => w.toUpperCase()} />;
+```
+
+</TSPlayground>
+
+`T` is inferred from `items`, so `p` is a `Product` in the callbacks, and `w` is a `string` in the last list. No type arguments needed at the call site.
+
+</Concept>
+
+<Concept name="A generic Select with a value type" id="select">
+
+```tsx file=Select.tsx
+type Option<V extends string> = { value: V; label: string };
+
+function Select<V extends string>({ options, value, onChange }: {
+  options: Option<V>[];
+  value: V;
+  onChange: (value: V) => void;
+}) {
+  return (
+    <select value={value} onChange={(e) => onChange(e.target.value as V)}>
+      {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+    </select>
+  );
+}
+
+type Size = "small" | "medium" | "large";
+const sizes: Option<Size>[] = [{ value: "small", label: "Small" }, { value: "large", label: "Large" }];
+<Select options={sizes} value="small" onChange={(size) => setSize(size)} />;  // size: Size
+```
+
+The `as V` is safe here because the options are the only values the `<select>` can produce.
+
+</Concept>
+
+<HowItWorks title="Generic components are generic functions">
+
+A component is a function, so `function List<T>(props: ListProps<T>)` is just a generic function, and `<List items={products} … />` is a call whose arguments TypeScript uses to infer `T`. If inference can't work it out, you can even pass the type argument in JSX: `<List<Product> items={[]} … />`. (In `.tsx` files, arrow-function generics need a trailing comma, `<T,>(props: ListProps<T>) => …`, so the `<T>` isn't read as a JSX tag; `function` declarations avoid that.)
+
+</HowItWorks>
+
+<Practice>
+
+<FillBlanks
+  id="blanks-generic-component"
+  prompt="Fill in the blanks to make Table generic over its row type."
+  explain="Declare `T` on the function, and use it in the props type so `columns` and `rows` agree."
+>
+
+```tsx
+type TableProps<T> = { rows: T[]; columns: (keyof T)[] };
+
+function Table__[<T>]__({ rows, columns }: TableProps<__[T]__>) {
+  return <table><tbody>{rows.map((r, i) => <tr key={i}>{columns.map((c) => <td key={String(c)}>{String(r[c])}</td>)}</tr>)}</tbody></table>;
+}
+```
+
+</FillBlanks>
+
+<SortBuckets
+  id="buckets-generic-comp"
+  prompt="Would this component benefit from being generic?"
+  buckets={["Generic", "Not needed"]}
+  items={[
+    ["A list that renders any kind of item with a renderItem prop", 0],
+    ["A data table with typed columns", 0],
+    ["An autocomplete that returns the chosen item", 0],
+    ["A Header with a fixed title prop", 1],
+    ["A Price that formats a number", 1],
+  ]}
+  explain="Make a component generic when its props' types depend on data passed in. Fixed props don't need it."
+/>
+
+<TrueFalse
+  id="tf-generic-comp"
+  statements={[
+    { text: "`T` is usually inferred from the props you pass, like `items`.", answer: true, explain: "Generic components infer like generic functions." },
+    { text: "Typing `items: any[]` keeps the item type in renderItem.", answer: false, explain: "Everything downstream becomes `any`." },
+    { text: "In a .tsx file, `const List = <T,>(props: ListProps<T>) => …` needs the comma.", answer: true, explain: "Otherwise `<T>` looks like a JSX tag." },
+  ]}
+/>
+
+</Practice>
+
+<TSExercise
+  id="generic-picker"
+  title="A generic Picker"
+  hints={[
+    "`type PickerProps<T> = { items: T[]; getLabel: (item: T) => string; onPick: (item: T) => void };`",
+    "`function Picker<T>({ items, getLabel, onPick }: PickerProps<T>)`.",
+  ]}
+>
+
+Make `Picker` generic: it renders a button per item, labels it with `getLabel(item)`, and calls `onPick(item)` with the **typed** item when clicked.
+
+```tsx starter
+type PickerProps = { items: any[]; getLabel: (item: any) => string; onPick: (item: any) => void };
+
+export function Picker({ items, getLabel, onPick }: PickerProps) {
+  return (
+    <div role="group">
+      {items.map((item, i) => (
+        <button key={i} onClick={() => onPick(item)}>{getLabel(item)}</button>
+      ))}
+    </div>
+  );
+}
+```
+
+```tsx types
+type Product = { id: number; name: string; price: number };
+const products: Product[] = [{ id: 1, name: "Tea", price: 2 }];
+const ok = <Picker items={products} getLabel={(p) => p.name} onPick={(p) => console.log(p.price.toFixed(2))} />;
+const sizes = <Picker items={["S", "M"]} getLabel={(s) => s} onPick={(s) => s.toLowerCase()} />;
+// @ts-expect-error products have no "title"
+const typo = <Picker items={products} getLabel={(p) => p.title} onPick={() => {}} />;
+// @ts-expect-error onPick gets a Product, not a number
+const wrong = <Picker items={products} getLabel={(p) => p.name} onPick={(p: number) => p} />;
+```
+
+```tsx solution
+type PickerProps<T> = { items: T[]; getLabel: (item: T) => string; onPick: (item: T) => void };
+
+export function Picker<T>({ items, getLabel, onPick }: PickerProps<T>) {
+  return (
+    <div role="group">
+      {items.map((item, i) => (
+        <button key={i} onClick={() => onPick(item)}>{getLabel(item)}</button>
+      ))}
+    </div>
+  );
+}
+```
+
+</TSExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "What makes `List<T>` better than a List with `items: any[]`?",
+      options: ["It's faster", "Callbacks like renderItem receive the real item type", "It renders differently", "Nothing"],
+      answer: 1,
+      explain: "The type flows from items into every callback.",
+    },
+    {
+      q: "How is `T` decided for `<List items={products} … />`?",
+      options: ["You must always write `<List<Product>>`", "TypeScript infers it from the `items` prop", "It's any", "From the component name"],
+      answer: 1,
+      explain: "Like inferring a generic function's type argument.",
+    },
+    {
+      q: "When should a component be generic?",
+      options: ["Always", "When its props' types depend on the data passed in", "Never in React", "Only for forms"],
+      answer: 1,
+      explain: "Lists, tables, selects, pickers.",
+    },
+  ]}
+/>

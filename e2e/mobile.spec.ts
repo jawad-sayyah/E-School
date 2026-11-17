@@ -10,6 +10,8 @@ const PAGES = [
   '/courses/how-react-works/rendering',
   '/courses/hooks/state-snapshot',
   '/courses/hooks/use-effect',
+  '/courses/ts-basics/why-typescript',
+  '/courses/ts-react/typing-props',
   '/reference',
 ];
 

@@ -1,0 +1,99 @@
+---
+id: review
+title: "Review: TypeScript with React"
+summary: Mixed questions on typed props, state, events, refs, reducers, context, custom hooks and generic components.
+minutes: 15
+kind: review
+tags: [review, TypeScript, React, props, useState, events, refs, useReducer, context, generic components]
+---
+
+Typed React in one review, before the TypeScript boss challenge. The lesson names in brackets tell you where to look.
+
+<Practice title="Typed components">
+
+<MatchPairs
+  id="match-review-ts-react"
+  prompt="Match each need with its type."
+  columns={["Need", "Type"]}
+  pairs={[
+    ["A prop for any renderable content", "`ReactNode`"],
+    ["State that starts as an empty list of products", "`useState<Product[]>([])`"],
+    ["A separate input change handler", "`ChangeEvent<HTMLInputElement>`"],
+    ["A ref to a button", "`useRef<HTMLButtonElement>(null)`"],
+    ["A dispatch prop", "`Dispatch<CartAction>`"],
+    ["All the props of an `<a>`", "`ComponentProps<\"a\">`"],
+  ]}
+/>
+
+<SpotTheBug
+  id="bug-review-ts-react"
+  bug={[8, 11]}
+  prompt="TypeScript reports two errors. Click either line. (Typing state, Typing context)"
+  explain="Line 8: `items` came from `useState([])`, which is `never[]`, so adding a product is an error; write `useState<Product[]>([])`. Line 11: `ctx` may be null; use a guarding hook instead of `useContext` directly."
+>
+
+```tsx
+import { createContext, useContext, useState } from "react";
+
+type Product = { id: number; name: string };
+const CartContext = createContext<{ count: number } | null>(null);
+
+function Shop() {
+  const [items, setItems] = useState([]);
+  const add = (p: Product) => setItems([...items, p]);
+
+  const ctx = useContext(CartContext);
+  return <p>{ctx.count} items · {items.length} shown</p>;
+}
+```
+
+</SpotTheBug>
+
+<SortBuckets
+  id="buckets-review-ts-react"
+  prompt="Needs an explicit type, or is it inferred? (all lessons)"
+  buckets={["Inferred", "Write the type"]}
+  items={[
+    ["`useState(0)`", 0],
+    ["`useState<User | null>(null)`", 1],
+    ["`onChange={(e) => setName(e.target.value)}` (inline)", 0],
+    ["A separate `function handleSubmit(e)`", 1],
+    ["`T` in `<List items={products} … />`", 0],
+    ["A component's props", 1],
+  ]}
+  explain="Inference handles initial values, inline handlers and generic calls. Props, separate handlers, and nullable or empty state need types."
+/>
+
+<TrueFalse
+  id="tf-review-ts-react"
+  statements={[
+    { text: "`useReducer` infers the action type from the reducer.", answer: true, explain: "So dispatch is checked. (useReducer with typed actions)" },
+    { text: "A hook returning `[value, setter]` is inferred as a tuple automatically.", answer: false, explain: "Add `as const`. (Typing custom hooks)" },
+    { text: "`useRef<HTMLInputElement>(null).current` can be null.", answer: true, explain: "Before mount and after unmount. (Typing events and refs)" },
+  ]}
+/>
+
+</Practice>
+
+<Quiz
+  questions={[
+    {
+      q: "How should optional props with defaults be written? (Typing props)",
+      options: ["`size?: Size` in the type, `size = \"m\"` when destructuring", "`size: Size = \"m\"` in the type", "Only with defaultProps", "With `any`"],
+      answer: 0,
+      explain: "The type marks it optional; destructuring gives the default.",
+    },
+    {
+      q: "What's the safest context setup for a cart? (Typing context)",
+      options: ["A fake default object", "`createContext<CartValue | null>(null)` and a `useCart` hook that throws on null", "`createContext<any>()`", "No context"],
+      answer: 1,
+      explain: "Misuse becomes a clear error.",
+    },
+    {
+      q: "Why make a List component generic? (Generic components)",
+      options: ["So renderItem and getKey receive the real item type", "To render faster", "To avoid keys", "Because React requires it"],
+      answer: 0,
+      explain: "`T` flows from `items` into every callback.",
+    },
+  ]}
+/>

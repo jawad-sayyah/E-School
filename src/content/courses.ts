@@ -120,7 +120,17 @@ export const COURSES: CourseInfo[] = [
     color: 'ts',
     description:
       'Typed props and children, state, events, refs, reducers, context, custom hooks and generic components.',
-    lessons: [],
+    lessons: [
+      'typing-props',
+      'typing-state',
+      'events-refs',
+      'typed-reducer',
+      'typed-context',
+      'typed-hooks',
+      'generic-components',
+      'review',
+      'boss',
+    ],
     phase: 8,
   },
 

@@ -1,0 +1,223 @@
+---
+id: typed-reducer
+title: "useReducer with typed actions"
+summary: Type a reducer's state and its actions as a discriminated union, so every dispatch is checked and every case is handled.
+minutes: 16
+tags: [TypeScript, React, useReducer, discriminated unions, actions, Dispatch, exhaustive check]
+---
+
+The cart reducer from the Hooks course is the perfect place for TypeScript's discriminated unions: each action has a `type` tag and its own data, and the reducer's `switch` narrows to each one.
+
+<Concept name="State and actions" id="types">
+
+<TSPlayground file="cartReducer.tsx" errors={[31, 32]} checkOnly>
+
+```tsx
+import { useReducer } from "react";
+
+type Product = { id: number; name: string; price: number };
+type CartLine = Product & { qty: number };
+
+type CartAction =
+  | { type: "added"; product: Product }
+  | { type: "removed"; id: number }
+  | { type: "qtyChanged"; id: number; qty: number }
+  | { type: "emptied" };
+
+function cartReducer(cart: CartLine[], action: CartAction): CartLine[] {
+  switch (action.type) {
+    case "added": {
+      const line = cart.find((l) => l.id === action.product.id);   // action: the "added" member
+      return line
+        ? cart.map((l) => (l === line ? { ...l, qty: l.qty + 1 } : l))
+        : [...cart, { ...action.product, qty: 1 }];
+    }
+    case "removed":
+      return cart.filter((l) => l.id !== action.id);
+    case "qtyChanged":
+      return cart.map((l) => (l.id === action.id ? { ...l, qty: action.qty } : l));
+    case "emptied":
+      return [];
+  }
+}
+
+function Cart() {
+  const [cart, dispatch] = useReducer(cartReducer, []);
+  dispatch({ type: "removed" });                     // error: id is missing
+  dispatch({ type: "remove", id: 1 });               // error: no such action
+  return <button onClick={() => dispatch({ type: "emptied" })}>Empty ({cart.length})</button>;
+}
+```
+
+</TSPlayground>
+
+- `useReducer(cartReducer, [])` infers the state (`CartLine[]`) and the action type from the reducer: `dispatch` only accepts `CartAction`s.
+- Inside each `case`, `action` is narrowed: `action.product` only exists for `"added"`.
+- Because the `switch` covers every member, TypeScript knows the function always returns. Add a new action and forget its case, and you get "not all code paths return a value".
+
+</Concept>
+
+<Concept name="Passing dispatch down" id="dispatch">
+
+Type it with `Dispatch<CartAction>` (from `"react"`):
+
+```tsx file=AddButton.tsx
+import type { Dispatch } from "react";
+
+function AddButton({ product, dispatch }: { product: Product; dispatch: Dispatch<CartAction> }) {
+  return <button onClick={() => dispatch({ type: "added", product })}>Add {product.name}</button>;
+}
+```
+
+Or keep `dispatch` inside a context and expose small, named functions (`add`, `remove`) through a custom hook, as the next lessons do.
+
+</Concept>
+
+<HowItWorks title="Why the discriminated union matters here">
+
+With a loose action type like `{ type: string; payload?: any }`, every dispatch compiles, typos included, and the reducer has to guess what's in `payload`. With a union, the **type tag** decides which data must be present, the editor autocompletes action names, and refactors (renaming `"added"`) update or flag every dispatch. It's the same benefit Redux Toolkit gives you automatically with `createSlice`.
+
+</HowItWorks>
+
+<Practice>
+
+<SpotTheBug
+  id="bug-reducer-action"
+  bug={9}
+  prompt="TypeScript reports one error inside the reducer. Click the line."
+  explain={"In the `\"renamed\"` case, `action` is narrowed to the renamed member, which has `id` and `name`. The code reads `action.title`, which doesn't exist."}
+>
+
+```tsx
+type Action =
+  | { type: "renamed"; id: number; name: string }
+  | { type: "deleted"; id: number };
+
+type Item = { id: number; name: string };
+
+function reducer(items: Item[], action: Action): Item[] {
+  switch (action.type) {
+    case "renamed": return items.map((i) => (i.id === action.id ? { ...i, name: action.title } : i));
+    case "deleted": return items.filter((i) => i.id !== action.id);
+  }
+}
+```
+
+</SpotTheBug>
+
+<OrderLines
+  id="order-reducer"
+  prompt="Order the lines of a typed counter reducer."
+  explain="Declare the action union first, then the reducer that switches on it."
+>
+
+```tsx
+type CounterAction = { type: "inc" } | { type: "set"; value: number };
+function counter(state: number, action: CounterAction): number {
+  switch (action.type) {
+    case "inc": return state + 1;
+    case "set": return action.value;
+  }
+}
+```
+
+</OrderLines>
+
+<TrueFalse
+  id="tf-reducer-types"
+  statements={[
+    { text: "`useReducer` infers the action type from the reducer's second parameter.", answer: true, explain: "So `dispatch` is fully typed." },
+    { text: "`{ type: string; payload?: any }` is a good action type.", answer: false, explain: "It accepts typos and loses all data types. Use a discriminated union." },
+    { text: "Inside `case \"removed\":`, `action.product` is an error if only `\"added\"` has a product.", answer: true, explain: "The switch narrows `action` to the removed member." },
+  ]}
+/>
+
+</Practice>
+
+<TSExercise
+  id="type-cart-actions"
+  title="Type the cart actions"
+  hints={[
+    "`type CartAction = { type: \"added\"; product: Product } | { type: \"removed\"; id: number } | { type: \"emptied\" };`",
+    "Type the reducer: `function cartReducer(cart: CartLine[], action: CartAction): CartLine[]`.",
+  ]}
+>
+
+Replace the loose `action: any` with a `CartAction` discriminated union for `"added"` (with a `product`), `"removed"` (with an `id`) and `"emptied"`, and type the reducer's state and return value.
+
+```tsx starter
+type Product = { id: number; name: string; price: number };
+type CartLine = Product & { qty: number };
+
+type CartAction = any;
+
+function cartReducer(cart, action: CartAction) {
+  switch (action.type) {
+    case "added":
+      return [...cart, { ...action.product, qty: 1 }];
+    case "removed":
+      return cart.filter((l) => l.id !== action.id);
+    case "emptied":
+      return [];
+  }
+}
+```
+
+```tsx types
+const tea: Product = { id: 1, name: "Tea", price: 2 };
+const next: CartLine[] = cartReducer([], { type: "added", product: tea });
+cartReducer(next, { type: "removed", id: 1 });
+cartReducer(next, { type: "emptied" });
+// @ts-expect-error "removed" needs an id
+cartReducer(next, { type: "removed" });
+// @ts-expect-error there's no "cleared" action
+cartReducer(next, { type: "cleared" });
+// @ts-expect-error the cart is a list of cart lines
+cartReducer(["Tea"], { type: "emptied" });
+```
+
+```tsx solution
+type Product = { id: number; name: string; price: number };
+type CartLine = Product & { qty: number };
+
+type CartAction =
+  | { type: "added"; product: Product }
+  | { type: "removed"; id: number }
+  | { type: "emptied" };
+
+function cartReducer(cart: CartLine[], action: CartAction): CartLine[] {
+  switch (action.type) {
+    case "added":
+      return [...cart, { ...action.product, qty: 1 }];
+    case "removed":
+      return cart.filter((l) => l.id !== action.id);
+    case "emptied":
+      return [];
+  }
+}
+```
+
+</TSExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "Which action type is best for a reducer?",
+      options: ["`{ type: string; payload?: any }`", "A discriminated union, one member per action", "`any`", "`string`"],
+      answer: 1,
+      explain: "Each action carries exactly its own data.",
+    },
+    {
+      q: "How do you type a `dispatch` prop?",
+      options: ["`Dispatch<CartAction>`", "`Function`", "`(a: any) => any`", "`useReducer`"],
+      answer: 0,
+      explain: "Import `Dispatch` from \"react\".",
+    },
+    {
+      q: "What happens if you add an action to the union but forget its `case`?",
+      options: ["Nothing", "TypeScript reports that the function doesn't return in every case (or `assertNever` fails)", "It crashes at run time only", "React ignores it"],
+      answer: 1,
+      explain: "Exhaustiveness checking catches it.",
+    },
+  ]}
+/>

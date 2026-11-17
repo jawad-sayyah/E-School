@@ -237,7 +237,7 @@ describe.each(lessonFiles)('$course/$file questions', ({ abs }) => {
         expect(line).toBeLessThanOrEqual(lines);
       }
       const buggyBlock = blocks.find((c) => !(c.meta ?? '').includes('fixed'));
-      if (isTs(buggyBlock?.lang) && attr(b, 'runtime') !== true) {
+      if (isTs(buggyBlock?.lang) && attr(b, 'errorElsewhere') !== true) {
         const errorLines = typeCheck(buggy, '', buggyBlock?.lang === 'tsx').diagnostics.map(
           (d) => d.line,
         );

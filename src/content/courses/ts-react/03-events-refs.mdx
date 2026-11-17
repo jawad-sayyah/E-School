@@ -1,0 +1,272 @@
+---
+id: events-refs
+title: Typing events and refs
+summary: Let inline handlers infer their event types, type separate handlers with ChangeEvent and FormEvent, and type DOM refs with useRef<HTMLInputElement>(null).
+minutes: 15
+tags: [TypeScript, React, events, ChangeEvent, FormEvent, MouseEvent, useRef, refs, HTMLInputElement]
+---
+
+Events and refs are where people reach for `any` most. You don't need to: React's types describe every event and element.
+
+<Concept name="Inline handlers infer everything" id="inline">
+
+When you write the handler inline, TypeScript knows the event type from the prop:
+
+```tsx file=Search.tsx
+<input onChange={(e) => setQuery(e.target.value)} />   // e: ChangeEvent<HTMLInputElement>
+<button onClick={(e) => e.stopPropagation()} />          // e: MouseEvent<HTMLButtonElement>
+```
+
+Hover `e` in the editor to see it.
+
+</Concept>
+
+<Concept name="Separate handlers need the event type" id="separate">
+
+A handler written as its own function has no context, so type its parameter. The pattern is `React.SomethingEvent<TheElement>`:
+
+<TSPlayground file="CouponForm.tsx" errors={[13]} checkOnly>
+
+```tsx
+import { useState, type ChangeEvent, type FormEvent } from "react";
+
+function CouponForm() {
+  const [code, setCode] = useState("");
+
+  function handleChange(e: ChangeEvent<HTMLInputElement>) {
+    setCode(e.target.value.toUpperCase());
+  }
+
+  function handleSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    console.log("apply", code);
+    setCode(e.target.value);       // error: a form has no value
+  }
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <input value={code} onChange={handleChange} />
+    </form>
+  );
+}
+```
+
+</TSPlayground>
+
+| Event | Type |
+| --- | --- |
+| typing in an input | `ChangeEvent<HTMLInputElement>` (`HTMLSelectElement`, `HTMLTextAreaElement`…) |
+| submitting a form | `FormEvent<HTMLFormElement>` |
+| clicking | `MouseEvent<HTMLButtonElement>` |
+| a key | `KeyboardEvent<HTMLInputElement>` |
+| focus / blur | `FocusEvent<HTMLInputElement>` |
+
+These are React's types (import them from `"react"`), not the browser's global `MouseEvent`.
+
+</Concept>
+
+<Concept name="Refs" id="refs">
+
+A DOM ref starts as `null` (the element doesn't exist during the first render), so its type is `HTMLInputElement | null`:
+
+<TSPlayground file="SearchBox.tsx" errors={[7]} checkOnly>
+
+```tsx
+import { useRef } from "react";
+
+function SearchBox() {
+  const inputRef = useRef<HTMLInputElement>(null);   // RefObject<HTMLInputElement | null>
+
+  function focus() {
+    inputRef.current.focus();                          // error: current may be null
+    inputRef.current?.focus();                         // fine
+  }
+
+  const timer = useRef<number | undefined>(undefined); // a value ref, not a DOM ref
+  timer.current = window.setTimeout(focus, 1000);
+
+  return <input ref={inputRef} />;
+}
+```
+
+</TSPlayground>
+
+Pass the **element** type to `useRef` and `null` as the initial value. In React 19, a component that accepts `ref` as a prop types it as `ref?: Ref<HTMLInputElement>`.
+
+</Concept>
+
+<HowItWorks title="Where do HTMLInputElement and friends come from?">
+
+They're the browser's DOM types from TypeScript's `lib.dom.d.ts` (that's why `"DOM"` is in `lib`). Each element type lists its properties: `HTMLInputElement` has `value` and `checked`, `HTMLFormElement` has `elements` and `reset()`, `HTMLButtonElement` has `disabled`. `e.target` in a `ChangeEvent<HTMLInputElement>` is typed as that element, which is how `e.target.value` gets autocompleted and checked.
+
+</HowItWorks>
+
+<Practice>
+
+<MatchPairs
+  id="match-event-types"
+  prompt="Match each handler with its parameter type."
+  columns={["Handler for", "Type"]}
+  pairs={[
+    ["`<input onChange>`", "`ChangeEvent<HTMLInputElement>`"],
+    ["`<form onSubmit>`", "`FormEvent<HTMLFormElement>`"],
+    ["`<button onClick>`", "`MouseEvent<HTMLButtonElement>`"],
+    ["`<select onChange>`", "`ChangeEvent<HTMLSelectElement>`"],
+    ["`<input onKeyDown>`", "`KeyboardEvent<HTMLInputElement>`"],
+  ]}
+/>
+
+<SpotTheBug
+  id="bug-event-any"
+  bug={5}
+  prompt="TypeScript reports one error. Click the line."
+  explain="A separate handler's parameter has no context, so `e` is implicitly `any` (an error in strict mode). Type it: `e: ChangeEvent<HTMLInputElement>`."
+>
+
+```tsx
+import { useState } from "react";
+
+function NameField() {
+  const [name, setName] = useState("");
+  function handleChange(e) {
+    setName(e.target.value);
+  }
+  return <input value={name} onChange={handleChange} />;
+}
+```
+
+</SpotTheBug>
+
+<FillBlanks
+  id="blanks-ref"
+  prompt="Fill in the blanks to type a ref to a textarea."
+  explain="Pass the element type and start with `null`."
+>
+
+```tsx
+import { useRef } from "react";
+
+function Notes() {
+  const ref = useRef<__[HTMLTextAreaElement]__>(__[null]__);
+  return <textarea ref={ref} onFocus={() => ref.current?.select()} />;
+}
+```
+
+</FillBlanks>
+
+</Practice>
+
+<TSExercise
+  id="typed-handlers"
+  title="Type the quantity form"
+  hints={[
+    "`handleQty(e: ChangeEvent<HTMLInputElement>)` and `handleSize(e: ChangeEvent<HTMLSelectElement>)`.",
+    "`handleSubmit(e: FormEvent<HTMLFormElement>)`.",
+    "`useRef<HTMLInputElement>(null)`, and use `qtyRef.current?.focus()`.",
+  ]}
+>
+
+Remove every implicit `any`: type the three handlers and the ref. The size must stay a union, so convert carefully from the select's string value (there's a helper).
+
+```tsx starter
+import { useRef, useState, type ChangeEvent, type FormEvent } from "react";
+
+type Size = "small" | "large";
+const isSize = (v: string): v is Size => v === "small" || v === "large";
+
+export function QtyForm({ onOrder }: { onOrder: (qty: number, size: Size) => void }) {
+  const [qty, setQty] = useState(1);
+  const [size, setSize] = useState<Size>("small");
+  const qtyRef = useRef(null);
+
+  function handleQty(e) {
+    setQty(Number(e.target.value));
+  }
+  function handleSize(e) {
+    if (isSize(e.target.value)) setSize(e.target.value);
+  }
+  function handleSubmit(e) {
+    e.preventDefault();
+    if (qty < 1) return qtyRef.current.focus();
+    onOrder(qty, size);
+  }
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <input ref={qtyRef} type="number" value={qty} onChange={handleQty} />
+      <select value={size} onChange={handleSize}>
+        <option value="small">Small</option>
+        <option value="large">Large</option>
+      </select>
+      <button>Order</button>
+    </form>
+  );
+}
+```
+
+```tsx types
+const el = <QtyForm onOrder={(qty, size) => console.log(qty.toFixed(0), size)} />;
+// @ts-expect-error onOrder receives a number and a Size
+const bad = <QtyForm onOrder={(qty: string) => qty} />;
+```
+
+```tsx solution
+import { useRef, useState, type ChangeEvent, type FormEvent } from "react";
+
+type Size = "small" | "large";
+const isSize = (v: string): v is Size => v === "small" || v === "large";
+
+export function QtyForm({ onOrder }: { onOrder: (qty: number, size: Size) => void }) {
+  const [qty, setQty] = useState(1);
+  const [size, setSize] = useState<Size>("small");
+  const qtyRef = useRef<HTMLInputElement>(null);
+
+  function handleQty(e: ChangeEvent<HTMLInputElement>) {
+    setQty(Number(e.target.value));
+  }
+  function handleSize(e: ChangeEvent<HTMLSelectElement>) {
+    if (isSize(e.target.value)) setSize(e.target.value);
+  }
+  function handleSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (qty < 1) return qtyRef.current?.focus();
+    onOrder(qty, size);
+  }
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <input ref={qtyRef} type="number" value={qty} onChange={handleQty} />
+      <select value={size} onChange={handleSize}>
+        <option value="small">Small</option>
+        <option value="large">Large</option>
+      </select>
+      <button>Order</button>
+    </form>
+  );
+}
+```
+
+</TSExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "Why don't inline handlers like `onChange={(e) => …}` need a type?",
+      options: ["They're any", "The event type is inferred from the prop (contextual typing)", "TypeScript skips JSX", "They do need one"],
+      answer: 1,
+      explain: "Only separate functions need annotations.",
+    },
+    {
+      q: "What's the right ref for an input?",
+      options: ["`useRef<HTMLInputElement>(null)`", "`useRef<any>()`", "`useRef(HTMLInputElement)`", "`useRef<string>(\"\")`"],
+      answer: 0,
+      explain: "Element type, starting at null.",
+    },
+    {
+      q: "Why is `inputRef.current.focus()` an error?",
+      options: ["focus doesn't exist", "`current` may be null (before mount or after unmount)", "Refs can't be called", "It isn't"],
+      answer: 1,
+      explain: "Use `inputRef.current?.focus()`.",
+    },
+  ]}
+/>

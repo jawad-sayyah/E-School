@@ -1,0 +1,207 @@
+---
+id: typing-state
+title: "Typing state: useState<T>"
+summary: Let useState infer simple types, pass a type argument for empty arrays, nullable values and unions, and type state updates.
+minutes: 15
+tags: [TypeScript, React, useState, generics, null, state types, type arguments]
+---
+
+`useState` is generic: `useState<T>(initial)`. For simple values TypeScript infers `T` from the initial value. You only write it yourself when the initial value doesn't tell the whole story.
+
+<Concept name="When inference is enough" id="inferred">
+
+<TSPlayground file="Counter.tsx" errors={[7, 8]} checkOnly>
+
+```tsx
+import { useState } from "react";
+
+function Counter() {
+  const [qty, setQty] = useState(1);           // number
+  const [note, setNote] = useState("");        // string
+  const [open, setOpen] = useState(false);     // boolean
+  setQty("2");                                 // error: not a number
+  setOpen("yes");                              // error: not a boolean
+  setQty((q) => q + 1);                        // q is a number
+  return <button onClick={() => setNote(note + "!")}>{qty}</button>;
+}
+```
+
+</TSPlayground>
+
+</Concept>
+
+<Concept name="When you must say it" id="explicit">
+
+Three common cases where the initial value is too narrow or too vague:
+
+<TSPlayground file="Cart.tsx" errors={[10]} checkOnly>
+
+```tsx
+import { useState } from "react";
+
+type CartLine = { id: number; name: string; qty: number };
+type User = { id: number; name: string };
+
+function Cart() {
+  // 1. An empty array: without <CartLine[]> it would be never[]
+  const [lines, setLines] = useState<CartLine[]>([]);
+  const [broken, setBroken] = useState([]);
+  setBroken([{ id: 1, name: "Tea", qty: 1 }]);           // error: never[] accepts nothing
+
+  // 2. "Nothing yet": the value starts as null
+  const [user, setUser] = useState<User | null>(null);
+
+  // 3. A union of states
+  const [status, setStatus] = useState<"idle" | "saving" | "saved">("idle");
+
+  setLines([...lines, { id: 1, name: "Tea", qty: 1 }]);
+  setStatus("saving");
+  return <p>{user ? `Hi ${user.name}` : "Sign in"} · {lines.length} · {status}</p>;
+}
+```
+
+</TSPlayground>
+
+- With `useState<User | null>(null)`, TypeScript makes you check `user` before reading `user.name`: no more "Cannot read properties of null" crashes.
+- For a union like `status`, the type argument also stops typos: `setStatus("saved!")` is an error.
+
+</Concept>
+
+<HowItWorks title="What setState's type looks like">
+
+`useState<T>` returns `[T, Dispatch<SetStateAction<T>>]`. `SetStateAction<T>` is `T | ((prev: T) => T)`: a new value or an updater function. So both `setQty(2)` and `setQty((q) => q + 1)` are checked, and in the updater, `q` is already typed. If you pass state setters down as props, type them as `(value: number) => void` (simple) or `Dispatch<SetStateAction<number>>` (when the child also needs the updater form).
+
+</HowItWorks>
+
+<Practice>
+
+<TraceState
+  id="trace-state-types"
+  track="the type of the state"
+  steps={[
+    { action: "`useState(0)`", answer: "number" },
+    { action: "`useState([])`", answer: "never[]" },
+    { action: "`useState<string[]>([])`", answer: "string[]" },
+    { action: "`useState<User | null>(null)`", answer: "User | null" },
+  ]}
+  explain="Inference uses the initial value; an empty array tells it nothing, so give a type argument."
+/>
+
+<SpotTheBug
+  id="bug-null-state"
+  bug={7}
+  prompt="TypeScript reports one error. Click the line."
+  explain="`product` starts as `null`, so `product.name` isn't safe. Check it first, e.g. `if (!product) return <p>Loading…</p>;`."
+>
+
+```tsx
+import { useState } from "react";
+
+type Product = { name: string; price: number };
+
+function ProductTitle() {
+  const [product, setProduct] = useState<Product | null>(null);
+  return <h1>{product.name}</h1>;
+}
+```
+
+</SpotTheBug>
+
+<Choice
+  id="choice-state-type"
+  q="A list of selected product ids that starts empty. Which declaration is right?"
+  options={["`useState([])`", "`useState<number[]>([])`", "`useState<number>([])`", "`useState<[]>(null)`"]}
+  answer={1}
+  explain="An empty array needs the item type, or it becomes `never[]`."
+/>
+
+</Practice>
+
+<TSExercise
+  id="typed-wishlist-state"
+  title="Type the wishlist state"
+  hints={[
+    "`useState<WishItem[]>([])` for the items.",
+    "`useState<WishItem | null>(null)` for the selected item.",
+    "`useState<\"grid\" | \"list\">(\"grid\")` for the view.",
+  ]}
+>
+
+The `useWishlist` hook keeps three pieces of state. Give each `useState` the right type: `items` is a list of `WishItem` (starts empty), `selected` is a `WishItem` or nothing yet, and `view` is `"grid"` or `"list"`.
+
+```tsx starter
+import { useState } from "react";
+
+type WishItem = { id: number; name: string };
+
+export function useWishlist() {
+  const [items, setItems] = useState([]);
+  const [selected, setSelected] = useState(null);
+  const [view, setView] = useState("grid");
+
+  function add(item: WishItem) {
+    setItems([...items, item]);
+    setSelected(item);
+  }
+
+  return { items, selected, view, setView, add };
+}
+```
+
+```tsx types
+const w = useWishlist();
+const names: string[] = w.items.map((i) => i.name);
+const selectedName: string | undefined = w.selected?.name;
+w.setView("list");
+w.add({ id: 1, name: "Tea" });
+// @ts-expect-error the view is only "grid" or "list"
+w.setView("tiles");
+// @ts-expect-error selected may be null, so check it first
+w.selected.name;
+// @ts-expect-error items are WishItems
+w.items.push("Tea");
+```
+
+```tsx solution
+import { useState } from "react";
+
+type WishItem = { id: number; name: string };
+
+export function useWishlist() {
+  const [items, setItems] = useState<WishItem[]>([]);
+  const [selected, setSelected] = useState<WishItem | null>(null);
+  const [view, setView] = useState<"grid" | "list">("grid");
+
+  function add(item: WishItem) {
+    setItems([...items, item]);
+    setSelected(item);
+  }
+
+  return { items, selected, view, setView, add };
+}
+```
+
+</TSExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "When do you need `useState<T>` with an explicit type?",
+      options: ["Always", "When the initial value doesn't describe all future values: `[]`, `null`, or a union", "Never", "Only for numbers"],
+      answer: 1,
+      explain: "Otherwise inference is enough.",
+    },
+    {
+      q: "What's the type of `q` in `setQty((q) => q + 1)` when `qty` is a number?",
+      options: ["`any`", "`number`", "`unknown`", "`SetStateAction<number>`"],
+      answer: 1,
+      explain: "The updater receives the current state type.",
+    },
+    {
+      q: "Why `useState<User | null>(null)` instead of `useState<User>(null as any)`?",
+      options: ["The null case is part of the type, so TypeScript makes you handle it", "It's shorter", "`as any` is required", "No difference"],
+      answer: 0,
+      explain: "Hiding null with `as any` brings back the crash.",
+    },
+  ]}
+/>

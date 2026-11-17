@@ -451,7 +451,7 @@ It ends with a "What's next" page: a real backend, authentication and payments.
 **Phase 7 — The React ecosystem + Common Mistakes** ✅
 - The React Ecosystem course and Common React Mistakes.
 
-**Phase 8 — The TypeScript track**
+**Phase 8 — The TypeScript track** ✅
 - `TSPlayground` (Monaco with live diagnostics) and TS exercises; the three TypeScript courses, boss challenge and certificate.
 
 **Phase 9 — Testing**

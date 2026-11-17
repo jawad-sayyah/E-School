@@ -1,0 +1,200 @@
+---
+id: typed-hooks
+title: Typing custom hooks
+summary: Type a custom hook's parameters and return value, return tuples with as const, and make hooks generic like useLocalStorage<T>.
+minutes: 15
+tags: [TypeScript, React, custom hooks, generics, tuples, as const, useLocalStorage]
+---
+
+Custom hooks are functions, so everything from Typing functions and Generics applies. Two details are specific to hooks: **returning tuples** and **generic hooks**.
+
+<Concept name="Returning a tuple" id="tuple">
+
+A hook that returns `[value, setter]` like `useState` needs care: an array literal is inferred as an array of a union, not a tuple.
+
+<TSPlayground file="useToggle.tsx" errors={[14]} checkOnly>
+
+```tsx
+import { useState } from "react";
+
+function useToggleLoose(initial = false) {
+  const [on, setOn] = useState(initial);
+  return [on, () => setOn((v) => !v)];          // (boolean | (() => void))[]
+}
+
+function useToggle(initial = false) {
+  const [on, setOn] = useState(initial);
+  return [on, () => setOn((v) => !v)] as const; // readonly [boolean, () => void]
+}
+
+const [open1, toggle1] = useToggleLoose();
+toggle1();                                      // error: might be a boolean
+const [open2, toggle2] = useToggle();
+toggle2();                                      // fine
+```
+
+</TSPlayground>
+
+Use `as const` (or an explicit return type like `[boolean, () => void]`). For more than two values, return an **object** instead: `{ items, add, remove }` is easier to read and order doesn't matter.
+
+</Concept>
+
+<Concept name="Generic hooks" id="generic">
+
+`useLocalStorage` from the Hooks course works for any value, so it should be generic. The type flows from the initial value, or from a type argument:
+
+<TSPlayground file="useLocalStorage.tsx" errors={[19]} checkOnly>
+
+```tsx
+import { useEffect, useState } from "react";
+
+function useLocalStorage<T>(key: string, initial: T) {
+  const [value, setValue] = useState<T>(() => {
+    const saved = localStorage.getItem(key);
+    return saved !== null ? (JSON.parse(saved) as T) : initial;
+  });
+  useEffect(() => {
+    localStorage.setItem(key, JSON.stringify(value));
+  }, [key, value]);
+  return [value, setValue] as const;
+}
+
+type Prefs = { theme: "light" | "dark"; currency: string };
+
+const [note, setNote] = useLocalStorage("gift-note", "");                  // string
+const [prefs, setPrefs] = useLocalStorage<Prefs>("prefs", { theme: "light", currency: "$" });
+setPrefs({ ...prefs, theme: "dark" });
+setNote(42);                                                                // error: a string
+```
+
+</TSPlayground>
+
+Note the honest `as T` on `JSON.parse`: parsed JSON is `any`, and the cast says "trust me". In a real app, validate stored data (a type guard or a Zod schema), because an old version of the app may have saved a different shape.
+
+</Concept>
+
+<HowItWorks title="Hooks are typed like any function">
+
+TypeScript doesn't know hooks are special: it checks `useLocalStorage` exactly like `first<T>` from the Generics lesson. React's own hooks are generic functions declared in `@types/react` (`function useState<S>(initialState: S | (() => S)): [S, Dispatch<SetStateAction<S>>]`). Reading those declarations (Ctrl/Cmd+click on `useState`) is the fastest way to see what a hook expects.
+
+</HowItWorks>
+
+<Practice>
+
+<Choice
+  id="choice-hook-return"
+  q="A hook returns five values. What's the clearest return shape?"
+  options={["A tuple `[a, b, c, d, e] as const`", "An object `{ items, total, add, remove, clear }`", "An array", "Five separate hooks"]}
+  answer={1}
+  explain="Named properties beat remembering positions; tuples are for pairs like `[value, setter]`."
+/>
+
+<SpotTheBug
+  id="bug-hook-tuple"
+  bug={5}
+  errorElsewhere
+  prompt="Callers of `useCounter` get type errors when they call `inc()`. Click the line to fix."
+  explain="Without `as const`, the return is `(number | (() => void))[]`, so neither element has a precise type. Write `return [count, inc] as const;`."
+>
+
+```tsx
+import { useState } from "react";
+function useCounter() {
+  const [count, setCount] = useState(0);
+  const inc = () => setCount((c) => c + 1);
+  return [count, inc];
+}
+function Counter() {
+  const [count, inc] = useCounter();
+  return <button onClick={() => inc()}>{count}</button>;
+}
+```
+
+</SpotTheBug>
+
+<TrueFalse
+  id="tf-typed-hooks"
+  statements={[
+    { text: "An array literal returned from a function is inferred as a tuple.", answer: false, explain: "It's an array of a union; add `as const` or a return type." },
+    { text: "A generic hook can infer its type from the initial value.", answer: true, explain: "Like `useLocalStorage(\"note\", \"\")` → string." },
+    { text: "`JSON.parse(...) as T` validates the data.", answer: false, explain: "It's an unchecked cast. Validate stored data." },
+  ]}
+/>
+
+</Practice>
+
+<TSExercise
+  id="typed-use-list"
+  title="A generic useList hook"
+  hints={[
+    "`function useList<T>(initial: T[] = [])` and `useState<T[]>(initial)`.",
+    "Return an object: `{ items, add: (item: T) => setItems((xs) => [...xs, item]), removeAt: (index: number) => setItems((xs) => xs.filter((_, i) => i !== index)), clear: () => setItems([]) }`.",
+  ]}
+>
+
+Write a generic `useList<T>(initial)` hook that returns `{ items, add, removeAt, clear }`, where `items` is a `T[]`, `add` takes a `T`, and `removeAt` takes an index.
+
+```tsx starter
+import { useState } from "react";
+
+export function useList(initial: any[] = []) {
+  const [items, setItems] = useState(initial);
+  return { items, add: (item: any) => setItems([...items, item]) };
+}
+```
+
+```tsx types
+type Product = { id: number; name: string };
+const products = useList<Product>();
+products.add({ id: 1, name: "Tea" });
+products.removeAt(0);
+products.clear();
+const names: string[] = products.items.map((p) => p.name);
+const tags = useList(["hot"]);
+tags.add("iced");
+// @ts-expect-error the items are Products
+products.add("Tea");
+// @ts-expect-error removeAt takes an index
+products.removeAt("Tea");
+// @ts-expect-error tags are strings
+tags.add(42);
+```
+
+```tsx solution
+import { useState } from "react";
+
+export function useList<T>(initial: T[] = []) {
+  const [items, setItems] = useState<T[]>(initial);
+  return {
+    items,
+    add: (item: T) => setItems((xs) => [...xs, item]),
+    removeAt: (index: number) => setItems((xs) => xs.filter((_, i) => i !== index)),
+    clear: () => setItems([]),
+  };
+}
+```
+
+</TSExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "How do you make a hook return a precise `[value, setter]` tuple?",
+      options: ["`return [value, setter] as const;` or an explicit tuple return type", "`return [value, setter];`", "`return { value, setter } as any;`", "You can't"],
+      answer: 0,
+      explain: "Otherwise it's an array of a union.",
+    },
+    {
+      q: "In `useLocalStorage(\"count\", 0)`, what's T?",
+      options: ["`string`", "`number`", "`unknown`", "`any`"],
+      answer: 1,
+      explain: "Inferred from the initial value.",
+    },
+    {
+      q: "Why is `JSON.parse(saved) as T` risky?",
+      options: ["It's slow", "It doesn't check the data; an old or tampered value may not match T", "It throws on valid JSON", "It isn't"],
+      answer: 1,
+      explain: "Validate untrusted data.",
+    },
+  ]}
+/>

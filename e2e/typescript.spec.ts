@@ -34,3 +34,14 @@ test('a TS exercise: the starter fails, the solution passes', async ({ page }) =
   await expect(card.getByText('Every hidden type check holds')).toBeVisible();
   await expect(card.getByText('Completed')).toBeVisible();
 });
+
+test('TSX playgrounds load React types and report prop errors', async ({ page }) => {
+  await page.goto('/courses/ts-react/typing-props');
+  const frame = page.locator('section', { has: page.locator('#props-type') });
+  await frame.scrollIntoViewIfNeeded();
+  await expect(frame.getByText('2 type errors')).toBeVisible({ timeout: 60_000 });
+  const errors = frame.getByRole('list', { name: 'Type errors' });
+  await expect(errors).toContainText('Line 17');
+  await expect(errors).toContainText('Line 18');
+  await expect(errors).not.toContainText('JSX');
+});

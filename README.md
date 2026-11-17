@@ -173,6 +173,19 @@ Rules for React exercise tests:
 - `npm test` first runs `scripts/gen-react-tests.mjs`, which turns every React exercise (solution + tests) and every playground (a "renders without crashing" smoke test, or a "runs" test for vanilla ones) into Vitest + Testing Library tests under `test/react-exercises/` (git-ignored). So a solution that fails its own tests fails the build.
 - Question components (`SpotTheBug`, `FillBlanks`, `Choice`, `TraceState`, `CodeReview`, `Compare`) show a ````jsx```` block as JSX. JSX blanks and `fixed` blocks aren't run in the worker; `Predict` must stay plain JavaScript, because its answer is checked by running it.
 
+## TypeScript lessons (Monaco)
+
+TypeScript lessons use [Monaco](https://microsoft.github.io/monaco-editor/), loaded lazily from jsDelivr (pinned in `src/ts/monaco.ts`), with its built-in TypeScript worker. Compiler settings live in `src/ts/options.ts` and are shared with the content tests, which type-check every lesson with the real TypeScript compiler (`test/tsChecker.ts`). Every file is its own module, so examples never clash. React's types load only for `.tsx` lessons.
+
+| Component | Use |
+| --- | --- |
+| `<TSPlayground file errors? expected? checkOnly?>` | Monaco with live type errors and a Problems panel. Run compiles the code and runs it in the JS worker. `errors={[lines]}` lists the lines that are **meant** to have type errors (the test checks exactly those lines error). `checkOnly` hides Run (TSX, declarations). A `.tsx` file name type-checks with React's types. |
+| `<TSExercise id title hints? variant?>` | Blocks: ````ts starter````, ````ts solution````, and at least one of ````ts types```` (hidden type checks appended to the student's code) and ````js tests```` (run on the compiled code). Passing = no type errors, every type check holds, every test passes. Use ````tsx```` blocks for React (type checks only). |
+
+**Hidden type checks.** Code in the `types` block must compile, and a `// @ts-expect-error reason` line must really be an error: if the student's types are too loose (`any`), the directive is "unused", which fails the check and shows the reason. Exercises are scripts that share the checks' scope: declare things at the top level.
+
+**TS questions.** `SpotTheBug`, `FillBlanks` and `Predict` accept ````ts````/````tsx```` blocks. A TS `SpotTheBug`'s `bug` lines must be exactly where the compiler reports errors (add `errorElsewhere` when the cause is on a different line than the error); filled-in TS blanks must type-check; Predict code is compiled before it runs.
+
 ## Questions, depth and visualizers
 
 Every lesson mixes **at least 3 question types** (the content test enforces it). Put questions anywhere, or group them in `<Practice title="…">`, which shows a "3 of 5 done" bar. Each question needs an `id` that is unique in the lesson; progress, XP and badges are keyed by it.

@@ -1,0 +1,195 @@
+---
+id: typed-context
+title: Typing context
+summary: Type a context's value, avoid the undefined-default trap, and wrap it in a typed custom hook that throws a clear error outside its provider.
+minutes: 14
+tags: [TypeScript, React, createContext, useContext, context types, provider, custom hook]
+---
+
+`createContext<T>(defaultValue)` is generic too. The question is what to use as the default when the real value only exists inside a provider.
+
+<Concept name="The null default and a guarding hook" id="pattern">
+
+<TSPlayground file="CartContext.tsx" errors={[25]} checkOnly>
+
+```tsx
+import { createContext, useContext, useState, type ReactNode } from "react";
+
+type CartContextValue = {
+  count: number;
+  add: () => void;
+};
+
+const CartContext = createContext<CartContextValue | null>(null);
+
+export function CartProvider({ children }: { children: ReactNode }) {
+  const [count, setCount] = useState(0);
+  const add = () => setCount((c) => c + 1);
+  return <CartContext value={{ count, add }}>{children}</CartContext>;
+}
+
+export function useCart(): CartContextValue {
+  const value = useContext(CartContext);
+  if (!value) throw new Error("useCart must be used inside <CartProvider>");
+  return value;                                   // narrowed: CartContextValue
+}
+
+function Badge() {
+  const { count } = useCart();                    // no null check needed here
+  const raw = useContext(CartContext);
+  return <span>{count} {raw.count}</span>;        // error: raw may be null
+}
+```
+
+</TSPlayground>
+
+1. Type the context as `T | null` with a `null` default: honest, since there's no value outside a provider.
+2. A custom hook checks for `null` once and throws a helpful error; its return type is plain `T`.
+3. Components call the hook, never `useContext(CartContext)` directly.
+
+</Concept>
+
+<Concept name="Why not a fake default?" id="fake">
+
+```tsx file=bad.tsx
+const CartContext = createContext<CartContextValue>({ count: 0, add: () => {} });
+```
+
+It type-checks, but a component rendered outside the provider silently gets the fake value: the badge shows 0 forever, and "Add" does nothing. The `null` default plus the throwing hook turns that silent bug into an immediate, clear error. A real default only makes sense when it's genuinely useful (a theme context that defaults to `"light"`).
+
+</Concept>
+
+<HowItWorks title="Typing the value object">
+
+The value type is just an object type, so you can derive it: `type CartContextValue = ReturnType<typeof useCartState>` if a custom hook builds the value, or list it explicitly when it's the context's public API (explicit is clearer for teammates). If the value is rebuilt on every render, wrap it in `useMemo` for performance; the type doesn't change.
+
+</HowItWorks>
+
+<Practice>
+
+<FillBlanks
+  id="blanks-context"
+  prompt="Fill in the blanks to create a typed theme context with a real default."
+  explain={"The type argument lists the allowed values, and `\"light\"` is a genuinely useful default."}
+>
+
+```tsx
+import { createContext } from "react";
+
+type Theme = "light" | "dark";
+const ThemeContext = createContext<__[Theme]__>(__["light"]__);
+```
+
+</FillBlanks>
+
+<SortBuckets
+  id="buckets-context-default"
+  prompt="Real default, or null plus a guarding hook?"
+  buckets={["A real default is fine", "Use null + a hook that throws"]}
+  items={[
+    ["Theme (light unless a provider says otherwise)", 0],
+    ["The cart and its actions", 1],
+    ["The signed-in user and logout function", 1],
+    ["The UI language (English by default)", 0],
+  ]}
+  explain="If the app can work without a provider, a default is fine. If the value only makes sense inside a provider, make its absence an error."
+/>
+
+<Choice
+  id="choice-use-cart-return"
+  q="What should `useCart()`'s return type be?"
+  options={["`CartContextValue | null`", "`CartContextValue`, after it throws on null", "`any`", "`unknown`"]}
+  answer={1}
+  explain="The hook handles the null case once, so every caller gets a plain value."
+/>
+
+</Practice>
+
+<TSExercise
+  id="typed-user-context"
+  title="A typed UserContext"
+  hints={[
+    "`const UserContext = createContext<UserContextValue | null>(null);`",
+    "`function useUser(): UserContextValue { const v = useContext(UserContext); if (!v) throw new Error(\"…\"); return v; }`",
+  ]}
+>
+
+Type the user context the safe way: the context is `UserContextValue | null` with a `null` default, and `useUser()` throws outside the provider and returns a plain `UserContextValue`.
+
+```tsx starter
+import { createContext, useContext, useState, type ReactNode } from "react";
+
+type User = { id: number; name: string };
+type UserContextValue = { user: User | null; signIn: (user: User) => void; signOut: () => void };
+
+const UserContext = createContext(null);
+
+export function UserProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<User | null>(null);
+  const value = { user, signIn: setUser, signOut: () => setUser(null) };
+  return <UserContext value={value}>{children}</UserContext>;
+}
+
+export function useUser() {
+  return useContext(UserContext);
+}
+```
+
+```tsx types
+function Greeting() {
+  const { user, signOut } = useUser();
+  return <p onClick={signOut}>{user ? user.name : "Guest"}</p>;
+}
+function SignIn() {
+  const { signIn } = useUser();
+  // @ts-expect-error signIn needs a full user
+  signIn({ name: "Ada" });
+  return null;
+}
+```
+
+```tsx solution
+import { createContext, useContext, useState, type ReactNode } from "react";
+
+type User = { id: number; name: string };
+type UserContextValue = { user: User | null; signIn: (user: User) => void; signOut: () => void };
+
+const UserContext = createContext<UserContextValue | null>(null);
+
+export function UserProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<User | null>(null);
+  const value = { user, signIn: setUser, signOut: () => setUser(null) };
+  return <UserContext value={value}>{children}</UserContext>;
+}
+
+export function useUser(): UserContextValue {
+  const value = useContext(UserContext);
+  if (!value) throw new Error("useUser must be used inside <UserProvider>");
+  return value;
+}
+```
+
+</TSExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "Why `createContext<CartValue | null>(null)` instead of a fake default object?",
+      options: ["It's required", "Using it outside the provider becomes a clear error instead of a silent bug", "It's faster", "Fake defaults don't type-check"],
+      answer: 1,
+      explain: "With the guarding hook, the mistake shows up immediately.",
+    },
+    {
+      q: "Where should the `null` check live?",
+      options: ["In every component", "Once, in a custom hook like `useCart()`", "In the provider", "Nowhere"],
+      answer: 1,
+      explain: "Components then get a plain value.",
+    },
+    {
+      q: "When is a real default value appropriate?",
+      options: ["Never", "When the app works fine without a provider, e.g. a light theme", "For carts", "For signed-in users"],
+      answer: 1,
+      explain: "Otherwise prefer null + a throwing hook.",
+    },
+  ]}
+/>

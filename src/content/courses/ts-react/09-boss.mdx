@@ -1,0 +1,318 @@
+---
+id: boss
+title: "Boss challenge: the TypeScript track"
+summary: Five challenges that pull together the whole TypeScript track, from generics and discriminated unions to typed React components. Defeat them all to unlock your certificate.
+minutes: 40
+kind: boss
+tags: [boss, challenge, TypeScript, generics, utility types, discriminated unions, type guards, React]
+---
+
+The final challenge of the TypeScript track. Each one mixes ideas from several courses. Use hints, look back at lessons, try as often as you like. When every challenge is defeated, the track is complete and your TypeScript certificate unlocks.
+
+<BossChallenge>
+
+<TSExercise
+  id="boss-ts-orders"
+  title="Order events"
+  hints={[
+    "A discriminated union on `type`: `placed` (with `items: CartLine[]`), `paid` (with `amount: number`), `shipped` (with `tracking: string`).",
+    "In `describe`, switch on `event.type`; in `default`, call `assertNever(event)`.",
+    "Totals: `event.items.reduce((s, l) => s + l.price * l.qty, 0)`.",
+  ]}
+>
+
+Model `OrderEvent` as a discriminated union of **placed** (`items: CartLine[]`), **paid** (`amount: number`) and **shipped** (`tracking: string`). Then write an exhaustive `describe(event)` that returns `Placed: 3 items`, `Paid: $12.00` or `Shipped: TRACK-1`.
+
+```ts starter
+type CartLine = { name: string; price: number; qty: number };
+type OrderEvent = any;
+
+function assertNever(value: never): never {
+  throw new Error("Unhandled event: " + JSON.stringify(value));
+}
+
+function describe(event: OrderEvent): string {
+  return "";
+}
+```
+
+```ts types
+const placed: OrderEvent = { type: "placed", items: [{ name: "Tea", price: 2, qty: 3 }] };
+const s: string = describe({ type: "paid", amount: 12 });
+// @ts-expect-error a paid event needs an amount
+describe({ type: "paid" });
+// @ts-expect-error there's no "refunded" event
+describe({ type: "refunded", amount: 5 });
+// @ts-expect-error shipped events carry a tracking code, not items
+const wrong: OrderEvent = { type: "shipped", items: [] };
+```
+
+```js tests
+test("describes each event", () => {
+  expect(describe({ type: "placed", items: [{ name: "Tea", price: 2, qty: 3 }] })).toBe("Placed: 3 items");
+  expect(describe({ type: "paid", amount: 12 })).toBe("Paid: $12.00");
+  expect(describe({ type: "shipped", tracking: "TRACK-1" })).toBe("Shipped: TRACK-1");
+});
+
+test("an unknown event throws", () => {
+  expect(() => describe({ type: "lost" })).toThrow();
+});
+```
+
+```ts solution
+type CartLine = { name: string; price: number; qty: number };
+type OrderEvent =
+  | { type: "placed"; items: CartLine[] }
+  | { type: "paid"; amount: number }
+  | { type: "shipped"; tracking: string };
+
+function assertNever(value: never): never {
+  throw new Error("Unhandled event: " + JSON.stringify(value));
+}
+
+function describe(event: OrderEvent): string {
+  switch (event.type) {
+    case "placed":
+      return `Placed: ${event.items.reduce((n, l) => n + l.qty, 0)} items`;
+    case "paid":
+      return `Paid: $${event.amount.toFixed(2)}`;
+    case "shipped":
+      return `Shipped: ${event.tracking}`;
+    default:
+      return assertNever(event);
+  }
+}
+```
+
+</TSExercise>
+
+<TSExercise
+  id="boss-ts-index"
+  title="A generic index"
+  hints={[
+    "`function indexBy<T, K extends keyof T>(items: T[], key: K): Record<string, T>`",
+    "Use `String(item[key])` as the object key.",
+  ]}
+>
+
+Write a generic `indexBy(items, key)` that returns an object mapping each item's `key` value (as a string) to the item. Only real keys of the items are allowed, and the values keep the full item type.
+
+```ts starter
+function indexBy(items: any[], key: string): any {
+  return {};
+}
+```
+
+```ts types
+const menu = [{ sku: "c1", name: "Coffee", price: 4 }];
+const bySku = indexBy(menu, "sku");
+const price: number | undefined = bySku["c1"]?.price;
+// @ts-expect-error "id" isn't a key of the items
+indexBy(menu, "id");
+// @ts-expect-error items have no "calories"
+bySku["c1"]?.calories;
+```
+
+```js tests
+test("indexes items by a key", () => {
+  const menu = [{ sku: "c1", name: "Coffee" }, { sku: "t1", name: "Tea" }];
+  expect(indexBy(menu, "sku")).toEqual({ c1: menu[0], t1: menu[1] });
+});
+```
+
+```ts solution
+function indexBy<T, K extends keyof T>(items: T[], key: K): Record<string, T> {
+  const out: Record<string, T> = {};
+  for (const item of items) out[String(item[key])] = item;
+  return out;
+}
+```
+
+</TSExercise>
+
+<TSExercise
+  id="boss-ts-patch"
+  title="Safe updates"
+  hints={[
+    "`type ProductPatch = Partial<Omit<Product, \"id\">>;`",
+    "`function applyPatch(product: Readonly<Product>, patch: ProductPatch): Product { return { ...product, ...patch }; }`",
+  ]}
+>
+
+Define `ProductPatch`: any subset of a `Product`'s fields **except** `id`. Then type `applyPatch(product, patch)` so it takes a read-only product and returns a new one.
+
+```ts starter
+type Product = { id: number; name: string; price: number; tags: string[] };
+type ProductPatch = any;
+
+function applyPatch(product: any, patch: ProductPatch) {
+  return { ...product, ...patch };
+}
+```
+
+```ts types
+const tea: Product = { id: 1, name: "Tea", price: 2, tags: [] };
+const cheaper: Product = applyPatch(tea, { price: 1.5 });
+applyPatch(tea, {});
+// @ts-expect-error the id can't be patched
+applyPatch(tea, { id: 2 });
+// @ts-expect-error the price is a number
+applyPatch(tea, { price: "cheap" });
+```
+
+```js tests
+test("returns a new, updated product", () => {
+  const tea = { id: 1, name: "Tea", price: 2, tags: [] };
+  const next = applyPatch(tea, { price: 1.5 });
+  expect(next).toEqual({ id: 1, name: "Tea", price: 1.5, tags: [] });
+  expect(tea.price).toBe(2);
+});
+```
+
+```ts solution
+type Product = { id: number; name: string; price: number; tags: string[] };
+type ProductPatch = Partial<Omit<Product, "id">>;
+
+function applyPatch(product: Readonly<Product>, patch: ProductPatch): Product {
+  return { ...product, ...patch };
+}
+```
+
+</TSExercise>
+
+<TSExercise
+  id="boss-ts-component"
+  title="A typed, generic Tabs component"
+  hints={[
+    "`type TabsProps<V extends string> = { tabs: { value: V; label: string }[]; value: V; onChange: (value: V) => void; children: ReactNode };`",
+    "`function Tabs<V extends string>({ tabs, value, onChange, children }: TabsProps<V>)`",
+    "Use `aria-selected={tab.value === value}` on each tab button.",
+  ]}
+>
+
+Type `Tabs` so it's generic over the tab values: `tabs` lists `{ value, label }`, `value` is the selected one, `onChange` receives one of the tab values (not just any string), and `children` is any content.
+
+```tsx starter
+import type { ReactNode } from "react";
+
+export function Tabs({ tabs, value, onChange, children }: any) {
+  return (
+    <div>
+      <div role="tablist">
+        {tabs.map((tab: any) => (
+          <button key={tab.value} role="tab" aria-selected={tab.value === value} onClick={() => onChange(tab.value)}>
+            {tab.label}
+          </button>
+        ))}
+      </div>
+      <div role="tabpanel">{children}</div>
+    </div>
+  );
+}
+```
+
+```tsx types
+type Section = "details" | "reviews";
+declare function setSection(s: Section): void;
+const tabs: { value: Section; label: string }[] = [
+  { value: "details", label: "Details" },
+  { value: "reviews", label: "Reviews" },
+];
+const ok = <Tabs tabs={tabs} value="details" onChange={(s) => setSection(s)}><p>…</p></Tabs>;
+// @ts-expect-error "shipping" isn't one of the tabs
+const badValue = <Tabs tabs={tabs} value="shipping" onChange={setSection}><p>…</p></Tabs>;
+// @ts-expect-error onChange receives a Section, not a number
+const badChange = <Tabs tabs={tabs} value="details" onChange={(n: number) => n}><p>…</p></Tabs>;
+// @ts-expect-error children is required
+const noChildren = <Tabs tabs={tabs} value="details" onChange={setSection} />;
+```
+
+```tsx solution
+import type { ReactNode } from "react";
+
+type TabsProps<V extends string> = {
+  tabs: { value: V; label: string }[];
+  value: V;
+  onChange: (value: V) => void;
+  children: ReactNode;
+};
+
+export function Tabs<V extends string>({ tabs, value, onChange, children }: TabsProps<V>) {
+  return (
+    <div>
+      <div role="tablist">
+        {tabs.map((tab) => (
+          <button key={tab.value} role="tab" aria-selected={tab.value === value} onClick={() => onChange(tab.value)}>
+            {tab.label}
+          </button>
+        ))}
+      </div>
+      <div role="tabpanel">{children}</div>
+    </div>
+  );
+}
+```
+
+</TSExercise>
+
+<SpotTheBug
+  id="boss-ts-bug"
+  bug={[8, 12]}
+  prompt="Two type errors hide in this file. Click either line."
+  explain={"Line 8: `find` may return undefined, so `.price` needs a check. Line 12: the `\"refund\"` action isn't part of the union."}
+>
+
+```ts
+type Line = { id: number; price: number; qty: number };
+type Action = { type: "add"; line: Line } | { type: "remove"; id: number };
+
+const lines: Line[] = [{ id: 1, price: 4, qty: 1 }];
+
+function priceOf(id: number): number {
+  const line = lines.find((l) => l.id === id);
+  return line.price;
+}
+
+const a: Action = { type: "remove", id: 1 };
+const b: Action = { type: "refund", id: 1 };
+```
+
+</SpotTheBug>
+
+<MatchPairs
+  id="boss-ts-match"
+  prompt="Match each TypeScript tool with its job."
+  columns={["Tool", "Job"]}
+  pairs={[
+    ["Generics", "Keep the caller's type flowing through a function"],
+    ["Discriminated union", "Model one of several shapes with a tag"],
+    ["Type guard (`v is T`)", "Narrow unknown data after a check"],
+    ["`satisfies`", "Check a value without widening its type"],
+    ["`Omit` / `Partial`", "Derive a variation of an existing type"],
+  ]}
+/>
+
+</BossChallenge>
+
+<Quiz
+  questions={[
+    {
+      q: "Which is the safest type for data parsed from JSON before validation?",
+      options: ["`any`", "`unknown`", "`object`", "The expected type, via `as`"],
+      answer: 1,
+      explain: "It forces a check (a guard or a schema) before use.",
+    },
+    {
+      q: "What makes a `switch` over a union exhaustive?",
+      options: ["A `default` that passes the value to a `never` parameter", "Sorting the cases", "Using if/else instead", "Nothing can"],
+      answer: 0,
+      explain: "A forgotten case leaves a non-never type there, which is an error.",
+    },
+    {
+      q: "Which React values need explicit types?",
+      options: ["Component props", "`useState<Item[]>([])` for an empty list", "Inline event handler parameters", "Separate handler functions"],
+      answer: [0, 1, 3],
+      explain: "Inline handlers get their types from the prop.",
+    },
+  ]}
+/>
