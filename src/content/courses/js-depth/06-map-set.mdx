@@ -1,0 +1,275 @@
+---
+id: map-set
+title: Map & Set
+summary: Store key–value pairs with any kind of key in a Map, keep unique values in a Set, and know when to use them over objects and arrays.
+minutes: 13
+tags: [Map, Set, WeakMap, unique values, dictionary, iteration, Object.fromEntries]
+---
+
+Objects and arrays cover most needs, but two built-ins do some jobs better: a **Map** is a dictionary whose keys can be anything, and a **Set** is a collection where every value appears only once.
+
+<Concept name="Map basics" id="map-basics">
+
+A Map stores key–value pairs, with `set`, `get`, `has` and `size`.
+
+<Playground file="map.js" expected={["5 false 2"]}>
+
+```js
+const stock = new Map();
+stock.set("coffee", 5);
+stock.set("tea", 0);
+
+console.log(stock.get("coffee"), stock.has("milk"), stock.size);
+```
+
+</Playground>
+</Concept>
+
+<Concept name="Any value can be a key" id="map-keys">
+
+Unlike object keys, which are always strings, Map keys can be numbers, objects, anything.
+
+<Playground file="object-keys.js" expected={["10", "1 one"]}>
+
+```js
+const product = { id: 1 };
+const views = new Map([[product, 10]]);
+console.log(views.get(product));
+
+const labels = new Map([[1, "one"]]);
+console.log(labels.size, labels.get(1));   // the key is the number 1
+```
+
+</Playground>
+</Concept>
+
+<Concept name="Looping over a Map" id="map-loop">
+
+A Map remembers insertion order, and `for...of` gives you `[key, value]` pairs.
+
+<Playground file="map-loop.js" expected={["coffee 4", "tea 2", "[ 'coffee', 'tea' ]", "Map(2) { 'coffee' => 4, 'tea' => 2 }"]}>
+
+```js
+const prices = new Map([
+  ["coffee", 4],
+  ["tea", 2],
+]);
+
+for (const [name, price] of prices) {
+  console.log(name, price);
+}
+console.log([...prices.keys()]);
+console.log(prices);
+```
+
+</Playground>
+</Concept>
+
+<Concept name="Set: unique values" id="set-basics" react>
+
+A Set ignores duplicates, which makes "remove duplicates" a one-liner.
+
+<Playground file="set.js" expected={["2 true", "[ 'hot', 'coffee' ]", "[ 1, 2, 3 ]"]}>
+
+```js
+const tags = new Set(["hot", "coffee", "hot"]);
+console.log(tags.size, tags.has("coffee"));
+console.log([...tags]);
+
+const ids = [1, 2, 2, 3, 1];
+console.log([...new Set(ids)]);
+```
+
+</Playground>
+</Concept>
+
+<Concept name="Converting to and from objects" id="map-objects">
+
+`Object.entries` turns an object into pairs for a Map, and `Object.fromEntries` turns pairs back into an object (for JSON, say).
+
+<Playground file="convert.js" expected={["{ coffee: 4 }", "{\"coffee\":4}"]}>
+
+```js
+const map = new Map(Object.entries({ coffee: 4 }));
+const plain = Object.fromEntries(map);
+
+console.log(plain);
+console.log(JSON.stringify(plain));   // JSON.stringify(map) would give "{}"
+```
+
+</Playground>
+</Concept>
+
+<HowItWorks title="Map, object, Set or array?">
+
+- **Object**: a thing with known fields (`{ name, price }`), or JSON data.
+- **Map**: a lookup table that grows and shrinks, especially with non-string keys or frequent adds and deletes.
+- **Array**: an ordered list where duplicates are fine.
+- **Set**: "is this value in the group?" checks, and removing duplicates.
+
+`set.has(x)` and `map.get(k)` stay fast no matter how big they get, while `array.includes(x)` checks every item.
+
+</HowItWorks>
+
+<GoDeeper title="WeakMap and WeakSet">
+
+A **WeakMap** only accepts objects as keys, and doesn't keep them alive: when nothing else refers to a key object, it and its value can be cleaned up. That makes it ideal for attaching extra data or caches to objects you don't own.
+
+<Playground file="weakmap.js" expected={["Tea! Tea!"]}>
+
+```js
+const cache = new WeakMap();
+
+function expensiveLabel(item) {
+  if (!cache.has(item)) cache.set(item, `${item.name}!`);
+  return cache.get(item);
+}
+
+const tea = { name: "Tea" };
+console.log(expensiveLabel(tea), expensiveLabel(tea));
+```
+
+</Playground>
+
+WeakMaps can't be looped over or counted, because their contents can disappear at any time.
+
+</GoDeeper>
+
+<Practice>
+
+<Predict
+  id="predict-map-count"
+  answer={["3 2", "2"]}
+  explain={"The loop counts visits per page: home three times and cart once, so the Map has two keys. The Set drops the duplicate \"a\"."}
+>
+
+```js
+const visits = new Map();
+for (const page of ["home", "cart", "home", "home"]) {
+  visits.set(page, (visits.get(page) ?? 0) + 1);
+}
+
+console.log(visits.get("home"), visits.size);
+console.log(new Set(["a", "b", "a"]).size);
+```
+
+</Predict>
+
+<MatchPairs
+  id="match-map-set"
+  prompt="Match each call with what it does."
+  columns={["Call", "Does"]}
+  pairs={[
+    ["`map.set(k, v)`", "Stores a value under a key"],
+    ["`map.get(k)`", "Reads the value for a key"],
+    ["`map.has(k)`", "Checks whether a key exists"],
+    ["`map.delete(k)`", "Removes a key and its value"],
+    ["`set.add(v)`", "Adds a value if it isn't there yet"],
+    ["`set.size`", "Counts the unique values"],
+  ]}
+/>
+
+<FillBlanks
+  id="blanks-unique"
+  prompt="Fill in the blanks to count the unique tags (the answer is 3)."
+  explain="A Set keeps one of each value; spreading it back into an array lets you use `length`."
+>
+
+```js
+const tags = ["hot", "iced", "hot", "decaf"];
+const unique = [...new __[Set]__(tags)];
+console.log(unique.__[length]__);
+```
+
+</FillBlanks>
+
+<Choice
+  id="choice-structure"
+  q="You need to remember how many times each product object was viewed. Products are objects, and new ones appear all the time. Which structure fits best?"
+  options={["An array of numbers", "A Map with the product objects as keys", "A Set of products", "A plain object with the products as keys"]}
+  answer={1}
+  explain={"A Map can use the objects themselves as keys. A plain object would turn every product into the same string key, \"[object Object]\"."}
+  hint="What happens when an object is used as a plain object's key?"
+/>
+
+</Practice>
+
+<Exercise
+  id="count-names"
+  title="Count with a Map"
+  hints={[
+    "Start with `const counts = new Map();`.",
+    "For each name, set it to the old count plus one: `(counts.get(name) ?? 0) + 1`.",
+  ]}
+>
+
+Write `countNames(names)` that returns a **Map** from each name to how many times it appears in the array.
+
+```js starter
+function countNames(names) {
+  return {};
+}
+
+console.log(countNames(["Tea", "Coffee", "Tea"]));
+```
+
+```js tests
+test("returns a Map", () => {
+  expect(countNames([]) instanceof Map).toBe(true);
+});
+
+test("counts each name", () => {
+  const counts = countNames(["Tea", "Coffee", "Tea"]);
+  expect(counts.get("Tea")).toBe(2);
+  expect(counts.get("Coffee")).toBe(1);
+  expect(counts.size).toBe(2);
+});
+
+test("an empty list gives an empty Map", () => {
+  expect(countNames([]).size).toBe(0);
+});
+```
+
+```js solution
+function countNames(names) {
+  const counts = new Map();
+  for (const name of names) {
+    counts.set(name, (counts.get(name) ?? 0) + 1);
+  }
+  return counts;
+}
+
+console.log(countNames(["Tea", "Coffee", "Tea"]));
+```
+
+</Exercise>
+
+<Quiz
+  questions={[
+    {
+      q: "What does this print?",
+      code: "console.log(new Set([1, 1, 2, 2, 3]).size);",
+      options: ["`5`", "`3`", "`2`", "`1`"],
+      answer: 1,
+      explain: "A Set only keeps unique values: 1, 2 and 3.",
+    },
+    {
+      q: "Why does `JSON.stringify(new Map([[\"a\", 1]]))` give `\"{}\"`?",
+      options: ["The Map is empty", "JSON doesn't know Maps; convert with `Object.fromEntries` first", "It's a bug in your code", "Maps can only hold numbers"],
+      answer: 1,
+      explain: "JSON only has plain objects and arrays.",
+    },
+    {
+      q: "Which can a Map use as a key?",
+      options: ["Strings", "Numbers", "Objects", "Functions"],
+      answer: [0, 1, 2, 3],
+      explain: "Any value at all can be a Map key.",
+    },
+    {
+      q: "Which is the quickest way to remove duplicates from an array?",
+      options: ["`arr.filter(Boolean)`", "`[...new Set(arr)]`", "`arr.sort()`", "`Object.keys(arr)`"],
+      answer: 1,
+      explain: "A Set drops duplicates, and spreading it gives an array back.",
+    },
+  ]}
+/>

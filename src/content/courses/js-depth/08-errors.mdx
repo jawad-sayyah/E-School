@@ -1,0 +1,379 @@
+---
+id: errors
+title: Error handling
+summary: The kinds of errors, throwing your own, finally, custom error classes, error causes and errors in async code.
+minutes: 15
+tags: [errors, throw, try, catch, finally, Error, TypeError, RangeError, custom errors, cause, async errors]
+---
+
+Errors aren't failures of your app; they're messages. Good code throws clear errors, catches them where it can actually do something, and never hides them.
+
+<Concept name="Kinds of errors" id="error-kinds">
+
+Built-in errors have a `name` that tells you what went wrong.
+
+<Playground file="kinds.js" expected={["TypeError", "ReferenceError", "SyntaxError", "RangeError"]}>
+
+```js
+const attempts = [
+  () => null.qty,           // using a value the wrong way
+  () => missingVariable,    // a name that doesn't exist
+  () => JSON.parse("{"),    // text that can't be parsed
+  () => (1).toFixed(200),   // a number out of range
+];
+
+for (const attempt of attempts) {
+  try {
+    attempt();
+  } catch (err) {
+    console.log(err.name);
+  }
+}
+```
+
+</Playground>
+</Concept>
+
+<Concept name="throw" id="throw">
+
+`throw` stops the function and sends an error to the nearest `catch`. Throw `Error` objects, not strings, so you get a message and a stack trace.
+
+<Playground file="throw.js" expected={["Quantity can't be negative"]}>
+
+```js
+function setQty(qty) {
+  if (qty < 0) throw new Error("Quantity can't be negative");
+  return qty;
+}
+
+try {
+  setQty(-1);
+} catch (err) {
+  console.log(err.message);
+}
+```
+
+</Playground>
+</Concept>
+
+<Concept name="finally" id="finally" react>
+
+`finally` always runs, whether the code worked, threw, or returned early. It's the place for cleanup, like hiding a spinner.
+
+<Playground file="finally.js" expected={["loading", "failed: offline", "hide spinner", "fallback"]}>
+
+```js
+function load() {
+  try {
+    console.log("loading");
+    throw new Error("offline");
+  } catch (err) {
+    console.log("failed:", err.message);
+    return "fallback";
+  } finally {
+    console.log("hide spinner");   // runs before the function returns
+  }
+}
+
+console.log(load());
+```
+
+</Playground>
+</Concept>
+
+<Concept name="Custom error classes" id="custom-errors">
+
+Extend `Error` to make your own error types, with extra data, that you can tell apart with `instanceof`.
+
+<Playground file="custom.js" expected={["true OutOfStockError Tea is out of stock"]}>
+
+```js
+class OutOfStockError extends Error {
+  constructor(product) {
+    super(`${product} is out of stock`);
+    this.name = "OutOfStockError";
+    this.product = product;
+  }
+}
+
+try {
+  throw new OutOfStockError("Tea");
+} catch (err) {
+  console.log(err instanceof OutOfStockError, err.name, err.message);
+}
+```
+
+</Playground>
+</Concept>
+
+<Concept name="Wrapping errors with cause" id="error-cause">
+
+When you catch a low-level error and throw a clearer one, pass the original as `cause` so the details aren't lost.
+
+<Playground file="cause.js" expected={["Could not load the cart", "SyntaxError"]}>
+
+```js
+try {
+  try {
+    JSON.parse("{");
+  } catch (err) {
+    throw new Error("Could not load the cart", { cause: err });
+  }
+} catch (err) {
+  console.log(err.message);
+  console.log(err.cause.name);
+}
+```
+
+</Playground>
+</Concept>
+
+<Concept name="Errors in async code" id="async-errors" react>
+
+A rejected promise is caught with `.catch()` or with `try`/`catch` around an `await`.
+
+<Playground file="async-errors.js" expected={["caught: Server down", "caught again: Server down"]}>
+
+```js
+async function save() {
+  throw new Error("Server down");
+}
+
+save().catch((err) => console.log("caught:", err.message));
+
+try {
+  await save();
+} catch (err) {
+  console.log("caught again:", err.message);
+}
+```
+
+</Playground>
+</Concept>
+
+<Concept name="Don't swallow errors" id="swallowed" warn>
+
+An empty `catch` hides bugs: the code fails silently and you find out much later, somewhere else.
+
+<Compare
+  wrong="The error vanishes; loadCart quietly returns undefined"
+  right="The error is logged, and the caller gets a safe value"
+  wrongFile="load.js"
+  rightFile="load.js"
+>
+
+```js
+async function loadCart() {
+  try {
+    const res = await fetch("/api/cart");
+    return await res.json();
+  } catch (err) {}
+}
+```
+
+```js
+async function loadCart() {
+  try {
+    const res = await fetch("/api/cart");
+    return await res.json();
+  } catch (err) {
+    console.error("Could not load the cart:", err);
+    return [];
+  }
+}
+```
+
+</Compare>
+</Concept>
+
+<GoDeeper title="Where to catch errors">
+
+Catch an error **where you can do something useful** about it: show a message, retry, or use a fallback. Everywhere else, let it travel up.
+
+- **Low-level functions** (parse, fetch, calculate) should usually throw clear errors, not catch them.
+- **The edge of a feature** (the click handler, the page that loads data) catches them and shows the user something helpful.
+- **In React**, an *error boundary* catches errors thrown while rendering, so one broken component doesn't blank the whole page. You'll build one in How React Works.
+
+And always include enough detail in the message to fix the bug: `"Quantity must be 1–99, got -1"` beats `"Invalid input"`.
+
+</GoDeeper>
+
+<Practice>
+
+<Predict
+  id="predict-finally-return"
+  answer={["finally runs", "try"]}
+  explain="`finally` runs before the function actually returns, even when `try` has already reached `return`."
+>
+
+```js
+function f() {
+  try {
+    return "try";
+  } finally {
+    console.log("finally runs");
+  }
+}
+
+console.log(f());
+```
+
+</Predict>
+
+<MatchPairs
+  id="match-error-kinds"
+  prompt="Match each error with what usually causes it."
+  columns={["Error", "Usual cause"]}
+  pairs={[
+    ["`TypeError`", "Using a value the wrong way, like `null.qty`"],
+    ["`ReferenceError`", "Using a name that doesn't exist"],
+    ["`SyntaxError`", "Code or JSON that can't be parsed"],
+    ["`RangeError`", "A number outside the allowed range"],
+  ]}
+/>
+
+<SpotTheBug
+  id="bug-swallow"
+  bug={5}
+  prompt="When the network fails, this returns `undefined` and nobody finds out why. Click the problem line."
+  explain="The empty `catch` swallows the error. Log it, rethrow it, or return a safe fallback like `[]`."
+>
+
+```js
+async function loadCart() {
+  try {
+    const res = await fetch("/api/cart");
+    return await res.json();
+  } catch (err) {}
+}
+```
+
+```js fixed
+async function loadCart() {
+  try {
+    const res = await fetch("/api/cart");
+    return await res.json();
+  } catch (err) {
+    console.error("Could not load the cart:", err.message);
+    return [];
+  }
+}
+```
+
+</SpotTheBug>
+
+<CodeReview
+  id="review-validate"
+  answer={1}
+  prompt="Which `checkQty(qty)` would you approve?"
+  reasons={[
+    "Throwing a string loses the stack trace and the error type, and `err.message` will be undefined in the catch.",
+    "A real `RangeError` with a message that says what was expected and what arrived. Callers can catch it by type.",
+    "Returning -1 means every caller must remember to check for it; forget once and -1 becomes a quantity.",
+  ]}
+>
+
+```js
+function checkQty(qty) {
+  if (qty < 1) throw "bad qty";
+  return qty;
+}
+```
+
+```js
+function checkQty(qty) {
+  if (qty < 1) throw new RangeError(`Quantity must be at least 1, got ${qty}`);
+  return qty;
+}
+```
+
+```js
+function checkQty(qty) {
+  if (qty < 1) return -1;
+  return qty;
+}
+```
+
+</CodeReview>
+
+</Practice>
+
+<Exercise
+  id="parse-qty"
+  title="Validate a quantity"
+  hints={[
+    "Convert with `Number(input)`, then check `Number.isNaN` first.",
+    "Throw `new Error(\"Quantity must be a number\")` for text that isn't a number.",
+    "Throw `new RangeError(\"Quantity must be between 1 and 99\")` when it's out of range.",
+  ]}
+>
+
+Write `parseQty(input)`. It takes text from an input and returns the quantity as a number. If the text isn't a number, throw an `Error` with the message `Quantity must be a number`. If it's below 1 or above 99, throw a `RangeError` with the message `Quantity must be between 1 and 99`.
+
+```js starter
+function parseQty(input) {
+  return Number(input);
+}
+
+console.log(parseQty("3"));
+```
+
+```js tests
+test("returns the number", () => {
+  expect(parseQty("3")).toBe(3);
+});
+
+test("rejects text that isn't a number", () => {
+  expect(() => parseQty("abc")).toThrow("Quantity must be a number");
+});
+
+test("rejects 0 with a RangeError", () => {
+  expect(() => parseQty("0")).toThrow(RangeError);
+});
+
+test("rejects 100", () => {
+  expect(() => parseQty("100")).toThrow("between 1 and 99");
+});
+```
+
+```js solution
+function parseQty(input) {
+  const qty = Number(input);
+  if (Number.isNaN(qty)) throw new Error("Quantity must be a number");
+  if (qty < 1 || qty > 99) throw new RangeError("Quantity must be between 1 and 99");
+  return qty;
+}
+
+console.log(parseQty("3"));
+```
+
+</Exercise>
+
+<Quiz
+  questions={[
+    {
+      q: "What's wrong with `throw \"Something failed\"`?",
+      options: ["Nothing", "Strings have no stack trace, name or message property", "You can only throw in async functions", "It's a syntax error"],
+      answer: 1,
+      explain: "Always throw `Error` objects (or subclasses).",
+    },
+    {
+      q: "When does a `finally` block run?",
+      options: ["Only when there was an error", "Only when there was no error", "Always, even after a return", "Never after a return"],
+      answer: 2,
+      explain: "`finally` always runs before the function exits.",
+    },
+    {
+      q: "How do you catch an error from `await save()`?",
+      options: ["You can't", "Wrap it in `try`/`catch`", "Add `.finally()`", "Use `setTimeout`"],
+      answer: 1,
+      explain: "A rejected promise throws at the `await`.",
+    },
+    {
+      q: "What is `cause` for?",
+      options: ["Making errors faster", "Keeping the original error when you throw a clearer one", "Retrying automatically", "Hiding the stack trace"],
+      answer: 1,
+      explain: "`new Error(message, { cause: original })` keeps the low-level details.",
+    },
+  ]}
+/>

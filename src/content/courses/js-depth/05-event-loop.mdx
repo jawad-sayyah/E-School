@@ -1,0 +1,295 @@
+---
+id: event-loop
+title: The event loop
+summary: How JavaScript runs one thing at a time yet handles timers, clicks and network requests, with an animated event loop.
+minutes: 18
+tags: [event loop, call stack, task queue, microtasks, setTimeout, promises, async, queueMicrotask, blocking]
+---
+
+JavaScript has **one** call stack, so it does one thing at a time. Timers, clicks and network replies wait in queues until the stack is free. The **event loop** is the rule that decides what runs next. Once you can picture it, async ordering questions become easy.
+
+<Concept name="One call stack" id="call-stack">
+
+Functions run on a stack: a call goes on top, and when it returns it comes off, so the caller continues where it left off.
+
+<Playground file="stack.js" expected={["in a", "in b", "back in a"]}>
+
+```js
+function a() {
+  console.log("in a");
+  b();                       // a waits while b runs on top of it
+  console.log("back in a");
+}
+
+function b() {
+  console.log("in b");
+}
+
+a();
+```
+
+</Playground>
+</Concept>
+
+<Concept name="Long code blocks everything" id="blocking" warn>
+
+While code is running, nothing else can: not timers, not clicks, not screen updates. A slow loop freezes the page.
+
+<Playground file="blocking.js" expected={["loop done", "timer ran after 300+ ms"]}>
+
+```js
+const start = Date.now();
+
+setTimeout(() => {
+  const waited = Date.now() - start;
+  console.log("timer ran after", waited >= 300 ? "300+ ms" : "less");
+}, 0);
+
+while (Date.now() - start < 300) {}   // busy for 300 ms
+console.log("loop done");
+```
+
+</Playground>
+</Concept>
+
+<Concept name="Tasks: timers and events" id="tasks">
+
+When a timer finishes or the user clicks, the callback goes into the **task queue**. One task runs at a time, only when the stack is empty.
+
+<Playground file="tasks.js" expected={["sync", "0 ms", "100 ms"]}>
+
+```js
+setTimeout(() => console.log("100 ms"), 100);
+setTimeout(() => console.log("0 ms"), 0);
+console.log("sync");
+```
+
+</Playground>
+</Concept>
+
+<Concept name="Microtasks: promise callbacks go first" id="microtasks" react>
+
+Promise callbacks (and code after `await`) go into the **microtask queue**, and the whole microtask queue empties before the next task.
+
+<Playground file="micro.js" expected={["start", "end", "promise", "timeout"]}>
+
+```js
+console.log("start");
+setTimeout(() => console.log("timeout"), 0);
+Promise.resolve().then(() => console.log("promise"));
+console.log("end");
+```
+
+</Playground>
+
+Step through exactly that code and watch where each callback waits:
+
+<EventLoop
+  frames={[
+    { line: 1, stack: ["script", "console.log"], out: "start", note: "The whole script runs as one piece of work on the call stack. `console.log` prints right away." },
+    { line: 2, stack: ["script", "setTimeout"], apis: ["timeout callback"], note: "`setTimeout` hands the callback to the browser's timer and returns immediately. The script doesn't wait." },
+    { line: 3, stack: ["script", "Promise.then"], apis: [], tasks: ["timeout callback"], micro: ["promise callback"], note: "The 0 ms timer is already done, so its callback joins the task queue. The resolved promise puts its callback in the microtask queue." },
+    { line: 4, stack: ["script", "console.log"], tasks: ["timeout callback"], micro: ["promise callback"], out: "end", note: "The script keeps going and prints \"end\". Both callbacks are still waiting." },
+    { stack: [], tasks: ["timeout callback"], micro: ["promise callback"], note: "The script is finished and the stack is empty. Now the event loop looks at the queues: microtasks first." },
+    { stack: ["promise callback"], tasks: ["timeout callback"], micro: [], out: "promise", note: "The promise callback moves onto the stack and runs. Every microtask runs before any task." },
+    { stack: [], tasks: ["timeout callback"], note: "The microtask queue is empty, so the loop takes ONE task from the task queue." },
+    { stack: ["timeout callback"], tasks: [], out: "timeout", note: "The timer callback finally runs, even though its delay was 0 ms." },
+    { stack: [], note: "Everything has run. The event loop now waits for the next timer, click or network reply." },
+  ]}
+>
+
+```js
+console.log("start");
+setTimeout(() => console.log("timeout"), 0);
+Promise.resolve().then(() => console.log("promise"));
+console.log("end");
+```
+
+</EventLoop>
+</Concept>
+
+<Concept name="await splits a function" id="await-splits" react>
+
+Everything after an `await` runs later, as a microtask, so the code that called the async function carries on first.
+
+<Playground file="await.js" expected={["1", "2", "3", "4"]}>
+
+```js
+async function load() {
+  console.log("2");
+  await null;               // the rest of load() waits in the microtask queue
+  console.log("4");
+}
+
+console.log("1");
+load();
+console.log("3");
+```
+
+</Playground>
+</Concept>
+
+<GoDeeper title="The event loop algorithm, and where rendering fits">
+
+The browser repeats this forever:
+
+1. Take **one** task from the task queue and run it (the first task is your script).
+2. Run **every** microtask, including any new ones added while running them.
+3. If it's time (about 60 times a second), **update the screen**: run `requestAnimationFrame` callbacks, recalculate styles and layout, and paint.
+4. Go back to 1.
+
+Two consequences:
+
+- A microtask that keeps adding microtasks starves everything: no tasks, no painting. It's as bad as an infinite loop.
+- The screen can only update **between** tasks. If a click handler runs for 2 seconds, the page is frozen for 2 seconds. Long work belongs in smaller chunks or a Web Worker. (This site runs your code in a Web Worker for exactly that reason.)
+
+</GoDeeper>
+
+<Practice>
+
+<Predict
+  id="predict-loop-order"
+  answer={["1", "6", "3", "5", "4", "2"]}
+  explain="Synchronous code first (1, 6). Then microtasks in order: the first `.then` (3) and `queueMicrotask` (5). Running 3 queues the second `.then` (4), which still runs before the timer (2), because microtasks drain completely before the next task."
+  hint="List the synchronous lines first. Then microtasks in the order they were queued. Then the timer."
+>
+
+```js
+console.log(1);
+setTimeout(() => console.log(2), 0);
+Promise.resolve()
+  .then(() => console.log(3))
+  .then(() => console.log(4));
+queueMicrotask(() => console.log(5));
+console.log(6);
+```
+
+</Predict>
+
+<SortBuckets
+  id="buckets-queues"
+  prompt="Which queue does each callback wait in?"
+  buckets={["Microtask queue", "Task queue"]}
+  items={[
+    ["`.then(fn)`", 0],
+    ["code after `await`", 0],
+    ["`queueMicrotask(fn)`", 0],
+    ["`setTimeout(fn, 0)`", 1],
+    ["`setInterval(fn, 100)`", 1],
+    ["a click handler", 1],
+  ]}
+  explain="Promise-related work is a microtask; timers and user events are tasks."
+/>
+
+<OrderLines
+  id="order-loop-steps"
+  prompt="Put the event loop's steps in order."
+  explain="One task, then all microtasks, then (maybe) a screen update, and around again."
+>
+
+```text
+Take one task from the task queue and run it
+Run every waiting microtask
+Update the screen if it's time
+Take the next task from the task queue
+```
+
+</OrderLines>
+
+<TrueFalse
+  id="tf-event-loop"
+  statements={[
+    { text: "`setTimeout(fn, 0)` runs `fn` immediately.", answer: false, explain: "It runs after the current code and all microtasks finish." },
+    { text: "JavaScript can run two of your functions at exactly the same time on one page.", answer: false, explain: "There's one call stack (Web Workers aside)." },
+    { text: "All waiting microtasks run before the next timer callback.", answer: true, explain: "The microtask queue is always emptied first." },
+    { text: "A long-running loop can delay a click handler.", answer: true, explain: "The click waits in the task queue until the stack is free." },
+  ]}
+/>
+
+</Practice>
+
+<Exercise
+  id="run-in-order"
+  title="Run async tasks one after another"
+  hints={[
+    "`Promise.all` starts every task at once; here each must wait for the one before.",
+    "Use a `for...of` loop and `await` each task inside it.",
+    "Collect each result in an array and return it.",
+  ]}
+>
+
+Write `async function runInOrder(tasks)`. `tasks` is an array of functions that return promises. Run them **one at a time**, in order, and return an array of their results.
+
+```js starter
+async function runInOrder(tasks) {
+  return Promise.all(tasks.map((task) => task()));
+}
+```
+
+```js tests
+const delayed = (ms, value, log) => () =>
+  new Promise((resolve) =>
+    setTimeout(() => {
+      log.push(value);
+      resolve(value);
+    }, ms),
+  );
+
+test("returns the results in order", async () => {
+  const log = [];
+  const results = await runInOrder([delayed(30, "a", log), delayed(5, "b", log)]);
+  expect(results).toEqual(["a", "b"]);
+});
+
+test("waits for each task before starting the next", async () => {
+  const log = [];
+  await runInOrder([delayed(30, "slow", log), delayed(5, "fast", log)]);
+  expect(log).toEqual(["slow", "fast"]);
+});
+
+test("an empty list gives an empty array", async () => {
+  expect(await runInOrder([])).toEqual([]);
+});
+```
+
+```js solution
+async function runInOrder(tasks) {
+  const results = [];
+  for (const task of tasks) {
+    results.push(await task());
+  }
+  return results;
+}
+```
+
+</Exercise>
+
+<Quiz
+  questions={[
+    {
+      q: "In what order do these print?",
+      code: "setTimeout(() => console.log(\"A\"));\nPromise.resolve().then(() => console.log(\"B\"));\nconsole.log(\"C\");",
+      options: ["A B C", "C A B", "C B A", "B C A"],
+      answer: 2,
+      explain: "Synchronous code (C), then microtasks (B), then tasks (A).",
+    },
+    {
+      q: "Why does a long loop freeze the page?",
+      options: ["The browser crashes", "The call stack is busy, so no task, click or repaint can run", "Loops are always slow", "It only freezes in old browsers"],
+      answer: 1,
+      explain: "Everything else waits until the stack is empty.",
+    },
+    {
+      q: "Where does the code after an `await` wait?",
+      options: ["The task queue", "The microtask queue", "The call stack", "The browser's timer"],
+      answer: 1,
+      explain: "Resuming an async function is a microtask.",
+    },
+    {
+      q: "Which of these are tasks (not microtasks)?",
+      options: ["A `setTimeout` callback", "A `.then` callback", "A click handler", "`queueMicrotask` callback"],
+      answer: [0, 2],
+      explain: "Timers and events are tasks; promise work is a microtask.",
+    },
+  ]}
+/>

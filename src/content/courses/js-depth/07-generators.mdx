@@ -1,0 +1,299 @@
+---
+id: generators
+title: Iterators & generators
+summary: How for...of, spread and destructuring really work, and how generator functions produce values one at a time.
+minutes: 14
+tags: [iterators, iterables, generators, yield, Symbol.iterator, lazy, for of, async generators]
+---
+
+`for...of`, spread (`[...x]`) and array destructuring all work the same way underneath: they ask a value for an **iterator** and pull items from it one at a time. **Generator functions** are the easy way to make your own.
+
+<Concept name="Iterables" id="iterables">
+
+Arrays, strings, Maps and Sets are all **iterable**: `for...of` can walk through them.
+
+<Playground file="iterables.js" expected={["T", "e", "a"]}>
+
+```js
+for (const letter of "Tea") {
+  console.log(letter);
+}
+```
+
+</Playground>
+</Concept>
+
+<Concept name="The iterator protocol" id="iterator-protocol">
+
+An iterator has a `next()` method that returns `{ value, done }`; `for...of` just calls it until `done` is true.
+
+<Playground file="protocol.js" expected={["{ value: 'a', done: false }", "{ value: 'b', done: false }", "{ value: undefined, done: true }"]}>
+
+```js
+const it = ["a", "b"][Symbol.iterator]();
+
+console.log(it.next());
+console.log(it.next());
+console.log(it.next());
+```
+
+</Playground>
+</Concept>
+
+<Concept name="function* and yield" id="generators">
+
+A generator function (`function*`) can pause at each `yield` and hand back a value; it continues from there on the next request.
+
+<Playground file="generator.js" expected={["[ 1, 2, 3 ]"]}>
+
+```js
+function* countUp() {
+  yield 1;
+  yield 2;
+  yield 3;
+}
+
+console.log([...countUp()]);
+```
+
+</Playground>
+</Concept>
+
+<Concept name="Generators are lazy" id="lazy">
+
+A generator only runs when asked for the next value, so it can even describe an endless sequence.
+
+<Playground file="ids.js" expected={["1 2 3"]}>
+
+```js
+function* ids() {
+  let id = 1;
+  while (true) yield id++;   // endless, but only runs on demand
+}
+
+const nextId = ids();
+console.log(nextId.next().value, nextId.next().value, nextId.next().value);
+```
+
+</Playground>
+</Concept>
+
+<Concept name="Make your own iterable" id="custom-iterable">
+
+Give an object a `[Symbol.iterator]` method (a generator is easiest) and `for...of` works on it.
+
+<Playground file="iterable-class.js" expected={["Coffee", "Tea"]}>
+
+```js
+class Cart {
+  items = ["Coffee", "Tea"];
+  *[Symbol.iterator]() {
+    yield* this.items;   // hand over every item of the array
+  }
+}
+
+for (const item of new Cart()) {
+  console.log(item);
+}
+```
+
+</Playground>
+</Concept>
+
+<Concept name="Spread and destructuring use iteration" id="spread-iteration">
+
+Anything iterable works with spread and array destructuring, including generators.
+
+<Playground file="destructure.js" expected={["x [ 'y', 'z' ]"]}>
+
+```js
+function* letters() {
+  yield "x";
+  yield "y";
+  yield "z";
+}
+
+const [first, ...rest] = letters();
+console.log(first, rest);
+```
+
+</Playground>
+</Concept>
+
+<GoDeeper title="Async generators and for await">
+
+An `async function*` can `await` inside and `yield` values as they arrive; you read it with `for await`. It's a neat fit for paging through an API:
+
+<Playground file="async-gen.js" expected={["page 1: 3 products", "page 2: 3 products"]}>
+
+```js
+async function* pages() {
+  for (let page = 1; page <= 2; page++) {
+    const res = await fetch("/api/products");
+    const products = await res.json();
+    yield `page ${page}: ${products.length} products`;
+  }
+}
+
+for await (const line of pages()) {
+  console.log(line);
+}
+```
+
+</Playground>
+
+</GoDeeper>
+
+<Practice>
+
+<Predict
+  id="predict-generator-pause"
+  answer={["start", "a", "1", "b", "2", "true"]}
+  explain="Calling `steps()` doesn't run anything yet. Each `next()` runs the body up to the next `yield`. The third `next()` runs to the end, so `done` is true."
+  hint="A generator body runs only between one `next()` call and the next `yield`."
+>
+
+```js
+function* steps() {
+  console.log("a");
+  yield 1;
+  console.log("b");
+  yield 2;
+}
+
+const g = steps();
+console.log("start");
+console.log(g.next().value);
+console.log(g.next().value);
+console.log(g.next().done);
+```
+
+</Predict>
+
+<TraceState
+  id="trace-next"
+  track="what `gen.next().value` returns"
+  steps={[
+    { action: "1st call of `gen.next().value`", answer: "10" },
+    { action: "2nd call", answer: "20" },
+    { action: "3rd call", answer: "undefined" },
+  ]}
+  explain="Each call resumes until the next `yield`. After the last `yield`, the generator finishes: `value` is undefined and `done` is true."
+>
+
+```js
+function* tens() {
+  yield 10;
+  yield 20;
+}
+const gen = tens();
+```
+
+</TraceState>
+
+<SortBuckets
+  id="buckets-iterable"
+  prompt="Does each value work with `for...of`?"
+  buckets={["Iterable", "Not iterable"]}
+  items={[
+    ["`[1, 2]`", 0],
+    ["`\"text\"`", 0],
+    ["`new Map()`", 0],
+    ["`new Set()`", 0],
+    ["a generator object", 0],
+    ["`{ a: 1 }`", 1],
+    ["`42`", 1],
+  ]}
+  explain="Plain objects and numbers have no `Symbol.iterator`. For an object, loop over `Object.entries(obj)` instead."
+/>
+
+<TrueFalse
+  id="tf-generators"
+  statements={[
+    { text: "Calling a generator function runs its whole body immediately.", answer: false, explain: "It returns a generator object; the body runs on `next()`." },
+    { text: "`for...of` works on plain objects like `{ a: 1 }`.", answer: false, explain: "Use `Object.entries(obj)`, which is iterable." },
+    { text: "A generator can describe an endless sequence safely.", answer: true, explain: "It's lazy: values are made only when asked for." },
+    { text: "`yield*` hands over every value of another iterable.", answer: true, explain: "`yield* [1, 2]` yields 1, then 2." },
+  ]}
+/>
+
+</Practice>
+
+<Exercise
+  id="range-generator"
+  title="A range generator"
+  hints={[
+    "Write it as `function* range(start, end, step = 1)`.",
+    "Use a `for` loop from `start` while `i < end`, adding `step`, and `yield i` each time.",
+  ]}
+>
+
+Write a generator `range(start, end, step = 1)` that yields numbers from `start` up to (not including) `end`, going up by `step`.
+
+```js starter
+function range(start, end, step = 1) {
+  return [];
+}
+
+console.log([...range(1, 4)]);
+```
+
+```js tests
+test("counts from start up to end", () => {
+  expect([...range(1, 4)]).toEqual([1, 2, 3]);
+});
+
+test("uses the step", () => {
+  expect([...range(0, 10, 5)]).toEqual([0, 5]);
+});
+
+test("is empty when start isn't below end", () => {
+  expect([...range(3, 3)]).toEqual([]);
+});
+
+test("is a generator (has a next method)", () => {
+  expect(typeof range(0, 1).next).toBe("function");
+});
+```
+
+```js solution
+function* range(start, end, step = 1) {
+  for (let i = start; i < end; i += step) {
+    yield i;
+  }
+}
+
+console.log([...range(1, 4)]);
+```
+
+</Exercise>
+
+<Quiz
+  questions={[
+    {
+      q: "What does `it.next()` return when an iterator is finished?",
+      options: ["`null`", "`{ value: undefined, done: true }`", "`false`", "It throws"],
+      answer: 1,
+      explain: "Iterators signal the end with `done: true`.",
+    },
+    {
+      q: "What does this print?",
+      code: "function* g() { yield \"a\"; yield \"b\"; }\nconsole.log([...g()].length);",
+      options: ["`0`", "`1`", "`2`", "An error"],
+      answer: 2,
+      explain: "Spread pulls every yielded value into the array.",
+    },
+    {
+      q: "Which syntax makes a generator function?",
+      options: ["`function gen()`", "`function* gen()`", "`async function gen()`", "`gen => yield`"],
+      answer: 1,
+      explain: "The asterisk after `function` makes a generator.",
+    },
+    {
+      q: "Which use iteration under the hood?",
+      options: ["`for...of`", "`[...value]`", "`const [a, b] = value`", "`Object.keys(value)`"],
+      answer: [0, 1, 2],
+      explain: "`Object.keys` reads an object's keys directly; the others pull from an iterator.",
+    },
+  ]}
+/>
