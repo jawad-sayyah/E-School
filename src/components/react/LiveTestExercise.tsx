@@ -7,7 +7,7 @@ import {
   useSandpack,
   type SandpackFiles,
 } from '@codesandbox/sandpack-react';
-import { TEST_PRELUDE, VITEST_SHIM } from './LiveSandpack';
+import { TEST_PRELUDE, VITEST_SHIM } from './sandboxFiles';
 import { dependenciesFor } from './packages';
 import {
   bugPath,

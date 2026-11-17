@@ -1,0 +1,239 @@
+---
+id: testing-mistakes
+title: Common testing mistakes
+summary: Spot the tests that pass even when the code is broken, forgotten awaits, implementation-detail tests, getByTestId everywhere, snapshot overuse and act warnings, and fix them.
+minutes: 16
+tags: [testing, mistakes, false positives, await, snapshots, getByTestId, implementation details, act]
+---
+
+A bad test is worse than no test: it costs time to maintain and gives false confidence. These are the mistakes reviewers flag most often.
+
+<Concept name="Mistake 1: a test that can't fail" id="cant-fail" warn>
+
+<Compare
+  wrong="No real assertion: passes whatever total returns"
+  right="Asserts the exact expected value"
+  wrongFile="total.test.js"
+  rightFile="total.test.js"
+>
+
+```js
+test("calculates the total", () => {
+  const total = getTotal(cart);
+  expect(total).toBeTruthy();       // 11, 999 and "oops" all pass
+});
+```
+
+```js
+test("adds price × qty for every line", () => {
+  expect(getTotal(cart)).toBe(11);
+});
+```
+
+</Compare>
+
+**Why:** `toBeTruthy`, `toBeDefined` and "it didn't throw" pass for almost any wrong answer. Assert the **specific** expected value, and when you write a test, break the code on purpose once to watch it fail.
+
+</Concept>
+
+<Concept name="Mistake 2: forgetting await" id="await" warn>
+
+```js file=async.test.js
+test("loads products", () => {
+  expect(loadProducts()).resolves.toHaveLength(3);   // never awaited: always passes
+});
+test("shows the products", () => {
+  render(<ProductList />);
+  expect(screen.findByText("Tea")).toBeTruthy();      // a promise is truthy
+});
+```
+
+**Why:** the test function returns before the promise settles, so the assertion's result is ignored. Make the test `async` and `await` every `resolves`/`rejects`, `findBy` and user-event call. The `eslint-plugin-testing-library` and `vitest` lint rules catch most of these.
+
+</Concept>
+
+<Concept name="Mistake 3: testing implementation details" id="implementation" warn>
+
+Checking state, internal functions, hook calls or CSS classes makes tests break on refactors that change nothing for users. Assert on what's **on screen** and what the component **reports** through its props (`onAdd` was called with the product).
+
+</Concept>
+
+<Concept name="Mistake 4: getByTestId everywhere" id="testid" warn>
+
+`data-testid` hooks tests to markup the user never sees, and skips the free accessibility check of `getByRole`. Use it only when nothing else identifies the element (a canvas, a complex chart). If you can't find a button by role and name, fix the button.
+
+</Concept>
+
+<Concept name="Mistake 5: snapshot overuse" id="snapshots" warn>
+
+`expect(container).toMatchSnapshot()` saves the whole rendered HTML and fails on any change. Large snapshots get updated with `-u` without being read, so they protect nothing. Keep snapshots small and intentional (an error message, a formatted string), and prefer explicit assertions.
+
+</Concept>
+
+<Concept name="Mistake 6: silencing act warnings" id="act" warn>
+
+"An update to X inside a test was not wrapped in act(…)" means something changed after your test stopped looking. Don't wrap random lines in `act` to hide it: **wait for the result** with `findBy` or `waitFor`, so the test actually checks the final state.
+
+</Concept>
+
+<Practice>
+
+<SpotTheBug
+  id="bug-weak-assert"
+  bug={3}
+  prompt="This test passes even when `applyCoupon` returns the wrong amount. Click the weak line."
+  explain={"`toBeGreaterThan(0)` accepts any positive number. Assert the exact amount: `expect(applyCoupon(100, \"SAVE10\")).toBe(90)`."}
+>
+
+```js
+test("applies the coupon", () => {
+  const total = applyCoupon(100, "SAVE10");
+  expect(total).toBeGreaterThan(0);
+});
+```
+
+</SpotTheBug>
+
+<SortBuckets
+  id="buckets-test-smells"
+  prompt="Good practice, or a testing mistake?"
+  buckets={["Good practice", "Mistake"]}
+  items={[
+    ["`expect(await screen.findByText(\"Saved\")).toBeInTheDocument()`", 0],
+    ["`expect(screen.findByText(\"Saved\")).toBeTruthy()`", 1],
+    ["`getByRole(\"button\", { name: \"Checkout\" })`", 0],
+    ["`getByTestId(\"checkout-btn\")` for a normal button", 1],
+    ["Asserting `toBe(90)` for a discounted total", 0],
+    ["A 400-line snapshot of the whole page", 1],
+    ["Breaking the code once to see the test fail", 0],
+  ]}
+  explain="Await async checks, find elements like users, assert exact values, avoid giant snapshots, and prove each test can fail."
+/>
+
+<TrueFalse
+  id="tf-test-mistakes"
+  statements={[
+    { text: "A test without an assertion can still catch bugs.", answer: false, explain: "Only if the code throws. It won't notice wrong results." },
+    { text: "`act` warnings are best fixed by waiting for the async result.", answer: true, explain: "findBy or waitFor." },
+    { text: "Updating snapshots with -u without reading the diff is a safe habit.", answer: false, explain: "That's how bugs get approved into snapshots." },
+  ]}
+/>
+
+</Practice>
+
+<TestExercise
+  id="fix-weak-tests"
+  title="Fix the tests that can't fail"
+  hints={[
+    "Replace `toBeTruthy`/`toBeDefined` with exact values: `expect(applyCoupon(100, \"SAVE10\")).toBe(90)`.",
+    "The async test needs `async` and `await`, and should check the exact result.",
+    "Add a test for an unknown code (no discount) and for a code in lowercase.",
+  ]}
+>
+
+These tests all pass… on the real code **and** on every broken version. Fix them so they catch the bugs. `applyCoupon(total, code)` takes 10% off for `SAVE10` (any case) and leaves the total alone for unknown codes; `checkCoupon(code)` resolves to whether a code is valid.
+
+```js code file=coupons.js
+function applyCoupon(total, code) {
+  return code.toUpperCase() === "SAVE10" ? total * 0.9 : total;
+}
+
+async function checkCoupon(code) {
+  return code.toUpperCase() === "SAVE10";
+}
+```
+
+```js starter
+test("applies a coupon", () => {
+  expect(applyCoupon(100, "SAVE10")).toBeTruthy();
+});
+
+test("unknown codes work", () => {
+  expect(applyCoupon(100, "NOPE")).toBeDefined();
+});
+
+test("checks a coupon", () => {
+  expect(checkCoupon("SAVE10")).resolves.toBe(true);
+});
+```
+
+```js bug title="Discount is 20%, not 10%" hint="Assert the exact discounted total."
+function applyCoupon(total, code) {
+  return code.toUpperCase() === "SAVE10" ? total * 0.8 : total;
+}
+
+async function checkCoupon(code) {
+  return code.toUpperCase() === "SAVE10";
+}
+```
+
+```js bug title="Unknown codes give a discount too" hint="An unknown code should leave the total unchanged: check the exact value."
+function applyCoupon(total, code) {
+  return total * 0.9;
+}
+
+async function checkCoupon(code) {
+  return code.toUpperCase() === "SAVE10";
+}
+```
+
+```js bug title="checkCoupon always says no" hint="Await the async check (make the test async)."
+function applyCoupon(total, code) {
+  return code.toUpperCase() === "SAVE10" ? total * 0.9 : total;
+}
+
+async function checkCoupon(code) {
+  return false;
+}
+```
+
+```js bug title="Case-sensitive codes" hint="Try the code typed in lowercase."
+function applyCoupon(total, code) {
+  return code === "SAVE10" ? total * 0.9 : total;
+}
+
+async function checkCoupon(code) {
+  return code.toUpperCase() === "SAVE10";
+}
+```
+
+```js solution
+test("SAVE10 takes 10% off, in any case", () => {
+  expect(applyCoupon(100, "SAVE10")).toBe(90);
+  expect(applyCoupon(100, "save10")).toBe(90);
+});
+
+test("unknown codes leave the total alone", () => {
+  expect(applyCoupon(100, "NOPE")).toBe(100);
+});
+
+test("checkCoupon accepts SAVE10 and rejects others", async () => {
+  await expect(checkCoupon("SAVE10")).resolves.toBe(true);
+  await expect(checkCoupon("NOPE")).resolves.toBe(false);
+});
+```
+
+</TestExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "Which assertion is strongest for a total of 11?",
+      options: ["`toBeTruthy()`", "`toBeDefined()`", "`toBe(11)`", "`toBeGreaterThan(0)`"],
+      answer: 2,
+      explain: "Only the exact value catches a wrong total.",
+    },
+    {
+      q: "What's wrong with `expect(screen.findByText(\"Tea\")).toBeTruthy()`?",
+      options: ["Nothing", "findBy returns a promise, which is always truthy; it must be awaited", "findBy is deprecated", "toBeTruthy can't take elements"],
+      answer: 1,
+      explain: "`expect(await screen.findByText(\"Tea\")).toBeInTheDocument()`.",
+    },
+    {
+      q: "How do you know a new test can catch a bug?",
+      options: ["It passes", "Break the code on purpose and watch it fail", "Coverage goes up", "It has many assertions"],
+      answer: 1,
+      explain: "Red first, then green.",
+    },
+  ]}
+/>

@@ -1,0 +1,122 @@
+---
+id: coverage
+title: Coverage reports
+summary: Generate and read a coverage report, understand statements, branches, functions and lines, and see why 100% coverage isn't the goal.
+minutes: 12
+tags: [testing, coverage, v8, istanbul, branches, statements, thresholds]
+---
+
+**Coverage** measures which lines of your code ran during the tests. It's a useful map of what's *not* tested, and a misleading score if you treat it as "how good are my tests".
+
+<Concept name="Generating a report" id="report">
+
+```bash file=terminal
+npx vitest run --coverage
+```
+
+```text file=terminal
+ % Coverage report from v8
+-----------------|---------|----------|---------|---------|-------------------
+File             | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s
+-----------------|---------|----------|---------|---------|-------------------
+All files        |   87.50 |    75.00 |     100 |   87.50 |
+ cartReducer.js  |   92.30 |    83.33 |     100 |   92.30 | 18
+ discount.js     |   75.00 |    50.00 |     100 |   75.00 | 6-7
+-----------------|---------|----------|---------|---------|-------------------
+```
+
+Vitest also writes an HTML report (`coverage/index.html`) where uncovered lines are highlighted red and partly covered branches yellow.
+
+| Column | Counts |
+| --- | --- |
+| **Statements** | every statement that ran |
+| **Branches** | each side of every `if`, ternary, `&&`, `??`, `switch` case |
+| **Functions** | functions called at least once |
+| **Lines** | lines with at least one statement that ran |
+
+**Branches** is usually the most telling: 50% on `discount.js` means some `if` only ever went one way in the tests.
+
+</Concept>
+
+<Concept name="Why 100% isn't the goal" id="not-100">
+
+Coverage tells you code **ran**, not that anything **checked** it:
+
+```js file=useless.test.js
+test("covers the whole function", () => {
+  discount(150);   // runs every line of the happy path… and asserts nothing
+});
+```
+
+That test raises coverage and catches no bugs. Chasing 100% leads to tests like it, plus tests for trivial code, written to please a number. Healthier habits:
+
+- read the report for **untested important logic** (an uncovered error branch in checkout is worth a test; an uncovered `console.log` isn't);
+- set a reasonable **threshold** (say 80%) in CI so coverage doesn't silently drop;
+- judge tests by whether they **catch bugs**: exactly what the Write the tests exercises measure.
+
+</Concept>
+
+<HowItWorks title="How coverage is measured">
+
+The **v8** provider (Vitest's default) asks the JavaScript engine itself which code ran, so it's fast and needs no changes to your code. The **istanbul** provider instead rewrites your code with counters before running it. Either way, the numbers mean "executed", which is why a test without assertions can reach 100%. Tools like **mutation testing** (Stryker) go further: they introduce small bugs on purpose and check whether your tests notice, the same idea as this course's hidden buggy versions.
+
+</HowItWorks>
+
+<Practice>
+
+<TrueFalse
+  id="tf-coverage"
+  statements={[
+    { text: "100% coverage means the code has no bugs.", answer: false, explain: "It means every line ran, not that its behavior was checked." },
+    { text: "A test with no assertions can increase coverage.", answer: true, explain: "Running code is enough to count as covered." },
+    { text: "Branch coverage counts both sides of each if.", answer: true, explain: "It's often the most revealing column." },
+    { text: "Coverage thresholds in CI can stop coverage from dropping unnoticed.", answer: true, explain: "A floor, not a target to max out." },
+  ]}
+/>
+
+<Choice
+  id="choice-branch"
+  q="`discount.js` shows 100% lines but 50% branches. What does that tell you?"
+  options={["Everything is tested", "Some condition only ever went one way, e.g. no test for orders under $100", "The file has a syntax error", "Coverage is broken"]}
+  answer={1}
+  explain="Lines can all run while one side of an if is never taken (e.g. a one-line ternary)."
+/>
+
+<SortBuckets
+  id="buckets-coverage-gaps"
+  prompt="An uncovered line appears in the report. Worth a test?"
+  buckets={["Worth a test", "Fine to leave"]}
+  items={[
+    ["The branch that rejects an expired coupon", 0],
+    ["The error handling when payment fails", 0],
+    ["A `console.log` used for debugging", 1],
+    ["The default case of a reducer that throws on unknown actions", 0],
+    ["A one-line re-export file", 1],
+  ]}
+  explain="Test logic users depend on, especially error paths. Trivial glue code isn't worth a test just for the number."
+/>
+
+</Practice>
+
+<Quiz
+  questions={[
+    {
+      q: "What does coverage measure?",
+      options: ["How many bugs the tests catch", "Which code ran during the tests", "How fast the tests are", "How readable the code is"],
+      answer: 1,
+      explain: "Executed, not verified.",
+    },
+    {
+      q: "How should you use a coverage report?",
+      options: ["Push every file to 100%", "Look for important logic that no test exercises", "Ignore it", "Delete uncovered code"],
+      answer: 1,
+      explain: "It's a map of blind spots.",
+    },
+    {
+      q: "Which technique checks whether tests actually notice bugs?",
+      options: ["Line coverage", "Mutation testing", "Snapshot testing", "Linting"],
+      answer: 1,
+      explain: "It injects small bugs and checks the tests fail, like the Write the tests exercises.",
+    },
+  ]}
+/>

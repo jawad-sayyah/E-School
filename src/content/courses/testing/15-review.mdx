@@ -1,0 +1,102 @@
+---
+id: review
+title: "Review: Testing"
+summary: Mixed questions across the whole Testing course, from Vitest matchers and mocks to Testing Library, MSW, coverage and Playwright.
+minutes: 18
+kind: review
+tags: [review, testing, Vitest, mocks, Testing Library, MSW, coverage, Playwright]
+---
+
+The whole Testing course in one review. After this comes the React track boss challenge. The lesson names in brackets tell you where to look.
+
+<Practice title="Test like a team">
+
+<MatchPairs
+  id="match-review-testing"
+  prompt="Match each tool with its job."
+  columns={["Tool", "Job"]}
+  pairs={[
+    ["`expect(x).toEqual(y)`", "Compare contents of arrays and objects"],
+    ["`vi.fn()`", "Record calls to a fake function"],
+    ["`vi.useFakeTimers()`", "Control setTimeout and setInterval"],
+    ["`screen.getByRole`", "Find elements the way users and screen readers do"],
+    ["`await screen.findByText`", "Wait for UI that appears later"],
+    ["`renderHook`", "Test a custom hook"],
+    ["MSW", "Answer network requests in tests"],
+    ["Playwright", "Drive the real app in a real browser"],
+  ]}
+/>
+
+<SpotTheBug
+  id="bug-review-testing"
+  bug={[5, 6]}
+  prompt="This test has two problems. Click either line. (Async tests and mocking, Common testing mistakes)"
+  explain="Line 5: the async check isn't awaited (and the test isn't async), so it can never fail. Line 6: `toBeTruthy` accepts any wrong total; assert the exact value."
+>
+
+```js
+test("checkout", () => {
+  const pay = vi.fn().mockResolvedValue({ ok: true });
+  const cart = [{ price: 4, qty: 2 }];
+  const result = checkout(cart, pay);
+  expect(result).resolves.toEqual({ ok: true });
+  expect(getTotal(cart)).toBeTruthy();
+});
+```
+
+</SpotTheBug>
+
+<SortBuckets
+  id="buckets-review-level"
+  prompt="Which kind of test fits best? (Why test?, What to test)"
+  buckets={["Unit", "Integration (Testing Library)", "End-to-end (Playwright)"]}
+  items={[
+    ["Every rule of the discount function", 0],
+    ["The cart page updates its badge and total when adding", 1],
+    ["A customer can sign in and complete checkout", 2],
+    ["The reducer's quantity rules", 0],
+    ["The product list's loading, empty and error states", 1],
+  ]}
+  explain="Pure logic: unit. Components working together: integration. A few critical journeys: end-to-end."
+/>
+
+<TrueFalse
+  id="tf-review-testing"
+  statements={[
+    { text: "`toBe` compares arrays by contents.", answer: false, explain: "That's `toEqual`; `toBe` checks identity. (Vitest basics)" },
+    { text: "100% coverage proves the tests are good.", answer: false, explain: "Coverage means code ran, not that it was checked. (Coverage)" },
+    { text: "`queryByText` returns null when nothing matches.", answer: true, explain: "Use it to assert something is absent. (React Testing Library)" },
+    { text: "A failing test on a fixed bug should be written before the fix.", answer: true, explain: "It proves the fix and prevents regressions. (Edge cases and test-first)" },
+  ]}
+/>
+
+</Practice>
+
+<Quiz
+  questions={[
+    {
+      q: "Which query should you reach for first? (React Testing Library)",
+      options: ["`getByTestId`", "`getByRole`", "`querySelector`", "`getByClassName`"],
+      answer: 1,
+      explain: "It also checks accessibility.",
+    },
+    {
+      q: "What makes a good test? (Why test?, Common testing mistakes)",
+      options: ["It fails when the behavior is broken and passes otherwise", "It has the most lines", "It checks internal state", "It always passes"],
+      answer: 0,
+      explain: "That's what catching the hidden bugs measured.",
+    },
+    {
+      q: "How do you test a component's error state with MSW? (Mocking APIs with MSW)",
+      options: ["`server.use(http.get(url, () => new HttpResponse(null, { status: 500 })))`", "Throw inside the component", "Disconnect the network", "Delete the handler file"],
+      answer: 0,
+      explain: "Override the handler for that test.",
+    },
+    {
+      q: "What should replace `waitForTimeout(2000)` in an E2E test? (End-to-end with Playwright)",
+      options: ["A longer timeout", "An auto-waiting assertion like `await expect(locator).toBeVisible()`", "A retry loop", "Nothing"],
+      answer: 1,
+      explain: "It waits exactly as long as needed.",
+    },
+  ]}
+/>

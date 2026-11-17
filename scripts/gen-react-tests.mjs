@@ -12,7 +12,7 @@ import { catchesBug } from './catches-bug.mjs';
 
 const ROOT = path.resolve('src/content/courses');
 const PACKAGES = JSON.parse(fs.readFileSync('src/components/react/packages.json', 'utf8'));
-// "vitest" is provided in Sandpack by a small hidden shim (VITEST_SHIM in LiveSandpack.tsx)
+// "vitest" is provided in Sandpack by a small hidden shim (VITEST_SHIM in src/components/react/sandboxFiles.ts)
 const KNOWN = new Set([...Object.keys(PACKAGES.base), ...Object.keys(PACKAGES.optional), 'vitest']);
 const OUT = path.resolve('test/react-exercises');
 // Buggy versions of write-the-tests components: a separate Vitest project (see vite.config.ts)

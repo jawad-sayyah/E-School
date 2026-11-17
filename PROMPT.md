@@ -256,7 +256,7 @@ An `<Exercise>` has: a title, a one-sentence task, starter code, **hidden tests*
   - `vi.fn()` with `toHaveBeenCalled` / `toHaveBeenCalledWith`
   - basic fake timers: `vi.useFakeTimers()`, `vi.advanceTimersByTime()`, `vi.useRealTimers()`
   - Results look like a test runner: ✓/✗ per test, grouped by `describe`, with test names, expected vs. received on failures, and a summary such as **"3 passed, 1 failed"**.
-- **React tests:** Sandpack's test runner (`SandpackTests`) with React Testing Library and `@testing-library/jest-dom`. Hidden exercise tests simulate users with `fireEvent`: `@testing-library/user-event` v14 crashes Sandpack's runner ("The provided value is not of type 'Element'"), so the Testing course must either find a version that runs there or show `user-event` in read-only code with recorded output. Likely cause (found in Phase 6): the runner mixes realms, rendering into jsdom while exposing some browser globals. `FormData` was one (now shimmed by a hidden test prelude); try shimming `getComputedStyle` and friends the same way before giving up on user-event.
+- **React tests:** Sandpack's test runner (`SandpackTests`) with React Testing Library and `@testing-library/jest-dom`. Hidden exercise tests simulate users with `fireEvent`: `@testing-library/user-event` v14 crashes Sandpack's runner ("The provided value is not of type 'Element'"), so the Testing course must either find a version that runs there or show `user-event` in read-only code with recorded output. Likely cause (found in Phase 6): the runner mixes realms, rendering into jsdom while exposing some browser globals. `FormData` was one (now shimmed by a hidden test prelude); Phase 9 tried shimming `getComputedStyle` and the DOM classes too: user-event still crashes there, so the Testing course shows user-event as read-only code with recorded output and its exercises use `fireEvent`.
 - The same safety limits apply to every test run (timeouts, output caps).
 
 ### `<TestExercise>`: the student writes the tests
@@ -454,7 +454,7 @@ It ends with a "What's next" page: a real backend, authentication and payments.
 **Phase 8 — The TypeScript track** ✅
 - `TSPlayground` (Monaco with live diagnostics) and TS exercises; the three TypeScript courses, boss challenge and certificate.
 
-**Phase 9 — Testing**
+**Phase 9 — Testing** ✅
 - The full Vitest-style mini test API, `<TestExercise>` (worker and Sandpack), the Testing course, the React track boss challenge and certificate.
 
 **Phase 10 — Build a real website with React**

@@ -1,0 +1,186 @@
+---
+id: what-to-test
+title: What to test (and what not to)
+summary: Decide what deserves a test using risk and behavior, write tests from the user's point of view, and skip the tests that only cost time.
+minutes: 14
+tags: [testing, strategy, what to test, behavior, risk, testing trophy, test priorities]
+---
+
+You can't test everything, and you shouldn't try. Good teams spend their testing time where bugs are **likely** and **costly**, and test **behavior** that users and other code rely on.
+
+<Concept name="Test these" id="test-these">
+
+- **Business rules and money:** totals, discounts, taxes, shipping thresholds, stock limits. Bugs here cost real money.
+- **State logic:** reducers, custom hooks, stores. Dense logic, easy to test.
+- **User flows that matter:** adding to the cart, checkout, sign-in, the forms people must fill in.
+- **Every state a user can see:** loading, empty, error, success, disabled.
+- **Edge cases and past bugs:** each fixed bug gets a regression test.
+- **Accessibility basics:** names, labels, roles (your queries already do this).
+
+</Concept>
+
+<Concept name="Skip these" id="skip-these">
+
+- **Implementation details:** state variable names, which hook was used, internal function calls, CSS classes.
+- **Third-party code:** don't test that React renders or that React Router routes; test *your* use of them.
+- **Trivial code:** a component that only passes props through, a constant, a re-export.
+- **Exact markup snapshots of whole pages:** they break on every change and get approved without reading (next lesson).
+- **The same behavior many times** at different levels: one solid test beats five overlapping ones.
+
+</Concept>
+
+<HowItWorks title="The testing trophy">
+
+For front-end apps, many teams follow the **testing trophy** (Kent C. Dodds): a base of **static checks** (TypeScript, ESLint) that catch typos and type errors for free; a thin layer of **unit tests** for pure logic; the biggest layer of **integration tests** (components rendered with their real children, context and mocked network, via Testing Library and MSW); and a few **end-to-end tests** for critical flows. Integration tests give the most confidence per minute spent, because they test what users actually do without the cost of a real browser.
+
+</HowItWorks>
+
+<Practice>
+
+<SortBuckets
+  id="buckets-worth-testing"
+  prompt="Worth a test?"
+  buckets={["Test it", "Skip it"]}
+  items={[
+    ["The free-shipping threshold", 0],
+    ["The checkout form's validation messages", 0],
+    ["That `useState` is used in the Cart component", 1],
+    ["That React Router renders the route element", 1],
+    ["The error message when payment fails", 0],
+    ["A `Layout` that only renders `{children}` inside a div", 1],
+    ["A bug you fixed last week", 0],
+  ]}
+  explain="Test behavior that matters to users and your own logic. Skip implementation details, library internals and trivial wrappers."
+/>
+
+<CodeReview
+  id="review-cart-test"
+  answer={2}
+  prompt="Three tests for the cart page. Which would you approve?"
+  reasons={[
+    "Tests an implementation detail: it breaks if the component switches to useReducer, even though nothing changed for users.",
+    "A snapshot of the whole page: it fails on any markup change, and nobody reviews what a 300-line snapshot diff means.",
+    "Tests behavior the user sees: add a product, then the badge and total update. Survives refactors.",
+  ]}
+>
+
+```jsx
+test("cart state", () => {
+  const { result } = renderHook(() => useState([]));
+  expect(result.current[0]).toEqual([]);
+});
+```
+
+```jsx
+test("cart page", () => {
+  const { container } = render(<CartPage />);
+  expect(container).toMatchSnapshot();
+});
+```
+
+```jsx
+test("adding a product updates the badge and the total", () => {
+  render(<CartPage />);
+  fireEvent.click(screen.getByRole("button", { name: "Add Tea" }));
+  expect(screen.getByLabelText("Items in cart")).toHaveTextContent("1");
+  expect(screen.getByText("Total: $2.00")).toBeInTheDocument();
+});
+```
+
+</CodeReview>
+
+<Choice
+  id="choice-trophy"
+  q="In the testing trophy, which layer gives the most confidence per minute for a React app?"
+  options={["Static checks only", "Integration tests (components with their real children and mocked network)", "End-to-end tests for everything", "Snapshot tests"]}
+  answer={1}
+  explain="They test real user behavior without a real browser's cost."
+/>
+
+</Practice>
+
+<TestExercise
+  id="test-shipping-cost"
+  title="Test what matters: shipping cost"
+  hints={[
+    "Test the threshold from both sides: just under $50 pays, exactly $50 ships free.",
+    "Check express is always $9.99, even over $50.",
+    "Check an empty cart (total 0) costs standard shipping, not free.",
+  ]}
+>
+
+`shippingCost(total, method)`: standard shipping is **$4.99**, free from **$50**; express is always **$9.99**. Write the few tests that matter (the boundaries and each method) and catch every buggy version.
+
+```js code file=shipping.js
+function shippingCost(total, method = "standard") {
+  if (method === "express") return 9.99;
+  return total >= 50 ? 0 : 4.99;
+}
+```
+
+```js starter
+test("standard shipping for a small order", () => {
+  expect(shippingCost(20)).toBe(4.99);
+});
+```
+
+```js bug title="Express is free over $50 too" hint="Check express shipping on a big order."
+function shippingCost(total, method = "standard") {
+  if (total >= 50) return 0;
+  if (method === "express") return 9.99;
+  return 4.99;
+}
+```
+
+```js bug title="Threshold uses >" hint="What about an order of exactly $50?"
+function shippingCost(total, method = "standard") {
+  if (method === "express") return 9.99;
+  return total > 50 ? 0 : 4.99;
+}
+```
+
+```js bug title="Standard is never free" hint="Check a standard order of $60."
+function shippingCost(total, method = "standard") {
+  if (method === "express") return 9.99;
+  return 4.99;
+}
+```
+
+```js solution
+describe("shippingCost", () => {
+  test("standard: $4.99 under $50, free from $50", () => {
+    expect(shippingCost(49.99)).toBe(4.99);
+    expect(shippingCost(50)).toBe(0);
+    expect(shippingCost(60)).toBe(0);
+  });
+  test("express is always $9.99", () => {
+    expect(shippingCost(20, "express")).toBe(9.99);
+    expect(shippingCost(80, "express")).toBe(9.99);
+  });
+});
+```
+
+</TestExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "Which deserves a test most?",
+      options: ["The discount calculation", "That a constant equals itself", "React's own rendering", "CSS class names"],
+      answer: 0,
+      explain: "Business logic with real consequences.",
+    },
+    {
+      q: "Why avoid testing implementation details?",
+      options: ["They're hard to reach", "Tests break on refactors that change nothing for users", "They're always correct", "Vitest can't"],
+      answer: 1,
+      explain: "Brittle tests slow teams down and get deleted.",
+    },
+    {
+      q: "What's at the base of the testing trophy?",
+      options: ["End-to-end tests", "Static checks like TypeScript and ESLint", "Snapshot tests", "Manual QA"],
+      answer: 1,
+      explain: "They catch a whole class of bugs for free.",
+    },
+  ]}
+/>

@@ -1,0 +1,149 @@
+---
+id: playwright-e2e
+title: End-to-end tests with Playwright
+summary: Test the real app in a real browser with Playwright, from opening a page to completing checkout, and learn how to run, debug and keep E2E tests reliable.
+minutes: 16
+tags: [testing, Playwright, end-to-end, E2E, browser, locators, getByRole, CI, trace viewer]
+---
+
+Unit and integration tests run in jsdom, a simulated page. **End-to-end (E2E)** tests drive a **real browser** against the **real app** (built and served), clicking and typing like a user. They're the slowest tests, so keep them for the few flows that must never break: sign-in, add to cart, checkout.
+
+<Concept name="A checkout test" id="checkout">
+
+E2E tests can't run inside this page (they need a real browser controlling your app), so here's the code and what a run prints. You'll run tests like this yourself in the MiniShop project.
+
+```ts file=e2e/checkout.spec.ts
+import { expect, test } from "@playwright/test";
+
+test("a customer can buy a coffee", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("link", { name: "Products" }).click();
+
+  await page.getByRole("button", { name: "Add Coffee" }).click();
+  await expect(page.getByLabel("Items in cart")).toHaveText("1");
+
+  await page.getByRole("link", { name: "Cart" }).click();
+  await page.getByRole("button", { name: "Checkout" }).click();
+
+  await page.getByLabel("Name").fill("Ada Lovelace");
+  await page.getByLabel("Email").fill("ada@example.com");
+  await page.getByRole("button", { name: "Place order" }).click();
+
+  await expect(page.getByRole("heading", { name: "Thank you!" })).toBeVisible();
+  await expect(page).toHaveURL(/\/orders\/\d+/);
+});
+```
+
+```text file=terminal
+$ npx playwright test
+
+Running 3 tests using 3 workers
+  ✓  1 [chromium] › checkout.spec.ts:3:1 › a customer can buy a coffee (2.1s)
+  ✓  2 [firefox] › checkout.spec.ts:3:1 › a customer can buy a coffee (2.8s)
+  ✓  3 [webkit] › checkout.spec.ts:3:1 › a customer can buy a coffee (2.5s)
+
+  3 passed (4.6s)
+```
+
+Playwright's locators mirror Testing Library's: `getByRole`, `getByLabel`, `getByText`. Its `expect` **auto-waits**: `toHaveText` retries until the text appears or a timeout passes, so there are no manual sleeps.
+
+</Concept>
+
+<Concept name="Running and debugging" id="running">
+
+```bash file=terminal
+npm init playwright@latest        # adds @playwright/test, a config and example tests
+npx playwright test               # run headless, all browsers in the config
+npx playwright test --ui          # interactive mode: watch, step through, pick locators
+npx playwright test --debug       # step through one test in a visible browser
+npx playwright show-report        # the HTML report of the last run
+```
+
+Configure `webServer` in `playwright.config.ts` to build and start the app before the tests (this site does exactly that), and turn on `trace: "retain-on-failure"`: when a test fails in CI, the **trace viewer** shows every action, screenshot, network request and console message.
+
+</Concept>
+
+<HowItWorks title="Keeping E2E tests reliable">
+
+E2E tests have a reputation for being **flaky** (failing randomly). Most flakiness has a few causes:
+
+- **Waiting with timers** (`waitForTimeout(2000)`): use auto-waiting assertions instead.
+- **Brittle selectors** (`.btn-primary:nth-child(3)`): use role, label and text locators.
+- **Shared state** between tests (one test's order leaks into another's cart): give each test its own data, or reset it.
+- **Real third-party services** (payments, email): stub them, or use their test modes.
+
+Keep the suite small and focused on critical paths; push everything else down to faster integration and unit tests.
+
+</HowItWorks>
+
+<Practice>
+
+<SortBuckets
+  id="buckets-e2e-or-not"
+  prompt="E2E test, or a faster level?"
+  buckets={["End-to-end", "Integration / unit"]}
+  items={[
+    ["A customer can sign in, add to cart and pay", 0],
+    ["The discount for every coupon code", 1],
+    ["The product card shows Sale for discounted items", 1],
+    ["The deployed site loads and the home page renders", 0],
+    ["The cart reducer's edge cases", 1],
+  ]}
+  explain="E2E for a few critical journeys through the real app; everything detailed belongs in faster tests."
+/>
+
+<SpotTheBug
+  id="bug-e2e-sleep"
+  bug={3}
+  errorElsewhere
+  prompt="This E2E test fails randomly in CI. Click the line that makes it flaky."
+  explain={"A fixed sleep is either too short (flaky on a slow CI machine) or too long (slow). Assertions auto-wait: just `await expect(page.getByText(\"Added to cart\")).toBeVisible()`."}
+>
+
+```ts
+test("adds to cart", async ({ page }) => {
+  await page.getByRole("button", { name: "Add Coffee" }).click();
+  await page.waitForTimeout(2000);
+  expect(await page.getByText("Added to cart").isVisible()).toBe(true);
+});
+```
+
+</SpotTheBug>
+
+<MatchPairs
+  id="match-playwright"
+  prompt="Match each Playwright feature with its use."
+  columns={["Feature", "Use"]}
+  pairs={[
+    ["`page.getByRole(\"button\", { name })`", "Find elements the way users do"],
+    ["`await expect(locator).toHaveText(…)`", "Assert, retrying until it passes or times out"],
+    ["`npx playwright test --ui`", "Run and debug tests interactively"],
+    ["Trace viewer", "Replay a failed CI run step by step"],
+    ["`webServer` in the config", "Start the app before the tests"],
+  ]}
+/>
+
+</Practice>
+
+<Quiz
+  questions={[
+    {
+      q: "What does an E2E test run against?",
+      options: ["A simulated DOM", "The real app in a real browser", "Only the API", "A screenshot"],
+      answer: 1,
+      explain: "That's what makes them slow and valuable.",
+    },
+    {
+      q: "Why are fixed sleeps like `waitForTimeout(2000)` bad?",
+      options: ["They're too fast", "They make tests flaky on slow machines and slow on fast ones", "They're deprecated", "They break locators"],
+      answer: 1,
+      explain: "Auto-waiting assertions wait exactly as long as needed.",
+    },
+    {
+      q: "How many E2E tests should a project have?",
+      options: ["One per component", "A few, for critical user journeys", "None", "As many as unit tests"],
+      answer: 1,
+      explain: "The tip of the pyramid / trophy.",
+    },
+  ]}
+/>

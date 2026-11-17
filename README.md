@@ -142,7 +142,12 @@ function getTotal(cart) {
 </Exercise>
 ```
 
-- Tests run in the worker together with the student's code, using a Vitest-shaped API: `describe`, `test`/`it`, `test.skip`, `expect(x)` with `.not`, `toBe`, `toEqual`, `toContain`, `toHaveLength`, `toThrow`, `toBeTruthy`, `toBeFalsy`, `toBeNull`, `toBeUndefined`, `toBeDefined`, `toBeCloseTo`, `toBeGreaterThan` and `toBeLessThan`. Tests can be `async`.
+- Tests run in the worker together with the student's code, using a Vitest-shaped API (`src/runner/testApi.ts`):
+  - `describe` / `test` / `it` (with `.skip`, `.todo`), `beforeEach` / `afterEach` / `beforeAll` / `afterAll` scoped to their `describe`;
+  - `expect(x)` with `.not`, `.resolves`, `.rejects` and `toBe`, `toEqual`, `toStrictEqual`, `toMatchObject`, `toContain`, `toContainEqual`, `toMatch`, `toHaveLength`, `toHaveProperty`, `toBeInstanceOf`, `toThrow`, `toBeTruthy`, `toBeFalsy`, `toBeNull`, `toBeUndefined`, `toBeDefined`, `toBeNaN`, `toBeCloseTo`, `toBeGreaterThan(OrEqual)`, `toBeLessThan(OrEqual)`, plus `expect.any`, `expect.anything`, `expect.objectContaining`, `expect.stringContaining`;
+  - mocks: `vi.fn()` (with `mockReturnValue(Once)`, `mockResolvedValue(Once)`, `mockRejectedValue(Once)`, `mockImplementation(Once)`, `mockClear`, `mockReset`), `vi.spyOn`, `vi.stubGlobal`, and the matchers `toHaveBeenCalled`, `toHaveBeenCalledTimes`, `toHaveBeenCalledWith`, `toHaveBeenLastCalledWith`, `toHaveReturnedWith`;
+  - fake timers: `vi.useFakeTimers()`, `vi.advanceTimersByTime(ms)`, `vi.runAllTimers()`, `vi.runOnlyPendingTimers()`, `vi.getTimerCount()`, `vi.setSystemTime(t)` (fakes `Date.now`), `vi.useRealTimers()`.
+  - Fake timers, global stubs and spies are restored automatically after every test. Tests can be `async`.
 - Tests live in their own block, so helpers like `const cart = …` in the tests never clash with the student's code.
 - `tests` and `solution` blocks are never added to the search index.
 - Passing marks the exercise as completed in the student's progress.
@@ -166,7 +171,7 @@ React code can't run in the worker, so React lessons use Sandpack components. Ev
 Rules for React exercise tests:
 
 - Import from `@testing-library/react` and `@testing-library/jest-dom`, use `test` and `expect` as globals, and simulate users with **`fireEvent`**. `@testing-library/user-event` v14 crashes Sandpack's test runner, so the generator rejects it.
-- Hidden test files get a one-line prelude in Sandpack (`TEST_PRELUDE` in `src/components/react/LiveSandpack.tsx`): Sandpack's runner renders into jsdom but exposes the browser's own `FormData`, which rejects jsdom forms and breaks React 19 form actions.
+- Hidden test files get a one-line prelude in Sandpack (`TEST_PRELUDE` in `src/components/react/sandboxFiles.ts`): Sandpack's runner renders into jsdom but exposes the browser's own `FormData`, which rejects jsdom forms and breaks React 19 form actions.
 - For async code, wrap waits in `act`: `const wait = (ms) => act(async () => { await new Promise((r) => setTimeout(r, ms)); });`. A component that suspends on first render must be rendered inside an async `act` (`await act(async () => { render(<App />); })`), or React 19 won't retry it when the promise resolves.
 - To check solutions inside real Sandpack (its runner differs from Vitest), run `LESSONS=hooks/use-context,react/forms npx playwright test e2e/solutions.spec.ts`.
 - Prefer queries by role, label and text (`getByRole`, `getByLabelText`); give elements an `aria-label` when the task needs a stable handle.
@@ -185,6 +190,20 @@ TypeScript lessons use [Monaco](https://microsoft.github.io/monaco-editor/), loa
 **Hidden type checks.** Code in the `types` block must compile, and a `// @ts-expect-error reason` line must really be an error: if the student's types are too loose (`any`), the directive is "unused", which fails the check and shows the reason. Exercises are scripts that share the checks' scope: declare things at the top level.
 
 **TS questions.** `SpotTheBug`, `FillBlanks` and `Predict` accept ````ts````/````tsx```` blocks. A TS `SpotTheBug`'s `bug` lines must be exactly where the compiler reports errors (add `errorElsewhere` when the cause is on a different line than the error); filled-in TS blanks must type-check; Predict code is compiled before it runs.
+
+## "Write the tests" exercises
+
+The student writes the tests. They must pass on the correct code **and** fail on at least 3 hidden buggy versions; the result reads "Your tests caught 2 of 3 bugs", with each missed bug's hint.
+
+| Component | Blocks |
+| --- | --- |
+| `<TestExercise id title hints?>` (worker) | ````js code file=cart.js```` (the correct code, shown), ````js starter```` (the tests to start from), 3+ ````js bug title="…" hint="…"```` (each a full buggy version), ````js solution```` (example tests that catch every bug) |
+| `<ReactTestExercise id title hints?>` (Sandpack) | the same, with file names: ````jsx code file=/Cart.js````, ````jsx starter file=/Cart.test.js````, ````jsx bug file=/Cart.js title="…" hint="…"````, ````jsx solution file=/Cart.test.js```` |
+
+- In fence metadata, use single quotes inside `title`/`hint` (escaped double quotes fail the content test).
+- React test files import from `"vitest"` (`import { expect, test, vi } from "vitest"`). In Sandpack, a hidden local `vitest` package re-exports Jest's globals (`VITEST_SHIM` in `src/components/react/sandboxFiles.ts`); the generated tests use the real Vitest. Use `fireEvent`, not user-event, and avoid `vi` APIs Jest lacks (`vi.stubGlobal`).
+- In Sandpack, hidden copies of the student's test file import each buggy version (`/check-N.test.js` → `/__bugs__/bug-N/…`), and every suite is re-run after each change.
+- `npm test` checks every example: the content test runs worker exercises; `gen-react-tests` writes the React ones to `test/react-exercises` (example tests on the real component) and `test/react-bugs` (each buggy version, wrapped to pass only if a test fails).
 
 ## Questions, depth and visualizers
 

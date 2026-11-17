@@ -109,7 +109,13 @@ describe.each(lessonFiles)('$course/$file', ({ abs }) => {
 
   test('no string attribute contains an escaped quote (MDX would mis-parse it)', () => {
     // Write explain={"say \"hi\""} instead of explain="say \"hi\"".
-    const bad = source.split('\n').filter((line) => /^\s*\w+="[^"\n]*\\"/.test(line));
+    // Fence metadata (```js bug title="…" hint="…") can't escape quotes either: use '…' inside.
+    const bad = source
+      .split('\n')
+      .filter(
+        (line) =>
+          /^\s*\w+="[^"\n]*\\"/.test(line) || (line.startsWith('```') && line.includes('\\"')),
+      );
     expect(bad).toEqual([]);
   });
 

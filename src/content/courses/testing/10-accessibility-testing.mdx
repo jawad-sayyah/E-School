@@ -1,0 +1,212 @@
+---
+id: accessibility-testing
+title: Accessibility testing
+summary: Catch accessibility bugs automatically with jest-axe, and see how role- and label-based queries already test accessibility on every run.
+minutes: 14
+tags: [testing, accessibility, jest-axe, axe-core, toHaveNoViolations, getByRole, labels, alt text]
+---
+
+Accessibility bugs (a button without a name, an input without a label, an image without alt text) are easy to ship and hard to notice if you use a mouse and can see the screen. Two kinds of tests catch them automatically.
+
+<Concept name="jest-axe: an automatic audit" id="jest-axe">
+
+**axe-core** is the engine behind most accessibility checkers. **jest-axe** runs it on a rendered component and adds the `toHaveNoViolations` matcher:
+
+```jsx file=ProductCard.test.jsx
+import { render } from "@testing-library/react";
+import { axe } from "jest-axe";
+import { expect, test } from "vitest";
+import "jest-axe/extend-expect";
+
+test("the product card has no accessibility violations", async () => {
+  const { container } = render(<ProductCard product={tea} onAdd={() => {}} />);
+  expect(await axe(container)).toHaveNoViolations();
+});
+```
+
+```text file=terminal
+ ✗ the product card has no accessibility violations
+
+   Expected the HTML found at $('button') to have no violations:
+   <button><svg …></svg></button>
+
+   Received:
+   "Buttons must have discernible text (button-name)"
+   Fix any of the following:
+     Element does not have inner text that is visible to screen readers
+     aria-label attribute does not exist or is empty
+```
+
+One line per component catches missing names, labels and alt text, invalid ARIA, duplicate ids, and more. It **can't** judge everything (whether alt text is meaningful, whether focus order makes sense, whether the page works with a keyboard): automated checks find roughly a third of real issues, so keep testing by hand too.
+
+</Concept>
+
+<Concept name="Your queries already test accessibility" id="queries">
+
+Every `getByRole("button", { name: "Add to cart" })` is a small accessibility test: it fails if the element isn't a real button or has no accessible name. `getByLabelText("Email")` fails if the input isn't labelled. Writing tests the way Testing Library recommends means accessibility regressions break the build, for free.
+
+</Concept>
+
+<HowItWorks title="Where axe fits">
+
+Run axe in component tests for each meaningful component state (empty cart, error message shown, dialog open), and in end-to-end tests on whole pages (`@axe-core/playwright`). Add the `eslint-plugin-jsx-a11y` lint rules to catch issues while typing. Together they form layers: lint while coding, axe and role queries in tests, and a manual keyboard and screen-reader pass for the flows that matter most.
+
+</HowItWorks>
+
+<Practice>
+
+<SortBuckets
+  id="buckets-axe"
+  prompt="Can an automatic audit like axe catch it?"
+  buckets={["axe catches it", "Needs a human"]}
+  items={[
+    ["An icon button with no accessible name", 0],
+    ["An image with no alt attribute", 0],
+    ["An input with no label", 0],
+    ["Alt text that says \"image\" instead of describing the photo", 1],
+    ["A confusing focus order in a checkout flow", 1],
+    ["Text with too little contrast", 0],
+  ]}
+  explain="Axe checks rules that a machine can verify. Meaning, clarity and real keyboard use need a person."
+/>
+
+<TrueFalse
+  id="tf-a11y-testing"
+  statements={[
+    { text: "`getByRole(\"button\", { name: \"Close\" })` fails if the close button has no accessible name.", answer: true, explain: "Role queries double as accessibility checks." },
+    { text: "Passing jest-axe means the component is fully accessible.", answer: false, explain: "Automated checks catch only part of the issues." },
+    { text: "axe should be run on several states of a component, like an open dialog.", answer: true, explain: "Problems often only appear in some states." },
+  ]}
+/>
+
+<MatchPairs
+  id="match-a11y-tools"
+  prompt="Match each tool with when it catches problems."
+  columns={["Tool", "Catches problems"]}
+  pairs={[
+    ["eslint-plugin-jsx-a11y", "While you type"],
+    ["Role and label queries", "In every component test"],
+    ["jest-axe", "In component tests, with a full audit"],
+    ["@axe-core/playwright", "In end-to-end tests on whole pages"],
+    ["A screen reader", "When a human tries the real flow"],
+  ]}
+/>
+
+</Practice>
+
+<ReactTestExercise
+  id="test-accessible-card"
+  title="Accessibility checks with queries"
+  hints={[
+    "Find the button by role AND name: `getByRole(\"button\", { name: \"Save to favorites\" })`.",
+    "Find the image by its alt text: `getByRole(\"img\", { name: \"A cup of coffee\" })`.",
+    "Find the quantity input by its label: `getByLabelText(\"Quantity\")`.",
+  ]}
+>
+
+`FavoriteCard` should have: an image described as **A cup of coffee**, a quantity input labelled **Quantity**, and an icon-only button named **Save to favorites**. Write tests with role and label queries that fail on each inaccessible version.
+
+```jsx code file=/FavoriteCard.js
+export default function FavoriteCard() {
+  return (
+    <article>
+      <img src="/coffee.jpg" alt="A cup of coffee" />
+      <label>
+        Quantity <input type="number" defaultValue={1} />
+      </label>
+      <button aria-label="Save to favorites">♡</button>
+    </article>
+  );
+}
+```
+
+```jsx starter file=/FavoriteCard.test.js
+import { render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import { expect, test } from "vitest";
+import FavoriteCard from "./FavoriteCard";
+
+test("renders", () => {
+  render(<FavoriteCard />);
+  expect(screen.getByRole("article")).toBeInTheDocument();
+});
+```
+
+```jsx bug file=/FavoriteCard.js title="Icon button without a name" hint="Query the button by role and its name."
+export default function FavoriteCard() {
+  return (
+    <article>
+      <img src="/coffee.jpg" alt="A cup of coffee" />
+      <label>
+        Quantity <input type="number" defaultValue={1} />
+      </label>
+      <button>♡</button>
+    </article>
+  );
+}
+```
+
+```jsx bug file=/FavoriteCard.js title="Image without alt text" hint="Query the image by role and its accessible name."
+export default function FavoriteCard() {
+  return (
+    <article>
+      <img src="/coffee.jpg" />
+      <label>
+        Quantity <input type="number" defaultValue={1} />
+      </label>
+      <button aria-label="Save to favorites">♡</button>
+    </article>
+  );
+}
+```
+
+```jsx bug file=/FavoriteCard.js title="Input with only a placeholder" hint="Query the input by its label."
+export default function FavoriteCard() {
+  return (
+    <article>
+      <img src="/coffee.jpg" alt="A cup of coffee" />
+      Quantity <input type="number" placeholder="Quantity" defaultValue={1} />
+      <button aria-label="Save to favorites">♡</button>
+    </article>
+  );
+}
+```
+
+```jsx solution file=/FavoriteCard.test.js
+import { render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import { expect, test } from "vitest";
+import FavoriteCard from "./FavoriteCard";
+
+test("every control and image has an accessible name", () => {
+  render(<FavoriteCard />);
+  expect(screen.getByRole("img", { name: "A cup of coffee" })).toBeInTheDocument();
+  expect(screen.getByLabelText("Quantity")).toHaveValue(1);
+  expect(screen.getByRole("button", { name: "Save to favorites" })).toBeInTheDocument();
+});
+```
+
+</ReactTestExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "What does `expect(await axe(container)).toHaveNoViolations()` do?",
+      options: ["Runs an automated accessibility audit on the rendered component", "Checks performance", "Takes a snapshot", "Tests keyboard navigation fully"],
+      answer: 0,
+      explain: "It runs axe-core's rules on the DOM.",
+    },
+    {
+      q: "Why do role and label queries help accessibility?",
+      options: ["They're faster", "They fail when elements lack the roles and names assistive tech relies on", "They add ARIA automatically", "They don't"],
+      answer: 1,
+      explain: "A test that can't find it by role is a user who can't either.",
+    },
+    {
+      q: "What can't automated accessibility tests judge?",
+      options: ["Missing alt attributes", "Whether alt text is meaningful", "Missing labels", "Invalid ARIA attributes"],
+      answer: 1,
+      explain: "Meaning needs a human.",
+    },
+  ]}
+/>
