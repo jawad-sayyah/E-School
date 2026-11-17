@@ -147,6 +147,32 @@ function getTotal(cart) {
 - `tests` and `solution` blocks are never added to the search index.
 - Passing marks the exercise as completed in the student's progress.
 
+## Questions, depth and visualizers
+
+Every lesson mixes **at least 3 question types** (the content test enforces it). Put questions anywhere, or group them in `<Practice title="…">`, which shows a "3 of 5 done" bar. Each question needs an `id` that is unique in the lesson; progress, XP and badges are keyed by it.
+
+| Component | Key props | Code inside |
+| --- | --- | --- |
+| `<Choice>` | `q`, `options`, `answer` (index, or array for multi-select), `explain`, `hint` | optional fenced block shown under the question |
+| `<Predict>` | `answer` (array of console lines), `explain`, `hint` | the code; the test checks `answer` is the real output |
+| `<FillBlanks>` | `prompt`, `explain`, `caseSensitive` | code with blanks written `__[answer]__` or `__[answer\|alt]__`; filled-in code must run |
+| `<OrderLines>` | `prompt`, `explain` | the lines in the **correct** order (shuffled for the student) |
+| `<MatchPairs>` | `pairs={[["left", "right"], …]}`, `columns` | — |
+| `<SortBuckets>` | `buckets`, `items={[["item", bucketIndex], …]}` | — |
+| `<SpotTheBug>` | `bug` (1-based line, or array), `explain` | the buggy code, and optionally a ```` ```js fixed ```` block (must run cleanly) |
+| `<TraceState>` | `track` ("the value of `qty`"), `steps={[{ action, answer }]}` | optional code |
+| `<CodeReview>` | `answer`, `reasons` (one per option) | 2+ fenced blocks, one per implementation |
+| `<TrueFalse>` | `statements={[{ text, answer, explain }]}` | — |
+| `<Exercise variant="fix">` | as `<Exercise>`, labeled "Fix the bug" | starter / tests / solution |
+
+Depth: `<HowItWorks>` (always visible) and `<GoDeeper title="…">` (expandable). Visualizer: `<CodeTrace frames={[{ line, vars, heap, out, note }]}>` around a fenced block steps through the code; a variable value like `"#a"` points at a `heap` object, so shared references are visible.
+
+**Quoting rule:** MDX string attributes (`explain="…"`) can't contain `\"`. When the text needs double quotes, use an expression: `explain={"say \"hi\""}`.
+
+## Gamification
+
+XP, levels, streaks, badges and track certificates are **derived** from the stored progress facts (`src/gamification/rules.ts`), never stored, so the rules can change without migrating data. Tracks and their boss challenges are listed in `src/content/tracks.ts`.
+
 ## Edit the JS Quick Reference
 
 The `/reference` page is built from `src/content/reference/js-reference.txt`, in the same format as the original `js-reference.html` (the format is described at the top of the file):

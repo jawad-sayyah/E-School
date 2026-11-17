@@ -34,7 +34,7 @@ test('open a lesson, run an example, pass an exercise and see progress', async (
   // Progress shows up on the home page and the progress page.
   await page.goto('/');
   await expect(page.getByText('Continue where you left off')).toBeVisible();
-  await expect(page.getByText('1 of 10 lessons')).toBeVisible();
+  await expect(page.getByText('1 of 11 lessons')).toBeVisible();
   await page.goto('/progress');
   await expect(page.getByText('1 exercise passed so far.')).toBeVisible();
 });
@@ -144,4 +144,52 @@ test('a new page load never restores another page’s scroll position', async ({
   await expect(
     page.getByRole('navigation', { name: 'On this page' }).locator('[aria-current="location"]'),
   ).toHaveText('??');
+});
+
+test('questions give feedback, XP and a reveal after two wrong tries', async ({ page }) => {
+  await page.goto('/courses/js-basics/variables');
+  await expect(page.getByRole('heading', { level: 1, name: 'Variables & types' })).toBeVisible();
+
+  // Predict the output: right on the first try earns 10 XP.
+  const predict = page.locator('[data-question="predict"]');
+  await predict.getByLabel('Your prediction').fill('Bagel × 3\nstring');
+  await predict.getByRole('button', { name: 'Check' }).click();
+  await expect(predict.getByText('Correct!')).toBeVisible();
+  await expect(predict.getByText('+10 XP')).toBeVisible();
+
+  // Order the lines (lesson 3): two wrong checks unlock "Show answer".
+  await page.goto('/courses/js-basics/conditions');
+  const order = page.locator('[data-question="order"]');
+  await order.scrollIntoViewIfNeeded();
+  await order.getByRole('button', { name: 'Check' }).click();
+  await expect(order.getByText('Not yet.')).toBeVisible();
+  await order.getByRole('button', { name: 'Try again' }).click();
+  await order.getByRole('button', { name: 'Check' }).click();
+  await order.getByRole('button', { name: 'Show answer' }).click();
+  await expect(order.getByText('Here’s the answer.')).toBeVisible();
+  await expect(order.locator('ol li').first()).toContainText('function shippingLabel(total) {');
+});
+
+test('completing a lesson earns a badge and shows on the progress page', async ({ page }) => {
+  await page.goto('/courses/js-basics/loops');
+  await page.getByRole('button', { name: 'Mark as complete' }).click();
+  await expect(page.getByText('Badge earned: First steps')).toBeVisible();
+  await page.goto('/progress');
+  await expect(page.getByRole('heading', { name: 'Badges' })).toBeVisible();
+  await expect(page.getByRole('listitem').filter({ hasText: 'First steps' })).toContainText(
+    '(earned)',
+  );
+  await expect(page.getByRole('link', { name: /Level 1, 50 XP/ })).toBeVisible();
+});
+
+test('tracks and certificates', async ({ page }) => {
+  await page.goto('/tracks');
+  for (const name of ['JavaScript', 'TypeScript', 'React', 'Build a real website with React']) {
+    await expect(page.getByRole('link', { name, exact: true })).toBeVisible();
+  }
+  await page.getByRole('link', { name: 'JavaScript', exact: true }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'JavaScript' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'JavaScript Basics' })).toBeVisible();
+  await page.getByRole('link', { name: 'Preview' }).click();
+  await expect(page.getByText(/This is a preview/)).toBeVisible();
 });

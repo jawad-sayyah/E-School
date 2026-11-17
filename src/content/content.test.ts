@@ -91,12 +91,19 @@ describe.each(lessonFiles)('$course/$file', ({ abs }) => {
   test('has one quiz with 3–5 valid questions', () => {
     const quizzes = findAll(tree, 'Quiz');
     expect(quizzes).toHaveLength(1);
-    const questions = attr(quizzes[0], 'questions') as { options: string[]; answer: number }[];
+    const questions = attr(quizzes[0], 'questions') as {
+      options: string[];
+      answer: number | number[];
+    }[];
     expect(questions.length).toBeGreaterThanOrEqual(3);
     expect(questions.length).toBeLessThanOrEqual(5);
     for (const q of questions) {
-      expect(q.answer).toBeGreaterThanOrEqual(0);
-      expect(q.answer).toBeLessThan(q.options.length);
+      const answers = Array.isArray(q.answer) ? (q.answer as number[]) : [q.answer];
+      expect(answers.length).toBeGreaterThan(0);
+      for (const a of answers) {
+        expect(a).toBeGreaterThanOrEqual(0);
+        expect(a).toBeLessThan(q.options.length);
+      }
     }
   });
 
@@ -162,9 +169,7 @@ describe.each(lessonFiles)('$course/$file questions', ({ abs }) => {
   });
 
   test('question ids are unique in the lesson', () => {
-    const ids = questions
-      .filter((q) => q.name !== 'Quiz')
-      .map((q) => String(attr(q, 'id')));
+    const ids = questions.filter((q) => q.name !== 'Quiz').map((q) => String(attr(q, 'id')));
     expect(ids.every((id) => id && id !== 'undefined')).toBe(true);
     expect(new Set(ids).size).toBe(ids.length);
   });
@@ -248,7 +253,8 @@ describe.each(lessonFiles)('$course/$file questions', ({ abs }) => {
     for (const c of findAll(tree, 'Choice')) {
       const options = attr(c, 'options') as string[];
       const answer = attr(c, 'answer') as number | number[];
-      for (const a of Array.isArray(answer) ? answer : [answer]) expect(a).toBeLessThan(options.length);
+      for (const a of Array.isArray(answer) ? answer : [answer])
+        expect(a).toBeLessThan(options.length);
     }
     for (const t of findAll(tree, 'TraceState')) {
       expect((attr(t, 'steps') as unknown[]).length).toBeGreaterThanOrEqual(2);

@@ -1,0 +1,303 @@
+---
+id: review
+title: "Review: JavaScript Basics"
+summary: Put the whole course together with mixed questions, a bigger exercise and a final quiz.
+minutes: 20
+tags: [review, quiz, practice, variables, operators, conditions, loops, functions, closures, arrays, objects, strings]
+---
+
+This review mixes everything from JavaScript Basics. Take it without looking back first; then revisit any lesson where you got stuck. Every question earns XP, and finishing the review completes the course.
+
+<Callout type="tip">
+Stuck? Each question has a hint after a wrong answer, and "Show answer" after two tries. The lesson names in brackets tell you where to look.
+</Callout>
+
+<Practice title="Values, operators and conditions">
+
+<SortBuckets
+  id="buckets-typeof"
+  prompt="Sort each value by what `typeof` says about it. (Variables & types)"
+  buckets={["number", "string", "boolean", "object"]}
+  items={[
+    ["`42`", 0],
+    ["`\"42\"`", 1],
+    ["`true`", 2],
+    ["`null`", 3],
+    ["`[1, 2]`", 3],
+    ["`NaN`", 0],
+    ["`\"true\"`", 1],
+    ["`{}`", 3],
+  ]}
+  explain={"Arrays, plain objects and `null` all say \"object\" (`null` because of an old bug). `NaN` is a special number value."}
+/>
+
+<Choice
+  id="choice-falsy"
+  q="Which of these values are falsy? (Operators & comparisons)"
+  options={["`0`", "`\"0\"`", "`\"\"`", "`[]`", "`null`", "`undefined`"]}
+  answer={[0, 2, 4, 5]}
+  explain={"The falsy values are `false`, `0`, `\"\"`, `null`, `undefined` and `NaN`. A non-empty string like `\"0\"` and an empty array are truthy."}
+  hint="There are only six falsy values in JavaScript. Empty containers aren't among them."
+/>
+
+<TraceState
+  id="trace-qty"
+  track="the value of `qty`"
+  steps={[
+    { action: "Line 1 runs", answer: "1" },
+    { action: "Line 2 runs", answer: "3" },
+    { action: "Line 3 runs", answer: "6" },
+    { action: "Line 4 runs", answer: "5" },
+  ]}
+  explain="`+=` adds, the right side of `qty * 2` uses the current value, and `--` subtracts one."
+>
+
+```js
+let qty = 1;
+qty += 2;
+qty = qty * 2;
+qty--;
+```
+
+</TraceState>
+
+</Practice>
+
+<Practice title="Loops and functions">
+
+<SpotTheBug
+  id="bug-off-by-one"
+  bug={2}
+  prompt="This crashes after printing three names. Click the buggy line. (Loops)"
+  explain="With `<=`, the loop runs once more with `i === 3`, and `cart[3]` is `undefined`. Use `i < cart.length`, or better, `for...of`."
+  hint="How many times does the loop run for a 3-item array?"
+>
+
+```js
+const cart = ["Coffee", "Bagel", "Muffin"];
+for (let i = 0; i <= cart.length; i++) {
+  console.log(cart[i].toUpperCase());
+}
+```
+
+```js fixed
+const cart = ["Coffee", "Bagel", "Muffin"];
+for (let i = 0; i < cart.length; i++) {
+  console.log(cart[i].toUpperCase());
+}
+```
+
+</SpotTheBug>
+
+<OrderLines
+  id="order-find-item"
+  prompt="Order the lines to build `findItem(cart, id)`, which returns the matching item or `null`. (Functions)"
+  explain="The loop returns early as soon as it finds the item; only if nothing matched does the function reach `return null`."
+>
+
+```js
+function findItem(cart, id) {
+  for (const item of cart) {
+    if (item.id === id) {
+      return item;
+    }
+  }
+  return null;
+}
+```
+
+</OrderLines>
+
+<MatchPairs
+  id="match-concepts"
+  prompt="Match each idea with the code that shows it. (Functions, Callbacks & closures, Objects)"
+  columns={["Idea", "Code"]}
+  pairs={[
+    ["Closure", "`const next = makeCounter();`"],
+    ["Callback", "`cart.forEach((item) => log(item))`"],
+    ["Destructuring", "`const { name, price } = item;`"],
+    ["Spread", "`{ ...item, qty: 2 }`"],
+    ["Ternary", "`qty === 1 ? \"item\" : \"items\"`"],
+    ["Template literal", "`` `${qty} × ${name}` ``"],
+  ]}
+/>
+
+</Practice>
+
+<Practice title="Arrays, objects and strings">
+
+<Predict
+  id="predict-cart-summary"
+  answer={["Coffee & Bagel: $11.00", "multi"]}
+  explain="`map` + `join` builds the names, `reduce` adds 4 × 2 + 3 × 1 = 11, and `toFixed(2)` formats it. Coffee has a qty of 2, so `some` is true."
+>
+
+```js
+const cart = [
+  { name: "Coffee", price: 4, qty: 2 },
+  { name: "Bagel", price: 3, qty: 1 },
+];
+
+const names = cart.map((i) => i.name).join(" & ");
+const total = cart.reduce((sum, i) => sum + i.price * i.qty, 0);
+console.log(`${names}: $${total.toFixed(2)}`);
+console.log(cart.some((i) => i.qty > 1) ? "multi" : "single");
+```
+
+</Predict>
+
+<FillBlanks
+  id="blanks-cheap-total"
+  prompt="Fill in the blanks: keep the prices under 5 and add them up (the answer is 7). (Arrays II)"
+  explain="`filter` keeps the cheap prices [4, 3]; `reduce` adds them, starting from 0."
+>
+
+```js
+const prices = [4, 3, 5];
+const cheap = prices.__[filter]__((p) => p < 5);
+const total = cheap.__[reduce]__((sum, p) => sum + p, __[0]__);
+console.log(total);
+```
+
+</FillBlanks>
+
+<CodeReview
+  id="review-get-names"
+  answer={1}
+  prompt="Which `getNames(cart)` would you approve? (Arrays I)"
+  reasons={[
+    "It works, but it's five lines of bookkeeping (a counter, an empty array, push) for something `map` does in one.",
+    "One line, no counter, no mutation: `map` says exactly what it does. This is how React code renders lists.",
+    "`forEach` always returns `undefined`, so this function returns `undefined` no matter what.",
+  ]}
+>
+
+```js
+function getNames(cart) {
+  const names = [];
+  for (let i = 0; i < cart.length; i++) {
+    names.push(cart[i].name);
+  }
+  return names;
+}
+```
+
+```js
+const getNames = (cart) => cart.map((item) => item.name);
+```
+
+```js
+function getNames(cart) {
+  return cart.forEach((item) => item.name);
+}
+```
+
+</CodeReview>
+
+<TrueFalse
+  id="tf-review-basics"
+  statements={[
+    { text: "`[...cart]` makes a deep copy of every item in the cart.", answer: false, explain: "Spread is shallow: the new array holds the same item objects." },
+    { text: "`find()` returns `undefined` when nothing matches.", answer: true, explain: "`findIndex` is the one that returns -1." },
+    { text: "`user.address?.city` crashes if `address` is missing.", answer: false, explain: "That's what `?.` prevents: you get `undefined`." },
+    { text: "`\"  hi \".trim()` changes the original string.", answer: false, explain: "Strings never change; `trim` returns a new one." },
+    { text: "`const` arrays can still get new items with `push`.", answer: true, explain: "`const` only stops reassignment of the variable." },
+  ]}
+/>
+
+</Practice>
+
+<Exercise
+  id="cart-summary"
+  title="Cart summary"
+  hints={[
+    "Handle the empty cart first with an early return.",
+    "You need two totals: the number of items (sum of `qty`) and the price (sum of `price * qty`). `reduce` does both.",
+    "Pick \"item\" or \"items\" with a ternary, and format the price with `toFixed(2)`.",
+  ]}
+>
+
+Write `cartSummary(cart)` that returns a summary like `"3 items · $11.00"`. Count items by their `qty`, use "item" for exactly one, and return `"Your cart is empty"` for an empty cart.
+
+```js starter
+function cartSummary(cart) {
+  return "";
+}
+
+console.log(cartSummary([{ name: "Coffee", price: 4, qty: 2 }]));
+```
+
+```js tests
+test("an empty cart", () => {
+  expect(cartSummary([])).toBe("Your cart is empty");
+});
+
+test("one item uses the singular", () => {
+  expect(cartSummary([{ name: "Coffee", price: 4, qty: 1 }])).toBe("1 item · $4.00");
+});
+
+test("several items, counted by qty", () => {
+  const cart = [
+    { name: "Coffee", price: 4, qty: 2 },
+    { name: "Bagel", price: 3, qty: 1 },
+  ];
+  expect(cartSummary(cart)).toBe("3 items · $11.00");
+});
+
+test("decimal prices get two decimals", () => {
+  expect(cartSummary([{ name: "Tea", price: 2.5, qty: 2 }])).toBe("2 items · $5.00");
+});
+```
+
+```js solution
+function cartSummary(cart) {
+  if (cart.length === 0) return "Your cart is empty";
+  const count = cart.reduce((n, item) => n + item.qty, 0);
+  const total = cart.reduce((sum, item) => sum + item.price * item.qty, 0);
+  const label = count === 1 ? "item" : "items";
+  return `${count} ${label} · $${total.toFixed(2)}`;
+}
+
+console.log(cartSummary([{ name: "Coffee", price: 4, qty: 2 }]));
+```
+
+</Exercise>
+
+<Quiz
+  title="Final quiz"
+  questions={[
+    {
+      q: "What does this print?",
+      code: "console.log(\"3\" * \"4\", \"3\" + 4);",
+      options: ["`12 7`", "`12 34`", "`34 34`", "`NaN 34`"],
+      answer: 1,
+      explain: "`*` converts both sides to numbers (12), while `+` with a string joins text (\"34\").",
+    },
+    {
+      q: "Which loop is best for visiting every item in an array?",
+      options: ["`for (let i = 0; i <= arr.length; i++)`", "`for (const item of arr)`", "`while (arr)`", "`for (const i in arr)`"],
+      answer: 1,
+      explain: "`for...of` gives you each value with no counter to get wrong. (`for...in` gives indexes as strings.)",
+    },
+    {
+      q: "What does `[1, 2, 3].map((n) => { n * 2 })` give?",
+      options: ["`[ 2, 4, 6 ]`", "`[ undefined, undefined, undefined ]`", "`[ 1, 2, 3 ]`", "An error"],
+      answer: 1,
+      explain: "With `{ }` an arrow function needs `return`.",
+      hint: "Look at the curly braces around the function body.",
+    },
+    {
+      q: "Which of these do NOT change the original array?",
+      options: ["`push()`", "`map()`", "`filter()`", "`sort()`", "`slice()`"],
+      answer: [1, 2, 4],
+      explain: "`push` and `sort` change the array in place; `map`, `filter` and `slice` return new arrays.",
+    },
+    {
+      q: "What does this print?",
+      code: "const { qty = 1, name } = { name: \"Tea\", qty: 0 };\nconsole.log(name, qty);",
+      options: ["`Tea 1`", "`Tea 0`", "`undefined 1`", "`Tea undefined`"],
+      answer: 1,
+      explain: "A default is only used when the value is `undefined`. Here `qty` is 0, so it stays 0.",
+    },
+  ]}
+/>

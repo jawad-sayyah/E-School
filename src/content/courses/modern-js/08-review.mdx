@@ -1,0 +1,259 @@
+---
+id: review
+title: "Review: Modern JavaScript"
+summary: Mix spread, promises, async/await, modules, the DOM and JSON in one review, with a bigger async exercise.
+minutes: 20
+tags: [review, quiz, practice, spread, promises, async, await, fetch, modules, dom, json, localStorage]
+---
+
+This review mixes everything from Modern JavaScript. The questions jump between topics on purpose: in real code they all show up together.
+
+<Practice title="Copies, JSON and storage">
+
+<Predict
+  id="predict-copy-json"
+  answer={["1 2", "{\"id\":1,\"qty\":2}", "number"]}
+  explain="The spread made a new object, so `item.qty` is still 1. `JSON.stringify` makes text with no spaces, and parsing it gives a real number back."
+>
+
+```js
+const item = { id: 1, qty: 1 };
+const next = { ...item, qty: item.qty + 1 };
+const json = JSON.stringify(next);
+
+console.log(item.qty, next.qty);
+console.log(json);
+console.log(typeof JSON.parse(json).qty);
+```
+
+</Predict>
+
+<SpotTheBug
+  id="bug-fake-copy"
+  bug={2}
+  prompt="This prints `true`: the old and new carts are the same array. Click the buggy line. (Spread & rest)"
+  explain="`const next = cart` copies the reference, not the array. Use `const next = [...cart];`, or return `[...cart, item]` directly."
+>
+
+```js
+function addItem(cart, item) {
+  const next = cart;
+  next.push(item);
+  return next;
+}
+
+const before = ["Coffee"];
+const after = addItem(before, "Tea");
+console.log(before === after);
+```
+
+```js fixed
+function addItem(cart, item) {
+  const next = [...cart];
+  next.push(item);
+  return next;
+}
+
+const before = ["Coffee"];
+const after = addItem(before, "Tea");
+console.log(before === after);
+```
+
+</SpotTheBug>
+
+<OrderLines
+  id="order-safe-load"
+  prompt="Order the lines to load the cart from storage safely. (JSON & localStorage)"
+  explain="Read and parse inside `try`, fall back to `[]` when nothing was saved, and return `[]` from `catch` when the text is broken."
+>
+
+```js
+function loadCart() {
+  try {
+    const raw = localStorage.getItem("cart");
+    return JSON.parse(raw) ?? [];
+  } catch {
+    return [];
+  }
+}
+```
+
+</OrderLines>
+
+</Practice>
+
+<Practice title="Async code">
+
+<Predict
+  id="predict-await-order"
+  answer={["1", "2", "3", "4"]}
+  explain="`load()` runs synchronously until its first `await`, so 2 prints right away. The `await` hands control back, 3 prints, and then the function resumes and prints 4."
+  hint="An async function runs normally until it reaches `await`."
+>
+
+```js
+async function load() {
+  console.log("2");
+  await null;
+  console.log("4");
+}
+
+console.log("1");
+load();
+console.log("3");
+```
+
+</Predict>
+
+<SortBuckets
+  id="buckets-now-or-later"
+  prompt="Sort each call: does its callback or result run right away, or later? (Timers & promises)"
+  buckets={["Right away", "Later"]}
+  items={[
+    ["`console.log(\"hi\")`", 0],
+    ["`[1, 2].map((n) => n * 2)`", 0],
+    ["`JSON.parse(text)`", 0],
+    ["`setTimeout(fn, 0)`", 1],
+    ["`Promise.resolve().then(fn)`", 1],
+    ["`await fetch(url)`", 1],
+  ]}
+  explain="Array methods and JSON run synchronously. Timer and promise callbacks wait until the current code has finished, and `await fetch` waits for the network."
+/>
+
+<FillBlanks
+  id="blanks-promise-all"
+  prompt="Fill in the blanks to load the cart and the user at the same time. (async / await)"
+  explain="`Promise.all` waits for both requests, which run in parallel, and `res.json()` reads each body."
+>
+
+```js
+const [cart, user] = await Promise.__[all]__([
+  fetch("/api/cart").then((r) => r.__[json]__()),
+  fetch("/api/user").then((r) => r.json()),
+]);
+console.log(cart.length, user.name);
+```
+
+</FillBlanks>
+
+</Practice>
+
+<Practice title="Modules, the DOM and the big picture">
+
+<MatchPairs
+  id="match-modern-tools"
+  prompt="Match each tool with the job it does."
+  columns={["Tool", "Job"]}
+  pairs={[
+    ["`structuredClone(obj)`", "Make a deep copy"],
+    ["`Promise.all([...])`", "Wait for several promises at once"],
+    ["`res.ok`", "Check for HTTP errors like 404"],
+    ["`event.preventDefault()`", "Stop a form from reloading the page"],
+    ["`JSON.parse(text)`", "Turn text back into objects"],
+    ["`export default`", "Give a file its one main export"],
+  ]}
+/>
+
+<TrueFalse
+  id="tf-review-modern"
+  statements={[
+    { text: "`{ ...user }` copies nested objects too.", answer: false, explain: "Spread is shallow; use `structuredClone` for a deep copy." },
+    { text: "A promise's `.then` runs before a `setTimeout(fn, 0)` scheduled earlier.", answer: true, explain: "Promise callbacks are microtasks, which run before the next timer." },
+    { text: "`input.value` is a number when the input has `type=\"number\"`.", answer: false, explain: "`value` is always a string; use `valueAsNumber` or `Number()`." },
+    { text: "`JSON.stringify` keeps functions.", answer: false, explain: "Functions (and `undefined`) are dropped." },
+    { text: "A file can have one default export and many named exports.", answer: true, explain: "That's a common pattern for React components with helpers." },
+  ]}
+/>
+
+</Practice>
+
+<Exercise
+  id="store-total"
+  title="The store total, from the API"
+  hints={[
+    "`await fetch(url)` first, then check `res.ok` and throw `new Error(\"HTTP \" + res.status)` if it's false.",
+    "`await res.json()` gives the products array; `reduce` adds up their `price`.",
+    "Return the total formatted with a dollar sign and `toFixed(2)`.",
+  ]}
+>
+
+Write `async function getStoreTotal(url = "/api/products")`. It loads the products, adds up every `price`, and returns the total as text like `"$12.00"`. If the response isn't ok, throw an error with the message `HTTP <status>`.
+
+```js starter
+async function getStoreTotal(url = "/api/products") {
+  return "$0.00";
+}
+
+console.log(await getStoreTotal());
+```
+
+```js tests
+test("adds up every product price", async () => {
+  expect(await getStoreTotal()).toBe("$12.00");
+});
+
+test("throws HTTP 404 for a missing URL", async () => {
+  let message = "no error";
+  try {
+    await getStoreTotal("/api/missing");
+  } catch (err) {
+    message = err.message;
+  }
+  expect(message).toBe("HTTP 404");
+});
+
+test("returns a promise", () => {
+  expect(getStoreTotal() instanceof Promise).toBe(true);
+});
+```
+
+```js solution
+async function getStoreTotal(url = "/api/products") {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const products = await res.json();
+  const total = products.reduce((sum, p) => sum + p.price, 0);
+  return `$${total.toFixed(2)}`;
+}
+
+console.log(await getStoreTotal());
+```
+
+</Exercise>
+
+<Quiz
+  title="Final quiz"
+  questions={[
+    {
+      q: "In what order do these print?",
+      code: "setTimeout(() => console.log(\"A\"), 0);\nPromise.resolve().then(() => console.log(\"B\"));\nconsole.log(\"C\");",
+      options: ["A, B, C", "C, A, B", "C, B, A", "B, C, A"],
+      answer: 2,
+      explain: "Normal code first (C), then promise callbacks (B), then timers (A).",
+    },
+    {
+      q: "Why must React state updates make new arrays and objects?",
+      options: ["New objects are faster", "React compares old and new state by reference to see what changed", "`push` is deprecated", "React freezes state"],
+      answer: 1,
+      explain: "If you change an array in place, it's still the same array, so React thinks nothing changed.",
+    },
+    {
+      q: "What does `fetch` do when the server answers 500?",
+      options: ["It throws", "It resolves with `res.ok === false`", "It retries", "It returns `null`"],
+      answer: 1,
+      explain: "`fetch` only rejects on network failures; HTTP errors resolve with `ok: false`.",
+    },
+    {
+      q: "Which of these break when the value goes through `JSON.stringify` and `JSON.parse`?",
+      options: ["`\"text\"`", "`undefined`", "`new Date()`", "`[1, 2]`", "`() => 1`"],
+      answer: [1, 2, 4],
+      explain: "`undefined` and functions disappear, and a Date comes back as a string.",
+    },
+    {
+      q: "`Cart.jsx` has `export default function Cart() {}`. Which import is right?",
+      options: ["`import { Cart } from \"./Cart.jsx\";`", "`import Cart from \"./Cart.jsx\";`", "`import * from \"./Cart.jsx\";`", "`require(\"./Cart.jsx\").Cart`"],
+      answer: 1,
+      explain: "A default export is imported without braces.",
+    },
+  ]}
+/>
