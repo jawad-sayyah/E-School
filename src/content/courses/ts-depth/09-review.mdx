@@ -1,0 +1,180 @@
+---
+id: review
+title: "Review: TypeScript in Depth"
+summary: Mixed questions on generics, keyof and typeof, utility types, type guards, discriminated unions, satisfies, tsconfig and declaration files, plus a typed API helper to build.
+minutes: 20
+kind: review
+tags: [review, TypeScript, generics, keyof, utility types, type guards, discriminated unions, satisfies]
+---
+
+All of TypeScript in Depth in one review. The lesson names in brackets tell you where to look.
+
+<Practice title="Types that build types">
+
+<MatchPairs
+  id="match-review-depth"
+  prompt="Match each type with what it produces, for `type P = { id: number; name: string; tags?: string[] }`."
+  columns={["Type", "Result"]}
+  pairs={[
+    ["`keyof P`", "`\"id\" | \"name\" | \"tags\"`"],
+    ["`Pick<P, \"id\">`", "`{ id: number }`"],
+    ["`Omit<P, \"tags\">`", "`{ id: number; name: string }`"],
+    ["`Required<P>[\"tags\"]`", "`string[]`"],
+    ["`Partial<P>`", "Every property optional"],
+  ]}
+/>
+
+<SpotTheBug
+  id="bug-review-depth"
+  bug={[9, 12]}
+  prompt="TypeScript reports two errors. Click either line. (Discriminated unions, Generics)"
+  explain="Line 9: in the `error` branch there's no `data`. Line 12: `T` has no constraint, so `.id` isn't known to exist; use `<T extends { id: number }>`."
+>
+
+```ts
+type Result<T> = { ok: true; data: T } | { ok: false; error: string };
+
+function show(result: Result<string[]>): string {
+  if (result.ok) {
+    return result.data.join(", ");
+  }
+  return result.error;
+}
+const oops = (r: Result<number>) => (r.ok ? "" : r.data);
+
+function ids<T>(items: T[]): number[] {
+  return items.map((item) => item.id);
+}
+```
+
+</SpotTheBug>
+
+<SortBuckets
+  id="buckets-review-depth"
+  prompt="Which tool fits? (all lessons)"
+  buckets={["Generic", "Type guard", "satisfies", "declare"]}
+  items={[
+    ["A `first(list)` that returns the item type", 0],
+    ["Checking unknown JSON is a Product", 1],
+    ["A config object checked but keeping exact keys", 2],
+    ["A global function added by a vendor script", 3],
+    ["A `Box<T>` that can hold any type", 0],
+    ["Filtering out invalid cart lines", 1],
+  ]}
+  explain="Generics keep types flowing through, guards narrow unknown data, satisfies checks without widening, and declare describes code TypeScript can't see."
+/>
+
+<TrueFalse
+  id="tf-review-depth"
+  statements={[
+    { text: "`Awaited<ReturnType<typeof fetchUser>>` is what an async `fetchUser` resolves to.", answer: true, explain: "ReturnType gives the Promise; Awaited unwraps it. (Utility types)" },
+    { text: "`value as Product` checks that `value` really is a Product.", answer: false, explain: "`as` trusts you. Use `satisfies` or a type guard. (satisfies, Type guards)" },
+    { text: "A `default: assertNever(x)` makes a forgotten union member a compile error.", answer: true, explain: "x is only `never` if every case is handled. (Discriminated unions)" },
+    { text: "Vite type-checks when it builds.", answer: false, explain: "Run `tsc` separately. (tsconfig.json)" },
+  ]}
+/>
+
+</Practice>
+
+<TSExercise
+  id="typed-fetch-json"
+  title="A typed request helper"
+  hints={[
+    "Model the result as a discriminated union: `type Result<T> = { ok: true; data: T } | { ok: false; error: string };`",
+    "Make the helper generic and take a type guard: `function parse<T>(json: string, isT: (v: unknown) => v is T): Result<T>`.",
+    "Inside: `JSON.parse` in a try/catch; if `isT(value)` return `{ ok: true, data: value }`, otherwise `{ ok: false, error: \"Unexpected shape\" }`.",
+  ]}
+>
+
+Write a generic `parse(json, isT)` that parses a JSON string and validates it with a type guard. It returns a `Result<T>`: `{ ok: true, data }` with the **typed** data, or `{ ok: false, error }` for invalid JSON (**"Invalid JSON"**) or the wrong shape (**"Unexpected shape"**). `isProduct` is already written.
+
+```ts starter
+type Product = { name: string; price: number };
+
+function isProduct(v: unknown): v is Product {
+  return typeof v === "object" && v !== null && typeof (v as Product).name === "string" && typeof (v as Product).price === "number";
+}
+
+type Result<T> = any;
+
+function parse(json: string, isT: (v: unknown) => boolean): any {
+  return JSON.parse(json);
+}
+```
+
+```ts types
+const r = parse('{"name":"Tea","price":2}', isProduct);
+if (r.ok) {
+  // data is a Product here
+  const price: number = r.data.price;
+} else {
+  const message: string = r.error;
+}
+// @ts-expect-error data only exists when ok is true
+r.data;
+```
+
+```js tests
+test("returns typed data for valid JSON of the right shape", () => {
+  expect(parse('{"name":"Tea","price":2}', isProduct)).toEqual({ ok: true, data: { name: "Tea", price: 2 } });
+});
+
+test("reports invalid JSON", () => {
+  expect(parse("{oops", isProduct)).toEqual({ ok: false, error: "Invalid JSON" });
+});
+
+test("reports the wrong shape", () => {
+  expect(parse('{"title":"Tea"}', isProduct)).toEqual({ ok: false, error: "Unexpected shape" });
+});
+```
+
+```ts solution
+type Product = { name: string; price: number };
+
+function isProduct(v: unknown): v is Product {
+  return typeof v === "object" && v !== null && typeof (v as Product).name === "string" && typeof (v as Product).price === "number";
+}
+
+type Result<T> = { ok: true; data: T } | { ok: false; error: string };
+
+function parse<T>(json: string, isT: (v: unknown) => v is T): Result<T> {
+  let value: unknown;
+  try {
+    value = JSON.parse(json);
+  } catch {
+    return { ok: false, error: "Invalid JSON" };
+  }
+  return isT(value) ? { ok: true, data: value } : { ok: false, error: "Unexpected shape" };
+}
+```
+
+</TSExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "What does `T extends keyof Product` allow? (keyof and typeof)",
+      options: ["Any string", "Only the property names of Product", "Only Product objects", "Numbers"],
+      answer: 1,
+      explain: "keyof gives the union of property names.",
+    },
+    {
+      q: "Which utility type gives an object with a value for every key in a union? (Utility types)",
+      options: ["`Partial`", "`Record`", "`Pick`", "`Readonly`"],
+      answer: 1,
+      explain: "`Record<Size, number>`.",
+    },
+    {
+      q: "Which return type makes a function a type guard? (Type guards)",
+      options: ["`boolean`", "`value is Product`", "`asserts`", "`Product`"],
+      answer: 1,
+      explain: "A type predicate.",
+    },
+    {
+      q: "How do you get types for a JavaScript-only npm package? (Declaration files)",
+      options: ["Install `@types/<name>`, or write `declare module`", "Rename it to .ts", "Use `any` everywhere", "You can't"],
+      answer: 0,
+      explain: "DefinitelyTyped first, your own declarations second.",
+    },
+  ]}
+/>

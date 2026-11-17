@@ -1,0 +1,208 @@
+---
+id: utility-types
+title: Utility types
+summary: Transform existing types instead of rewriting them, with Partial, Required, Readonly, Pick, Omit, Record, ReturnType, Parameters, NonNullable and Awaited.
+minutes: 18
+tags: [TypeScript, utility types, Partial, Required, Readonly, Pick, Omit, Record, ReturnType, Parameters, NonNullable, Awaited]
+---
+
+TypeScript ships a toolbox of **utility types**: generic types that take a type and return a changed version of it. They keep variations of a type (a form's draft, an update payload, a public view) in sync with the original.
+
+<Concept name="Changing properties: Partial, Required, Readonly" id="modifiers">
+
+<TSPlayground file="partial.ts" errors={[13]} expected={["{ id: 1, name: 'Coffee', price: 4.5, stock: 10 }"]}>
+
+```ts
+type Product = { id: number; name: string; price: number; stock: number };
+
+// An update can change any subset of fields
+function update(product: Product, changes: Partial<Product>): Product {
+  return { ...product, ...changes };
+}
+
+const coffee: Product = { id: 1, name: "Coffee", price: 4, stock: 10 };
+const updated = update(coffee, { price: 4.5 });
+console.log(updated);
+
+const frozen: Readonly<Product> = updated;
+frozen.price = 1;                      // error: every property is readonly
+```
+
+</TSPlayground>
+
+- `Partial<T>`: every property optional. Perfect for "patch" updates and form drafts.
+- `Required<T>`: every property required (removes `?`).
+- `Readonly<T>`: every property readonly.
+
+</Concept>
+
+<Concept name="Choosing properties: Pick and Omit" id="pick-omit">
+
+```ts file=user.ts
+type User = { id: number; name: string; email: string; passwordHash: string };
+
+type PublicUser = Omit<User, "passwordHash">;     // everything except the hash
+type UserPreview = Pick<User, "id" | "name">;     // only id and name
+type NewUser = Omit<User, "id">;                  // the server assigns the id
+```
+
+</Concept>
+
+<Concept name="Record: an object with known keys" id="record">
+
+`Record<K, V>` is an object type whose keys are `K` and whose values are `V`. With a union of keys, TypeScript makes sure **every** key is present:
+
+```ts file=stock.ts
+type Size = "small" | "medium" | "large";
+const stock: Record<Size, number> = { small: 10, medium: 4, large: 0 }; // a missing size is an error
+const notes: Record<string, string> = {};                                 // any string key
+```
+
+</Concept>
+
+<Concept name="Types from functions and promises" id="function-utils">
+
+```ts file=api.ts
+async function fetchProduct(id: number) {
+  return { id, name: "Coffee", price: 4 };
+}
+
+type FetchParams = Parameters<typeof fetchProduct>;      // [id: number]
+type FetchResult = ReturnType<typeof fetchProduct>;      // Promise<{ id: number; name: string; price: number }>
+type ProductData = Awaited<ReturnType<typeof fetchProduct>>; // { id: number; name: string; price: number }
+
+type MaybeName = string | null | undefined;
+type Name = NonNullable<MaybeName>;                      // string
+```
+
+These let you derive types from code you don't control (a library's function) instead of copying its types by hand.
+
+</Concept>
+
+<HowItWorks title="Utility types are just generics">
+
+None of these are magic; they're generic types written with the tools from the previous lessons:
+
+```ts file=lib.d.ts
+type Partial<T> = { [K in keyof T]?: T[K] };
+type Readonly<T> = { readonly [K in keyof T]: T[K] };
+type Pick<T, K extends keyof T> = { [P in K]: T[P] };
+type Record<K extends keyof any, V> = { [P in K]: V };
+type Omit<T, K extends keyof any> = Pick<T, Exclude<keyof T, K>>;
+```
+
+Mapped types, `keyof` and indexed access: once you can read these, you can write your own.
+
+</HowItWorks>
+
+<Practice>
+
+<MatchPairs
+  id="match-utilities"
+  prompt="Match each need with the utility type."
+  columns={["Need", "Utility"]}
+  pairs={[
+    ["A patch where any field may be sent", "`Partial<Product>`"],
+    ["A user without the password hash", "`Omit<User, \"passwordHash\">`"],
+    ["Only the id and name of a product", "`Pick<Product, \"id\" | \"name\">`"],
+    ["A price for every size", "`Record<Size, number>`"],
+    ["What an async function resolves to", "`Awaited<ReturnType<typeof fn>>`"],
+    ["A string without null or undefined", "`NonNullable<string | null>`"],
+  ]}
+/>
+
+<SpotTheBug
+  id="bug-record-missing"
+  bug={3}
+  prompt="TypeScript reports one error. Click the line."
+  explain="`Record<Size, number>` requires a value for every size, and `large` is missing."
+>
+
+```ts
+type Size = "small" | "medium" | "large";
+
+const prices: Record<Size, number> = { small: 3.5, medium: 4.5 };
+```
+
+</SpotTheBug>
+
+<TrueFalse
+  id="tf-utilities"
+  statements={[
+    { text: "`Partial<T>` makes every property optional.", answer: true, explain: "Handy for updates and drafts." },
+    { text: "`Omit<User, \"email\">` removes `email` from the User objects at run time.", answer: false, explain: "It's a type only; nothing changes at run time." },
+    { text: "`ReturnType<typeof fn>` of an async function is a `Promise`.", answer: true, explain: "Wrap it in `Awaited<…>` to get the resolved value." },
+  ]}
+/>
+
+</Practice>
+
+<TSExercise
+  id="utility-forms"
+  title="Derive the form types"
+  hints={[
+    "`type NewProduct = Omit<Product, \"id\">;`",
+    "`type ProductPatch = Partial<Omit<Product, \"id\">>;` (the id can't be patched)",
+    "`type StockBySize = Record<Size, number>;`",
+  ]}
+>
+
+Derive three types from `Product` and `Size` instead of writing them by hand: `NewProduct` (everything but `id`), `ProductPatch` (any subset of the fields except `id`), and `StockBySize` (a number for every size).
+
+```ts starter
+type Size = "small" | "medium" | "large";
+type Product = { id: number; name: string; price: number; size: Size };
+
+type NewProduct = any;
+type ProductPatch = any;
+type StockBySize = any;
+```
+
+```ts types
+const draft: NewProduct = { name: "Tea", price: 2, size: "small" };
+const patch: ProductPatch = { price: 2.5 };
+const empty: ProductPatch = {};
+const stock: StockBySize = { small: 1, medium: 2, large: 0 };
+// @ts-expect-error a new product has no id yet
+const withId: NewProduct = { id: 1, name: "Tea", price: 2, size: "small" };
+// @ts-expect-error a new product needs a name
+const noName: NewProduct = { price: 2, size: "small" };
+// @ts-expect-error the id can't be patched
+const badPatch: ProductPatch = { id: 9 };
+// @ts-expect-error every size needs a number
+const partialStock: StockBySize = { small: 1 };
+```
+
+```ts solution
+type Size = "small" | "medium" | "large";
+type Product = { id: number; name: string; price: number; size: Size };
+
+type NewProduct = Omit<Product, "id">;
+type ProductPatch = Partial<Omit<Product, "id">>;
+type StockBySize = Record<Size, number>;
+```
+
+</TSExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "Which type describes an object where each of `\"S\" | \"M\"` maps to a price?",
+      options: ["`Partial<number>`", "`Record<\"S\" | \"M\", number>`", "`Pick<number, \"S\">`", "`Array<\"S\" | \"M\">`"],
+      answer: 1,
+      explain: "Record builds an object type from a key union and a value type.",
+    },
+    {
+      q: "What's `Pick<User, \"id\">`?",
+      options: ["`{ id: number }`, assuming User's id is a number", "The value of user.id", "User without id", "An error"],
+      answer: 0,
+      explain: "Pick keeps only the listed properties.",
+    },
+    {
+      q: "Why use utility types instead of writing similar types by hand?",
+      options: ["They stay in sync with the original type", "They run faster", "They're required by React", "Hand-written types can't be optional"],
+      answer: 0,
+      explain: "Change `Product` and `NewProduct` follows.",
+    },
+  ]}
+/>

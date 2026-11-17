@@ -1,0 +1,181 @@
+---
+id: satisfies
+title: The satisfies operator
+summary: Check that a value matches a type without losing its more precise inferred type, and see how satisfies compares with annotations and as.
+minutes: 12
+tags: [TypeScript, satisfies, type annotations, as, type assertions, config objects]
+---
+
+An annotation (`const x: T = …`) checks a value **and replaces** its type with `T`. Sometimes you want the check but **not** the replacement, because the inferred type is more precise. That's what `satisfies` (TypeScript 4.9+) does.
+
+<Concept name="Annotation vs. satisfies" id="vs">
+
+<TSPlayground file="theme.ts" errors={[8, 14]} expected={["#61DAFB"]}>
+
+```ts
+type Color = string | { r: number; g: number; b: number };
+type Theme = Record<"primary" | "danger", Color>;
+
+const annotated: Theme = {
+  primary: "#61dafb",
+  danger: { r: 240, g: 113, b: 120 },
+};
+annotated.primary.toUpperCase();     // error: Color might be an object
+
+const checked = {
+  primary: "#61dafb",
+  danger: { r: 240, g: 113, b: 120 },
+} satisfies Theme;
+const missing = { primary: "#fff" } satisfies Theme;  // error: danger is missing
+
+console.log(checked.primary.toUpperCase());   // fine: TypeScript still knows it's a string
+```
+
+</TSPlayground>
+
+- With the annotation, `annotated.primary` is a `Color`, so you'd have to narrow before calling string methods.
+- With `satisfies`, TypeScript checks the object against `Theme` (missing keys and wrong values are errors) but **keeps** the inferred types: `checked.primary` is a `string`.
+
+</Concept>
+
+<Concept name="satisfies vs. as" id="as">
+
+`as` is a **type assertion**: "trust me, it's this type". It turns checking off in one direction and can hide real mistakes:
+
+```ts file=as.ts
+type Product = { name: string; price: number };
+
+const a = { name: "Tea" } as Product;              // no error, but price is missing!
+const b = { name: "Tea" } satisfies Product;       // error: price is missing
+const c = { name: "Tea", price: 2 } satisfies Product; // checked, and keeps literal details
+```
+
+Reach for `satisfies` (or an annotation) first. Use `as` only when you truly know more than TypeScript (e.g. `document.getElementById("app") as HTMLDivElement`), and keep those spots rare.
+
+</Concept>
+
+<HowItWorks title="When to use which">
+
+| You want… | Write |
+| --- | --- |
+| The variable to have exactly type T (e.g. it will be reassigned) | `const x: T = …` |
+| T's checks, but keep the precise inferred type (configs, lookup tables, routes) | `const x = … satisfies T` |
+| The precise type and literal values, read-only | `const x = … as const satisfies T` |
+| To override TypeScript because you know better | `… as T` (sparingly) |
+
+`as const satisfies T` is a favorite for config objects: exact literal values, checked against a shape.
+
+</HowItWorks>
+
+<Practice>
+
+<SortBuckets
+  id="buckets-satisfies"
+  prompt="Does TypeScript report an error?"
+  buckets={["Error", "No error"]}
+  items={[
+    ["`const p = { name: \"Tea\" } satisfies Product`", 0],
+    ["`const p = { name: \"Tea\" } as Product`", 1],
+    ["`const p: Product = { name: \"Tea\" }`", 0],
+    ["`const p = { name: \"Tea\", price: 2 } satisfies Product`", 1],
+  ]}
+  explain="Annotations and `satisfies` check the value; `as` trusts you (that's why the second one silently lies)."
+/>
+
+<Choice
+  id="choice-satisfies-type"
+  q={"`const routes = { home: \"/\", cart: \"/cart\" } satisfies Record<string, string>;` What's the type of `routes.cart`?"}
+  options={["`string`", "`string | undefined`", "`\"/cart\"`", "`any`"]}
+  answer={0}
+  explain="Without `as const`, the inferred property type is `string`. And because the inferred type has exactly `home` and `cart`, `routes.shop` is an error, unlike with the `Record<string, string>` annotation."
+/>
+
+<SpotTheBug
+  id="bug-satisfies"
+  bug={6}
+  prompt="TypeScript reports one error. Click the line."
+  explain={"`satisfies` checks the object against the type, and `\"xl\"` isn't one of the allowed sizes."}
+>
+
+```ts
+type Size = "s" | "m" | "l";
+
+const LABELS = {
+  s: "Small",
+  m: "Medium",
+  xl: "Extra large",
+} satisfies Partial<Record<Size, string>>;
+```
+
+</SpotTheBug>
+
+</Practice>
+
+<TSExercise
+  id="menu-config"
+  title="A checked menu config"
+  hints={[
+    "Add `satisfies Record<string, MenuItem>` after the object literal.",
+    "Because `satisfies` keeps the inferred type, `MENU.latte` is known to exist and `MENU.pizza` is an error.",
+  ]}
+>
+
+The annotation checks every entry (each needs a name and a price), but it also **forgets** which keys exist: `MENU.pizza` is allowed and is `undefined` at run time. Keep the check but keep the exact keys, with `satisfies`.
+
+```ts starter
+type MenuItem = { name: string; price: number };
+
+const MENU: Record<string, MenuItem> = {
+  latte: { name: "Latte", price: 4.5 },
+  tea: { name: "Tea", price: 2 },
+};
+```
+
+```ts types
+const latte: number = MENU.latte.price;
+// @ts-expect-error there's no "pizza" on the menu
+MENU.pizza;
+// the menu still fits the record type
+const asRecord: Record<string, MenuItem> = MENU;
+```
+
+```js tests
+test("the menu has its items", () => {
+  expect(MENU.latte.price).toBe(4.5);
+  expect(MENU.tea.name).toBe("Tea");
+});
+```
+
+```ts solution
+type MenuItem = { name: string; price: number };
+
+const MENU = {
+  latte: { name: "Latte", price: 4.5 },
+  tea: { name: "Tea", price: 2 },
+} satisfies Record<string, MenuItem>;
+```
+
+</TSExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "What does `satisfies T` do?",
+      options: ["Changes the value's type to T", "Checks the value against T, but keeps its more precise inferred type", "Converts the value at run time", "Disables type checking"],
+      answer: 1,
+      explain: "Check without widening.",
+    },
+    {
+      q: "Why is `{ name: \"Tea\" } as Product` risky?",
+      options: ["It's slower", "`as` trusts you, so the missing `price` isn't reported", "It throws at run time", "It isn't risky"],
+      answer: 1,
+      explain: "Prefer `satisfies` or an annotation.",
+    },
+    {
+      q: "Which is a great fit for `as const satisfies T`?",
+      options: ["A config or lookup table that should be exact and checked", "A counter that changes", "Function parameters", "Class fields"],
+      answer: 0,
+      explain: "Exact literal values, read-only, validated against a shape.",
+    },
+  ]}
+/>

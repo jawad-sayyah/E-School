@@ -1,0 +1,170 @@
+---
+id: declaration-files
+title: Declaration files and @types
+summary: Understand .d.ts files, install types for JavaScript libraries from @types, write declare statements for untyped code, and type globals and environment variables.
+minutes: 15
+tags: [TypeScript, declaration files, .d.ts, declare, "@types", DefinitelyTyped, module augmentation, import.meta.env]
+---
+
+TypeScript needs to know the types of **everything** you use, including code that isn't TypeScript: browser APIs, npm libraries written in JavaScript, a script tag from an analytics vendor. **Declaration files** (`.d.ts`) describe the types of such code, without any implementation.
+
+<Concept name="Where types come from" id="sources">
+
+1. **Bundled with the library.** Most modern packages (React Router, Zod, TanStack Query) ship their own `.d.ts` files. Nothing to do.
+2. **From DefinitelyTyped.** For JavaScript-only packages, the community publishes types as `@types/<package>`: `npm install -D @types/react` (React itself is written in JavaScript, so its types live there).
+3. **From TypeScript itself.** `lib.dom.d.ts` describes `document`, `fetch`, `localStorage`; `lib.es2022.d.ts` describes `Array`, `Map`, `Promise`. The `lib` option picks which.
+4. **Written by you**, when none of the above exists.
+
+If you import a package and see "Could not find a declaration file for module 'x'", look for `@types/x` first.
+
+</Concept>
+
+<Concept name="declare: describing what already exists" id="declare">
+
+`declare` tells TypeScript "this exists at run time; here's its type". It produces no code. A vendor script that adds a global `analytics` object might be described like this:
+
+<TSPlayground file="analytics.ts" errors={[10, 11]} checkOnly>
+
+```ts
+declare const APP_VERSION: string;
+declare function trackEvent(name: string, data?: Record<string, unknown>): void;
+declare const analytics: {
+  identify(userId: string): void;
+  page(name: string): void;
+};
+
+trackEvent("add_to_cart", { id: 1, qty: 2 });
+analytics.page(`Checkout v${APP_VERSION}`);
+trackEvent(42);                    // error: the name must be a string
+analytics.identify();              // error: userId is missing
+```
+
+</TSPlayground>
+
+In a real project these lines go in a file like `src/types/global.d.ts` (included by `tsconfig.json`), so every file sees them.
+
+</Concept>
+
+<Concept name="Typing a JavaScript module, and augmenting one" id="modules">
+
+```ts file=src/types/legacy-price.d.ts
+// An untyped package: describe its exports
+declare module "legacy-price" {
+  export function format(amount: number, currency?: string): string;
+}
+```
+
+```ts file=src/types/env.d.ts
+// Vite's import.meta.env: add your own variables to its interface
+interface ImportMetaEnv {
+  readonly VITE_API_URL: string;
+}
+```
+
+Adding members to an existing interface works because interfaces **merge**: two declarations with the same name become one. That's how libraries let you extend their types (**module augmentation**).
+
+</Concept>
+
+<HowItWorks title="What a .d.ts file is">
+
+A `.d.ts` file contains only types: `declare`, `type`, `interface`, `export` of types, function signatures without bodies. When TypeScript compiles a library, it can generate one (`declaration: true`) next to the JavaScript, so users get types while running plain JS. Your editor's "Go to definition" on a library function usually opens one: reading them is a great way to learn how an API is meant to be used.
+
+</HowItWorks>
+
+<Practice>
+
+<SortBuckets
+  id="buckets-dts"
+  prompt="Allowed in a .d.ts file?"
+  buckets={["Allowed", "Not allowed"]}
+  items={[
+    ["`declare function format(n: number): string;`", 0],
+    ["`interface Product { name: string }`", 0],
+    ["`export type Size = \"S\" | \"M\";`", 0],
+    ["`function format(n: number) { return n.toFixed(2); }`", 1],
+    ["`const TAX = 0.2;` with a value", 1],
+  ]}
+  explain="Declaration files describe types only. Implementations and values belong in .ts files."
+/>
+
+<MatchPairs
+  id="match-type-sources"
+  prompt="Where do the types come from?"
+  columns={["Thing", "Its types"]}
+  pairs={[
+    ["`document.querySelector`", "TypeScript's `lib.dom.d.ts`"],
+    ["React (written in JavaScript)", "`@types/react` from DefinitelyTyped"],
+    ["Zod (written in TypeScript)", "Bundled in the package"],
+    ["A vendor's global `analytics` script", "Your own `declare` statements"],
+  ]}
+/>
+
+<TrueFalse
+  id="tf-declare"
+  statements={[
+    { text: "`declare const API_URL: string;` creates the variable at run time.", answer: false, explain: "`declare` only describes; something else must create it." },
+    { text: "Two `interface` declarations with the same name merge.", answer: true, explain: "That's how module augmentation works." },
+    { text: "\"Could not find a declaration file\" usually means you should look for an `@types` package.", answer: true, explain: "Or write a small `declare module` yourself." },
+  ]}
+/>
+
+</Practice>
+
+<TSExercise
+  id="declare-loyalty"
+  title="Type a JavaScript library"
+  hints={[
+    "Use `declare function` for each function: `declare function getPoints(customerId: string): number;`",
+    "`addPoints(customerId: string, points: number): number` returns the new total.",
+    "`declare const LOYALTY_TIERS: readonly (\"bronze\" | \"silver\" | \"gold\")[];`",
+  ]}
+>
+
+The shop loads an old JavaScript loyalty script that defines `getPoints(customerId)`, `addPoints(customerId, points)` (returns the new total) and a constant `LOYALTY_TIERS` (an array of `"bronze"`, `"silver"` and `"gold"`). Write `declare` statements so TypeScript knows their types. (Only types: the script provides the code.)
+
+```ts starter
+declare const getPoints: any;
+```
+
+```ts types
+const points: number = getPoints("c-42");
+const total: number = addPoints("c-42", 10);
+const firstTier: "bronze" | "silver" | "gold" | undefined = LOYALTY_TIERS[0];
+// @ts-expect-error customer ids are strings
+getPoints(42);
+// @ts-expect-error addPoints needs the points to add
+addPoints("c-42");
+// @ts-expect-error tiers can't be changed
+LOYALTY_TIERS.push("platinum");
+```
+
+```ts solution
+declare function getPoints(customerId: string): number;
+declare function addPoints(customerId: string, points: number): number;
+declare const LOYALTY_TIERS: readonly ("bronze" | "silver" | "gold")[];
+```
+
+</TSExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "What's in a `.d.ts` file?",
+      options: ["Compiled JavaScript", "Type declarations only, no implementations", "Tests", "CSS types"],
+      answer: 1,
+      explain: "Signatures, types and interfaces.",
+    },
+    {
+      q: "You install a JavaScript-only package and TypeScript can't find its types. What do you try first?",
+      options: ["Rewrite the package", "Install `@types/<package>`", "Turn off strict", "Use `// @ts-ignore` on every line"],
+      answer: 1,
+      explain: "DefinitelyTyped has types for thousands of packages.",
+    },
+    {
+      q: "How do you add `VITE_API_URL` to `import.meta.env`'s type?",
+      options: ["Declare it in an `interface ImportMetaEnv` in a .d.ts file", "Cast every use with `as`", "Edit node_modules", "You can't"],
+      answer: 0,
+      explain: "Interfaces merge, so your declaration extends Vite's.",
+    },
+  ]}
+/>

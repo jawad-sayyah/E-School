@@ -1,0 +1,130 @@
+---
+id: tsconfig
+title: tsconfig.json
+summary: Read and adjust a project's tsconfig.json, with strict mode and its checks, target and lib, module settings, paths, and the extra strictness options worth turning on.
+minutes: 14
+tags: [TypeScript, tsconfig, strict, noImplicitAny, strictNullChecks, target, lib, module, paths, noUncheckedIndexedAccess]
+---
+
+Every TypeScript project has a `tsconfig.json` at its root. It tells the compiler **which files** to check and **how strictly**. You'll rarely write one from scratch (Vite and other tools generate it), but you'll read and tweak it often.
+
+<Concept name="A typical Vite + React config" id="typical">
+
+```json file=tsconfig.json
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": true,
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": { "@/*": ["./src/*"] }
+  },
+  "include": ["src"]
+}
+```
+
+| Option | What it means |
+| --- | --- |
+| `target` | which JavaScript version to output (and assume) |
+| `lib` | which built-in APIs exist: `DOM` for browsers, `ES2022` for modern JS |
+| `module` / `moduleResolution` | how `import` works; `bundler` matches Vite and other bundlers |
+| `jsx: "react-jsx"` | `.tsx` files use React's automatic JSX runtime |
+| `strict` | turns on the whole family of strict checks (always on!) |
+| `noEmit` | only type-check; the bundler (Vite) produces the JavaScript |
+| `paths` | import aliases like `@/components/Button` |
+| `include` | which files belong to the project |
+
+</Concept>
+
+<Concept name="What strict turns on" id="strict">
+
+`"strict": true` is a shortcut for several checks. The two you'll feel most:
+
+- **`noImplicitAny`**: a parameter or variable whose type can't be inferred is an error, instead of silently becoming `any`.
+- **`strictNullChecks`**: `null` and `undefined` aren't part of every type. A `string` is never `null`; you must write `string | null` and handle it.
+
+Plus `strictFunctionTypes`, `strictPropertyInitialization`, `useUnknownInCatchVariables` (`catch (e)` gives `unknown`) and a few more. All examples in this school run with `strict` on: that's how real projects are set up.
+
+</Concept>
+
+<Concept name="Extra checks worth turning on" id="extra">
+
+- **`noUncheckedIndexedAccess`**: `items[0]` and `record[key]` include `undefined`, because the item might not be there.
+- **`noUnusedLocals` / `noUnusedParameters`**: flags dead code.
+- **`noFallthroughCasesInSwitch`**: a `case` without `break`/`return` is an error.
+- **`exactOptionalPropertyTypes`**: `note?: string` can be missing, but not explicitly `undefined`.
+- **`verbatimModuleSyntax`**: type-only imports must say `import type`, so tools can strip them safely.
+
+</Concept>
+
+<HowItWorks title="Who reads tsconfig.json?">
+
+Three different tools: your **editor** (for squiggles and autocomplete), **`tsc`** (the command-line checker, run in CI with `tsc --noEmit` or `tsc -b`), and your **bundler** (Vite strips types itself with a fast transpiler that doesn't type-check, but reads `paths` through a plugin or its own config). That's why a project can build successfully while `tsc` reports errors: type-checking is a separate step, so make sure it runs in CI.
+
+</HowItWorks>
+
+<Practice>
+
+<MatchPairs
+  id="match-tsconfig"
+  prompt="Match each option with its effect."
+  columns={["Option", "Effect"]}
+  pairs={[
+    ["`strictNullChecks`", "`null` must be part of a type to be allowed"],
+    ["`noImplicitAny`", "Un-inferable parameters must be typed"],
+    ["`noUncheckedIndexedAccess`", "`arr[0]` includes `undefined`"],
+    ["`lib: [\"DOM\"]`", "`document` and `window` are known"],
+    ["`jsx: \"react-jsx\"`", "`.tsx` files use React's JSX runtime"],
+    ["`noEmit`", "Only type-check; another tool outputs JS"],
+  ]}
+/>
+
+<TrueFalse
+  id="tf-tsconfig"
+  statements={[
+    { text: "Vite type-checks your code when it builds.", answer: false, explain: "It only strips types. Run `tsc` (e.g. `tsc -b`) separately, in CI too." },
+    { text: "`strict: true` turns on several checks at once.", answer: true, explain: "Including noImplicitAny and strictNullChecks." },
+    { text: "Without `\"DOM\"` in `lib`, `document.querySelector` is an error.", answer: true, explain: "The DOM types come from that lib." },
+  ]}
+/>
+
+<Choice
+  id="choice-strict-nulls"
+  q="With `strictNullChecks` off, what's wrong with `const n: string = null`?"
+  options={["Nothing: TypeScript allows it, and the null slips through", "It's an error", "It becomes undefined", "It throws at compile time"]}
+  answer={0}
+  explain="That's exactly why strict mode should always be on."
+/>
+
+</Practice>
+
+<Quiz
+  questions={[
+    {
+      q: "Which option makes `string` exclude `null`?",
+      options: ["`noImplicitAny`", "`strictNullChecks` (part of `strict`)", "`target`", "`lib`"],
+      answer: 1,
+      explain: "Then you write `string | null` when null is allowed.",
+    },
+    {
+      q: "What does `paths: { \"@/*\": [\"./src/*\"] }` enable?",
+      options: ["Faster builds", "Imports like `@/components/Button` instead of long relative paths", "Path validation at run time", "Nothing"],
+      answer: 1,
+      explain: "The bundler needs the same alias (Vite's `resolve.alias`).",
+    },
+    {
+      q: "Why can a project build while `tsc` reports errors?",
+      options: ["Bundlers like Vite only strip types and don't type-check", "tsc is broken", "Errors are warnings", "It can't"],
+      answer: 0,
+      explain: "Run the type check as its own step.",
+    },
+  ]}
+/>

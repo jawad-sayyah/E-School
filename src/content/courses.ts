@@ -100,7 +100,17 @@ export const COURSES: CourseInfo[] = [
     color: 'ts',
     description:
       'Generics, keyof and typeof, utility types, type guards, discriminated unions, satisfies, tsconfig and declaration files.',
-    lessons: [],
+    lessons: [
+      'generics',
+      'keyof-typeof',
+      'utility-types',
+      'type-guards',
+      'discriminated-unions',
+      'satisfies',
+      'tsconfig',
+      'declaration-files',
+      'review',
+    ],
     phase: 8,
   },
   {

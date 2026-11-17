@@ -1,0 +1,228 @@
+---
+id: generics
+title: Generics in depth
+summary: Write functions and types that work for any type while keeping it precise, with type parameters, inference, constraints and defaults.
+minutes: 20
+tags: [TypeScript, generics, type parameters, Array<T>, constraints, extends, defaults, inference]
+---
+
+You've already used generics: `Array<number>` is the generic `Array` type with `number` plugged in. A **generic** is a type or function with a **type parameter**, a placeholder like `T` that's filled in when it's used. It lets one piece of code work for many types without falling back to `any`.
+
+<Concept name="The problem: any loses the type" id="problem">
+
+<TSPlayground file="first.ts" errors={[11]} expected={["Coffee 4"]}>
+
+```ts
+function firstAny(list: any[]): any {
+  return list[0];
+}
+
+function first<T>(list: T[]): T | undefined {
+  return list[0];
+}
+
+const name = firstAny(["Coffee", "Tea"]);   // any: no help from here on
+const price = first([4, 2]);                 // number | undefined
+const shout: string = first([4, 2]);          // error: it's a number, not a string
+
+console.log(name, price);
+```
+
+</TSPlayground>
+
+`first<T>` says: "whatever type the array's items have, I return that same type". TypeScript **infers** `T` from the argument (`number` here), so you rarely write `first<number>(...)` yourself.
+
+</Concept>
+
+<Concept name="Generic types" id="generic-types">
+
+Types can have parameters too:
+
+```ts file=api.ts
+type ApiResult<T> =
+  | { ok: true; data: T }
+  | { ok: false; error: string };
+
+type Box<T> = { value: T; updatedAt: Date };
+
+const products: ApiResult<string[]> = { ok: true, data: ["Coffee", "Tea"] };
+const failed: ApiResult<number> = { ok: false, error: "Server down" };
+```
+
+You'll see this pattern everywhere: `Promise<T>`, `Array<T>`, `Map<K, V>`, React's `useState<T>`, TanStack Query's `useQuery<TData>`.
+
+</Concept>
+
+<Concept name="Constraints: T extends …" id="constraints">
+
+Sometimes `T` can't be just anything. `extends` sets a **minimum shape**:
+
+<TSPlayground file="constraints.ts" errors={[11]} expected={["Tea", "10"]}>
+
+```ts
+function byId<T extends { id: number }>(items: T[], id: number): T | undefined {
+  return items.find((item) => item.id === id);   // item.id is allowed: every T has an id
+}
+
+function longest<T extends { length: number }>(a: T, b: T): T {
+  return a.length >= b.length ? a : b;
+}
+
+const menu = [{ id: 1, name: "Coffee" }, { id: 2, name: "Tea" }];
+console.log(byId(menu, 2)?.name);                  // T is { id: number; name: string }
+byId([{ name: "Cake" }], 1);                        // error: no id
+console.log(longest("cappuccino", "tea").length);  // works for strings, arrays…
+```
+
+</TSPlayground>
+
+The result keeps the **full** type (`name` is still there), unlike a parameter typed as `{ id: number }[]`, which would forget everything but `id`.
+
+</Concept>
+
+<Concept name="Several parameters, and defaults" id="defaults">
+
+```ts file=pairs.ts
+function pair<A, B>(a: A, b: B): [A, B] {
+  return [a, b];
+}
+const p = pair("Coffee", 4);                 // [string, number]
+
+type Paged<T, Meta = { page: number }> = { items: T[]; meta: Meta };
+const page: Paged<string> = { items: ["Tea"], meta: { page: 1 } };   // Meta uses the default
+```
+
+Name type parameters `T` for one, or meaningful names (`TItem`, `TData`) when there are several.
+
+</Concept>
+
+<HowItWorks title="How TypeScript infers T">
+
+When you call `first([4, 2])`, TypeScript matches the argument's type (`number[]`) against the parameter's type (`T[]`) and solves `T = number`. Then it substitutes `T` everywhere in the signature, so the return type becomes `number | undefined`. If the arguments give conflicting answers, or there's nothing to infer from (a generic function with no parameters using `T`), you pass it explicitly: `useState<CartLine[]>([])`.
+
+</HowItWorks>
+
+<Practice>
+
+<FillBlanks
+  id="blanks-generic-last"
+  prompt="Fill in the blanks to write a generic `last` function."
+  explain="Declare `T` after the name, take a `T[]`, and return `T | undefined`."
+>
+
+```ts
+function last__[<T>]__(list: __[T]__[]): T | undefined {
+  return list[list.length - 1];
+}
+```
+
+</FillBlanks>
+
+<TraceState
+  id="trace-infer-t"
+  track="what TypeScript infers for `T`"
+  steps={[
+    { action: "`first([\"a\", \"b\"])`", answer: "string" },
+    { action: "`first([{ id: 1 }])`", answer: ["{ id: number; }", "{ id: number }", "{id: number}", "{id:number}"] },
+    { action: "`first<number>([])`", answer: "number" },
+  ]}
+  explain="`T` comes from the argument's item type, or from an explicit type argument."
+  hint="Look at what's inside the array."
+/>
+
+<SpotTheBug
+  id="bug-generic-constraint"
+  bug={2}
+  prompt="TypeScript reports an error inside the function. Click the line."
+  explain="`T` could be anything, like a number, so `.price` isn't known to exist. Add a constraint: `<T extends { price: number }>`."
+>
+
+```ts
+function cheapest<T>(items: T[]): T {
+  return items.reduce((a, b) => (b.price < a.price ? b : a));
+}
+```
+
+</SpotTheBug>
+
+</Practice>
+
+<TSExercise
+  id="generic-group-by"
+  title="A generic groupBy"
+  hints={[
+    "Two type parameters: the item type and the key: `function groupBy<T, K extends string>(items: T[], getKey: (item: T) => K): Record<K, T[]>`.",
+    "Start with `const groups = {} as Record<K, T[]>;` and push each item into `groups[key] ??= []`.",
+  ]}
+>
+
+Write a generic `groupBy(items, getKey)` that groups items into an object of arrays by the string key `getKey` returns. The result must keep the items' full type.
+
+```ts starter
+function groupBy(items: any[], getKey: (item: any) => string): any {
+  return {};
+}
+```
+
+```ts types
+const menu = [
+  { name: "Coffee", kind: "hot" as const, price: 4 },
+  { name: "Lemonade", kind: "cold" as const, price: 3 },
+];
+const groups = groupBy(menu, (m) => m.kind);
+// the groups keep the full item type
+const firstHotPrice: number | undefined = groups.hot[0]?.price;
+// @ts-expect-error items have no "calories" property
+groups.hot[0]?.calories;
+// @ts-expect-error the key function must return a string
+groupBy(menu, (m) => m.price);
+```
+
+```js tests
+test("groups items by key", () => {
+  const menu = [
+    { name: "Coffee", kind: "hot" },
+    { name: "Lemonade", kind: "cold" },
+    { name: "Tea", kind: "hot" },
+  ];
+  const groups = groupBy(menu, (m) => m.kind);
+  expect(groups.hot.map((m) => m.name)).toEqual(["Coffee", "Tea"]);
+  expect(groups.cold.map((m) => m.name)).toEqual(["Lemonade"]);
+});
+```
+
+```ts solution
+function groupBy<T, K extends string>(items: T[], getKey: (item: T) => K): Record<K, T[]> {
+  const groups = {} as Record<K, T[]>;
+  for (const item of items) {
+    const key = getKey(item);
+    (groups[key] ??= []).push(item);
+  }
+  return groups;
+}
+```
+
+</TSExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "Why use a generic instead of `any`?",
+      options: ["Generics are faster", "The specific type flows through, so callers keep full type checking", "`any` doesn't work with arrays", "There's no difference"],
+      answer: 1,
+      explain: "`any` turns checking off; a generic preserves the type.",
+    },
+    {
+      q: "What does `<T extends { id: number }>` mean?",
+      options: ["T must have at least a numeric `id`", "T is exactly `{ id: number }`", "T extends a class", "T is optional"],
+      answer: 0,
+      explain: "A constraint sets a minimum shape; extra properties are kept.",
+    },
+    {
+      q: "When must you write the type argument yourself, like `useState<Item[]>([])`?",
+      options: ["Always", "When TypeScript can't infer it well, e.g. from an empty array", "Never", "Only for strings"],
+      answer: 1,
+      explain: "`[]` alone would be inferred as `never[]`.",
+    },
+  ]}
+/>

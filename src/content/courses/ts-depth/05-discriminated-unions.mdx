@@ -1,0 +1,233 @@
+---
+id: discriminated-unions
+title: Discriminated unions and exhaustive checks
+summary: Model "one of several shapes" with a shared tag property, let switch narrow each case, and make TypeScript tell you when a new case isn't handled.
+minutes: 18
+tags: [TypeScript, discriminated unions, tagged unions, switch, exhaustive check, never, state modeling]
+---
+
+A request is **loading**, **succeeded with data**, or **failed with an error**, never two at once. Modeling that with optional fields (`data?`, `error?`, `loading?`) allows impossible states like "loading and failed". A **discriminated union** makes them impossible.
+
+<Concept name="A tag property" id="tag">
+
+<TSPlayground file="request.ts" errors={[11]} expected={["Loading…", "3 products", "Error: Server down"]}>
+
+```ts
+type RequestState =
+  | { status: "loading" }
+  | { status: "success"; products: string[] }
+  | { status: "error"; message: string };
+
+function describe(state: RequestState): string {
+  switch (state.status) {
+    case "loading":
+      return "Loading…";
+    case "success":
+      return `${state.products.length} products ${state.message}`; // error: no message on success
+    case "error":
+      return `Error: ${state.message}`;
+  }
+}
+
+const fixed = (s: RequestState) => (s.status === "success" ? `${s.products.length} products` : describe(s));
+console.log(describe({ status: "loading" }));
+console.log(fixed({ status: "success", products: ["Coffee", "Tea", "Bagel"] }));
+console.log(describe({ status: "error", message: "Server down" }));
+```
+
+</TSPlayground>
+
+Every member has the same **discriminant** property (`status`) with a different literal type. Checking it (`switch`, `if`, `===`) narrows to exactly one member, so `state.products` only exists in the success branch.
+
+</Concept>
+
+<Concept name="Exhaustive checks with never" id="exhaustive">
+
+When you add a new member later (`{ status: "idle" }`), you want every `switch` that forgot it to become a compile error. Assign the leftover to `never`:
+
+```ts file=exhaustive.ts
+function assertNever(value: never): never {
+  throw new Error(`Unhandled case: ${JSON.stringify(value)}`);
+}
+
+function icon(state: RequestState): string {
+  switch (state.status) {
+    case "loading": return "⏳";
+    case "success": return "✅";
+    case "error":   return "⚠️";
+    default:        return assertNever(state); // state: never — every case is handled
+  }
+}
+```
+
+If a member isn't handled, `state` in `default` isn't `never` anymore, and the call is an error that points right at the forgotten case.
+
+</Concept>
+
+<HowItWorks title="Why it works">
+
+After `case "loading":` TypeScript removes the loading member from the union for the rest of the `switch`; after all three cases, nothing is left, which is the type `never` (a type with no values). Passing something to a `never` parameter is only allowed when it can't happen. It's the same machinery as narrowing with `typeof`, applied to literal types. Reducer actions in React (`{ type: "added" } | { type: "removed"; id: number }`) are the textbook use, and the TypeScript with React course types `cartReducer` exactly this way.
+
+</HowItWorks>
+
+<Practice>
+
+<SpotTheBug
+  id="bug-discriminant"
+  bug={7}
+  prompt="TypeScript reports one error. Click the line."
+  explain={"Inside `if (event.type === \"added\")`, the event is narrowed to the added member, which has no `id`. Use `event.product.id`, or handle `removed` separately."}
+>
+
+```ts
+type CartEvent =
+  | { type: "added"; product: { id: number; name: string } }
+  | { type: "removed"; id: number };
+
+function log(event: CartEvent): string {
+  if (event.type === "added") {
+    return `added #${event.id}`;
+  }
+  return `removed #${event.id}`;
+}
+```
+
+</SpotTheBug>
+
+<CodeReview
+  id="review-state-model"
+  answer={1}
+  prompt="Which type for the checkout's state would you approve?"
+  reasons={[
+    "Allows impossible combinations, like loading with an error and an order at the same time, and every reader must guess which fields are set.",
+    "Each state carries exactly its data; impossible states can't be built, and a switch on `status` narrows.",
+    "A string status loses the data: where do the order id and the error message go?",
+  ]}
+>
+
+```ts
+type Checkout = {
+  loading?: boolean;
+  error?: string;
+  orderId?: number;
+};
+```
+
+```ts
+type Checkout =
+  | { status: "editing" }
+  | { status: "submitting" }
+  | { status: "done"; orderId: number }
+  | { status: "failed"; error: string };
+```
+
+```ts
+type Checkout = { status: string };
+```
+
+</CodeReview>
+
+<TrueFalse
+  id="tf-discriminated"
+  statements={[
+    { text: "Every member of a discriminated union shares a property with a literal type.", answer: true, explain: "That property is the discriminant (tag)." },
+    { text: "`never` is the type of a value that can't exist.", answer: true, explain: "That's why it marks the exhausted case." },
+    { text: "Optional fields model mutually exclusive states better than a union.", answer: false, explain: "They allow impossible combinations." },
+  ]}
+/>
+
+</Practice>
+
+<TSExercise
+  id="shape-price"
+  title="Price every kind of cart line"
+  hints={[
+    "Switch on `line.kind` and return the price for each case.",
+    "Add `default: return assertNever(line);` so a forgotten kind is a type error.",
+    "Subscription price: `line.monthly * line.months`; gift card: `line.amount`; product: `line.price * line.qty`.",
+  ]}
+>
+
+A cart can hold three kinds of lines. Finish `linePrice` with a `switch` on `kind`, and make it **exhaustive** with `assertNever`, so that adding a fourth kind later becomes a type error right here. At run time, an unknown kind must throw.
+
+```ts starter
+type ProductLine = { kind: "product"; price: number; qty: number };
+type GiftCardLine = { kind: "giftcard"; amount: number };
+type SubscriptionLine = { kind: "subscription"; monthly: number; months: number };
+type Line = ProductLine | GiftCardLine | SubscriptionLine;
+
+function assertNever(value: never): never {
+  throw new Error("Unhandled line: " + JSON.stringify(value));
+}
+
+function linePrice(line: Line): number {
+  return 0;
+}
+```
+
+```ts types
+const p: number = linePrice({ kind: "product", price: 4, qty: 2 });
+// @ts-expect-error a gift card needs an amount
+linePrice({ kind: "giftcard" });
+```
+
+```js tests
+test("prices each kind of line", () => {
+  expect(linePrice({ kind: "product", price: 4, qty: 2 })).toBe(8);
+  expect(linePrice({ kind: "giftcard", amount: 25 })).toBe(25);
+  expect(linePrice({ kind: "subscription", monthly: 10, months: 3 })).toBe(30);
+});
+
+test("an unknown kind throws", () => {
+  expect(() => linePrice({ kind: "mystery" })).toThrow();
+});
+```
+
+```ts solution
+type ProductLine = { kind: "product"; price: number; qty: number };
+type GiftCardLine = { kind: "giftcard"; amount: number };
+type SubscriptionLine = { kind: "subscription"; monthly: number; months: number };
+type Line = ProductLine | GiftCardLine | SubscriptionLine;
+
+function assertNever(value: never): never {
+  throw new Error("Unhandled line: " + JSON.stringify(value));
+}
+
+function linePrice(line: Line): number {
+  switch (line.kind) {
+    case "product":
+      return line.price * line.qty;
+    case "giftcard":
+      return line.amount;
+    case "subscription":
+      return line.monthly * line.months;
+    default:
+      return assertNever(line);
+  }
+}
+```
+
+</TSExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "What makes a union \"discriminated\"?",
+      options: ["It has more than two members", "Every member has a common property with a different literal type", "It uses classes", "It contains null"],
+      answer: 1,
+      explain: "Checking that property narrows to one member.",
+    },
+    {
+      q: "In `default: return assertNever(state)`, why does adding a new member cause an error?",
+      options: ["The new member isn't handled, so `state` isn't `never` there", "assertNever is deprecated", "Switches can't have defaults", "It doesn't"],
+      answer: 0,
+      explain: "That's the exhaustive check.",
+    },
+    {
+      q: "Which is the best model for a data request?",
+      options: ["`{ loading: boolean; data?: T; error?: string }`", "`{ status: \"loading\" } | { status: \"success\"; data: T } | { status: \"error\"; error: string }`", "`any`", "`string`"],
+      answer: 1,
+      explain: "Impossible states become impossible to write.",
+    },
+  ]}
+/>

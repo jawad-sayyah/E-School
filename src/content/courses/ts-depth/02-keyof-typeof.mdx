@@ -1,0 +1,202 @@
+---
+id: keyof-typeof
+title: keyof, typeof and indexed access types
+summary: Build types from other types and from values, with keyof for property names, typeof for a value's type, and T["key"] for a property's type.
+minutes: 16
+tags: [TypeScript, keyof, typeof, indexed access, lookup types, mapped types, as const]
+---
+
+Good TypeScript code has **one source of truth**. Instead of writing the same list of names twice (once as data, once as a type), you **derive** types: from other types with `keyof` and `T["key"]`, and from values with `typeof`.
+
+<Concept name="keyof: the property names" id="keyof">
+
+<TSPlayground file="keyof.ts" errors={[11]} expected={["Coffee", "4"]}>
+
+```ts
+type Product = { id: number; name: string; price: number };
+
+type ProductKey = keyof Product;          // "id" | "name" | "price"
+
+function get<K extends keyof Product>(p: Product, key: K): Product[K] {
+  return p[key];
+}
+
+const coffee: Product = { id: 1, name: "Coffee", price: 4 };
+console.log(get(coffee, "name"));         // type: string
+get(coffee, "prise");                     // error: not a key of Product
+console.log(get(coffee, "price"));        // type: number
+```
+
+</TSPlayground>
+
+`keyof Product` is the union of its property names. With a generic `K extends keyof Product`, the function accepts only real keys, and the return type follows the key.
+
+</Concept>
+
+<Concept name="Indexed access: T[K]" id="indexed">
+
+`Product["price"]` is the type of the `price` property (`number`). It works with unions and nested types too:
+
+```ts file=lookups.ts
+type Order = { id: number; lines: { name: string; qty: number }[]; status: "paid" | "shipped" };
+
+type Status = Order["status"];          // "paid" | "shipped"
+type Line = Order["lines"][number];     // { name: string; qty: number } — [number] = "an item of the array"
+type IdOrStatus = Order["id" | "status"]; // number | "paid" | "shipped"
+```
+
+When the `Order` type changes, these follow automatically.
+
+</Concept>
+
+<Concept name="typeof: a value's type" id="typeof">
+
+In a **type** position, `typeof value` gives the type TypeScript inferred for a value. Combined with `as const`, a plain object becomes the source of truth for both the data and the types:
+
+<TSPlayground file="sizes.ts" errors={[9]} expected={["[ 'small', 'medium', 'large' ]", "4.5"]}>
+
+```ts
+const PRICES = { small: 3.5, medium: 4.5, large: 5 } as const;
+
+type Prices = typeof PRICES;             // { readonly small: 3.5; readonly medium: 4.5; ... }
+type Size = keyof typeof PRICES;         // "small" | "medium" | "large"
+
+const sizes = Object.keys(PRICES) as Size[];
+console.log(sizes);
+const pick: Size = "medium";
+const nope: Size = "huge";               // error
+console.log(PRICES[pick]);
+```
+
+</TSPlayground>
+
+Add a size to `PRICES` and `Size` includes it everywhere, with no second list to update.
+
+</Concept>
+
+<HowItWorks title="Two worlds: values and types">
+
+TypeScript has two separate namespaces. **Values** exist at run time (`const PRICES`, functions); **types** are erased (`type Size`). `typeof` is the bridge from the value world into the type world. (The `typeof` you know from JavaScript, `typeof x === "string"`, is a run-time operator used in value positions; same word, different job, and TypeScript tells them apart by where they appear.) There's no bridge back: you can't loop over a type at run time, which is why the data should be the source and the types derived from it.
+
+</HowItWorks>
+
+<GoDeeper title="Mapped types: making new object types from keys">
+
+`{ [K in Keys]: Something }` builds an object type with one property per key. Most utility types (next lesson) are written this way:
+
+```ts file=mapped.ts
+type Size = "small" | "medium" | "large";
+type Stock = { [S in Size]: number };                  // { small: number; medium: number; large: number }
+type Optional<T> = { [K in keyof T]?: T[K] };          // that's how Partial<T> is built
+type Getters<T> = { [K in keyof T as `get${Capitalize<string & K>}`]: () => T[K] };
+```
+
+</GoDeeper>
+
+<Practice>
+
+<MatchPairs
+  id="match-type-operators"
+  prompt="Match each type expression with its result, for `type P = { id: number; name: string }`."
+  columns={["Expression", "Result"]}
+  pairs={[
+    ["`keyof P`", "`\"id\" | \"name\"`"],
+    ["`P[\"name\"]`", "`string`"],
+    ["`P[keyof P]`", "`number | string`"],
+    ["`P[\"id\"]`", "`number`"],
+  ]}
+/>
+
+<SpotTheBug
+  id="bug-keyof"
+  bug={6}
+  prompt="TypeScript reports one error. Click the line."
+  explain={"`sortBy` only accepts keys of `Product`, and `\"cost\"` isn't one. That's the point of `keyof`: typos in property names are caught."}
+>
+
+```ts
+type Product = { name: string; price: number };
+
+function sortBy(items: Product[], key: keyof Product) { return items; }
+
+sortBy([], "price");
+sortBy([], "cost");
+```
+
+</SpotTheBug>
+
+<Choice
+  id="choice-typeof"
+  q={"`const ROLES = [\"admin\", \"staff\", \"guest\"] as const;` Which type is `\"admin\" | \"staff\" | \"guest\"`?"}
+  options={["`typeof ROLES`", "`(typeof ROLES)[number]`", "`keyof typeof ROLES`", "`ROLES[number]`"]}
+  answer={1}
+  explain="`typeof ROLES` is the readonly tuple; `[number]` picks the type of any element. `ROLES[number]` mixes a value with a type position."
+/>
+
+</Practice>
+
+<TSExercise
+  id="pluck"
+  title="A type-safe pluck"
+  hints={[
+    "Two type parameters: `function pluck<T, K extends keyof T>(items: T[], key: K): T[K][]`.",
+    "The body is `items.map((item) => item[key])`.",
+  ]}
+>
+
+Write a generic `pluck(items, key)` that returns the value of `key` from every item. Only real keys are allowed, and the result type follows the key: plucking `"name"` from products gives `string[]`, plucking `"price"` gives `number[]`.
+
+```ts starter
+function pluck(items: any[], key: string): any[] {
+  return items.map((item) => item[key]);
+}
+```
+
+```ts types
+const menu = [{ name: "Coffee", price: 4 }, { name: "Tea", price: 2 }];
+const names: string[] = pluck(menu, "name");
+const prices: number[] = pluck(menu, "price");
+// @ts-expect-error "cost" isn't a key of the items
+pluck(menu, "cost");
+// @ts-expect-error prices are numbers, not strings
+const wrong: string[] = pluck(menu, "price");
+```
+
+```js tests
+test("plucks one property from every item", () => {
+  const menu = [{ name: "Coffee", price: 4 }, { name: "Tea", price: 2 }];
+  expect(pluck(menu, "name")).toEqual(["Coffee", "Tea"]);
+  expect(pluck(menu, "price")).toEqual([4, 2]);
+});
+```
+
+```ts solution
+function pluck<T, K extends keyof T>(items: T[], key: K): T[K][] {
+  return items.map((item) => item[key]);
+}
+```
+
+</TSExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "What is `keyof { a: number; b: string }`?",
+      options: ["`number | string`", "`\"a\" | \"b\"`", "`[\"a\", \"b\"]`", "`string`"],
+      answer: 1,
+      explain: "The union of the property names.",
+    },
+    {
+      q: "What does `typeof` do in a type position?",
+      options: ["Checks a value at run time", "Gives the TypeScript type of a value", "Converts a type to a string", "Nothing"],
+      answer: 1,
+      explain: "`type Config = typeof config` reuses an inferred type.",
+    },
+    {
+      q: "Why derive types from data (`keyof typeof PRICES`) instead of writing the union by hand?",
+      options: ["One source of truth: adding a key updates the type", "It's faster at run time", "Hand-written unions don't work", "To avoid as const"],
+      answer: 0,
+      explain: "No second list to keep in sync.",
+    },
+  ]}
+/>

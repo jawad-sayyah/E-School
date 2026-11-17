@@ -1,0 +1,199 @@
+---
+id: type-guards
+title: Type guards and assertion functions
+summary: Teach TypeScript your own checks with `value is T` type predicates and `asserts value is T` assertion functions, and validate unknown data safely.
+minutes: 16
+tags: [TypeScript, type guards, type predicates, is, asserts, assertion functions, unknown, validation]
+---
+
+`typeof` and `in` narrow types inline. But real checks are often longer ("is this a valid product from the API?") and you want to write them **once** in a function. A plain `boolean` function doesn't tell TypeScript anything, though. **Type predicates** fix that.
+
+<Concept name="Type predicates: value is T" id="predicates">
+
+<TSPlayground file="guards.ts" errors={[13]} expected={["Coffee costs 4", "skipped: not a product"]}>
+
+```ts
+type Product = { name: string; price: number };
+
+function isProduct(value: unknown): value is Product {
+  return (
+    typeof value === "object" && value !== null &&
+    typeof (value as Product).name === "string" &&
+    typeof (value as Product).price === "number"
+  );
+}
+
+const fromApi: unknown[] = [{ name: "Coffee", price: 4 }, { title: "???" }];
+
+fromApi[0].name;                              // error: unknown, not checked yet
+for (const item of fromApi) {
+  if (isProduct(item)) {
+    console.log(`${item.name} costs ${item.price}`);   // item: Product here
+  } else {
+    console.log("skipped: not a product");
+  }
+}
+```
+
+</TSPlayground>
+
+The return type `value is Product` says: "if this returns `true`, treat `value` as a `Product`". TypeScript then narrows in every `if (isProduct(x))`. It's also great with `filter`: `items.filter(isProduct)` is a `Product[]`.
+
+<Callout type="warn">
+TypeScript **trusts** your predicate. If `isProduct` returns `true` for something that isn't a product, the types lie. Keep guards simple and test them, or generate them from a schema (Zod's `safeParse` gives you a checked, typed value).
+</Callout>
+
+</Concept>
+
+<Concept name="Assertion functions: asserts value is T" id="asserts">
+
+An **assertion function** throws if the check fails, so after the call TypeScript knows the condition holds, with no `if` around the rest of the code:
+
+```ts file=assert.ts
+function assertIsDefined<T>(value: T, message: string): asserts value is NonNullable<T> {
+  if (value === null || value === undefined) throw new Error(message);
+}
+
+const coupon = document.querySelector<HTMLInputElement>("#coupon"); // HTMLInputElement | null
+assertIsDefined(coupon, "The coupon field is missing");
+coupon.value = "";                                                  // coupon: HTMLInputElement
+```
+
+`asserts condition` (without `is`) works too: `function assert(c: unknown, msg: string): asserts c`.
+
+</Concept>
+
+<HowItWorks title="Predicates in the standard library">
+
+You use built-in type guards all the time: `Array.isArray(x)` is declared as `(arg: any) => arg is any[]`. Since TypeScript 5.5, TypeScript also **infers** simple predicates on its own: `const nonNull = list.filter((x) => x !== null)` already has the type without `null`. Write explicit predicates for checks TypeScript can't see through, like validating objects from the network.
+
+</HowItWorks>
+
+<Practice>
+
+<FillBlanks
+  id="blanks-predicate"
+  prompt="Fill in the blanks so `isString` narrows its argument."
+  explain="The return type `value is string` turns the boolean check into a type guard."
+>
+
+```ts
+function isString(value: unknown): value __[is]__ __[string]__ {
+  return typeof value === "string";
+}
+```
+
+</FillBlanks>
+
+<Choice
+  id="choice-guard-vs-boolean"
+  q="`function isProduct(v: unknown): boolean { … }`. After `if (isProduct(x))`, what's the type of `x`?"
+  options={["`Product`", "Still `unknown`: a plain boolean return says nothing about `x`", "`boolean`", "`any`"]}
+  answer={1}
+  explain="Only a `v is Product` return type makes it a type guard."
+/>
+
+<SortBuckets
+  id="buckets-guard-or-assert"
+  prompt="Type predicate or assertion function?"
+  buckets={["`value is T` (predicate)", "`asserts value is T` (assertion)"]}
+  items={[
+    ["Filtering valid products out of a list", 0],
+    ["Branching: show the product, or a fallback", 0],
+    ["A required DOM element that must exist, or the app can't start", 1],
+    ["Crashing early in tests if a fixture is malformed", 1],
+  ]}
+  explain="Predicates return a boolean for branching and filtering. Assertions throw, for situations that should never happen."
+/>
+
+</Practice>
+
+<TSExercise
+  id="is-cart-line"
+  title="Validate cart lines from storage"
+  hints={[
+    "Signature: `function isCartLine(value: unknown): value is CartLine`.",
+    "Check `typeof value === \"object\" && value !== null`, then each property's type (cast to read them: `(value as CartLine).qty`).",
+    "`loadCart` returns `raw.filter(isCartLine)`, typed `CartLine[]`.",
+  ]}
+>
+
+A cart saved in `localStorage` can be anything after a few releases. Write a type guard `isCartLine` that checks for a `name` (string), `price` (number) and `qty` (number), and use it in `loadCart` so it returns only valid lines, typed as `CartLine[]`.
+
+```ts starter
+type CartLine = { name: string; price: number; qty: number };
+
+function isCartLine(value: unknown): boolean {
+  return true;
+}
+
+function loadCart(raw: unknown[]) {
+  return raw.filter(isCartLine);
+}
+```
+
+```ts types
+const lines: CartLine[] = loadCart([{ name: "Tea", price: 2, qty: 1 }]);
+const maybe: unknown = { name: "Tea", price: 2, qty: 1 };
+if (isCartLine(maybe)) {
+  // narrowed: this must type-check
+  const total: number = maybe.price * maybe.qty;
+}
+```
+
+```js tests
+test("accepts a valid line", () => {
+  expect(isCartLine({ name: "Tea", price: 2, qty: 1 })).toBe(true);
+});
+
+test("rejects broken lines", () => {
+  expect(isCartLine(null)).toBe(false);
+  expect(isCartLine("Tea")).toBe(false);
+  expect(isCartLine({ name: "Tea", price: "2", qty: 1 })).toBe(false);
+  expect(isCartLine({ name: "Tea", price: 2 })).toBe(false);
+});
+
+test("loadCart keeps only valid lines", () => {
+  const raw = [{ name: "Tea", price: 2, qty: 1 }, { title: "old format" }, 42];
+  expect(loadCart(raw)).toEqual([{ name: "Tea", price: 2, qty: 1 }]);
+});
+```
+
+```ts solution
+type CartLine = { name: string; price: number; qty: number };
+
+function isCartLine(value: unknown): value is CartLine {
+  if (typeof value !== "object" || value === null) return false;
+  const v = value as CartLine;
+  return typeof v.name === "string" && typeof v.price === "number" && typeof v.qty === "number";
+}
+
+function loadCart(raw: unknown[]): CartLine[] {
+  return raw.filter(isCartLine);
+}
+```
+
+</TSExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "What does the return type `value is Product` do?",
+      options: ["Converts the value to a Product", "Tells TypeScript to narrow `value` to `Product` when the function returns true", "Throws if it's not a Product", "Nothing at compile time"],
+      answer: 1,
+      explain: "It's a type predicate; the function still returns a boolean.",
+    },
+    {
+      q: "What happens after `assertIsDefined(x)` returns?",
+      options: ["Nothing changes", "TypeScript treats `x` as non-null for the rest of the scope", "x becomes any", "x is deleted"],
+      answer: 1,
+      explain: "If it didn't throw, the assertion holds.",
+    },
+    {
+      q: "What's the risk with hand-written type guards?",
+      options: ["None", "TypeScript trusts them: a wrong check makes the types lie", "They're slow", "They only work on strings"],
+      answer: 1,
+      explain: "Keep them simple and tested, or derive them from a schema.",
+    },
+  ]}
+/>
