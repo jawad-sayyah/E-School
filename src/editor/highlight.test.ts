@@ -33,3 +33,10 @@ describe('tokenizeValue', () => {
     ]);
   });
 });
+
+test('colors JSX tag names, not comparisons', () => {
+  const tags = tokenize('<li key={id}>{name}</li>\n<Cart />\nif (a < b) {}')
+    .filter((t) => t.kind === 'tag')
+    .map((t) => t.text);
+  expect(tags).toEqual(['li', 'li', 'Cart']);
+});

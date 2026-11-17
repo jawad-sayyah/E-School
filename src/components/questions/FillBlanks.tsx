@@ -3,7 +3,7 @@ import { EditorFrame } from '@/editor/EditorFrame';
 import { TOKEN_CLASS, tokenize } from '@/editor/highlight';
 import { checkBlanks } from '@/questions/check';
 import { parseBlanks } from '@/questions/blanks';
-import { getCodeBlocks } from '@/components/mdx/codeBlocks';
+import { getCodeBlocks, langOf } from '@/components/mdx/codeBlocks';
 import { cn } from '@/lib/utils';
 import { QuestionCard } from './QuestionCard';
 import { useQuestion } from './useQuestion';
@@ -41,11 +41,13 @@ export function FillBlanks({
   prompt = 'Fill in the blanks so the code works.',
   explain,
   hint,
-  file = 'blanks.js',
+  file,
   caseSensitive = true,
   children,
 }: FillBlanksProps) {
-  const raw = getCodeBlocks(children)[0]?.code ?? '';
+  const block = getCodeBlocks(children)[0];
+  const lang = langOf(block);
+  const raw = block?.code ?? '';
   const { segments, answers } = useMemo(() => parseBlanks(raw), [raw]);
   const q = useQuestion(id, 'blanks');
   const [values, setValues] = useState<string[]>(() => answers.map(() => ''));
@@ -62,7 +64,7 @@ export function FillBlanks({
       canCheck={values.some((v) => v.trim() !== '')}
       onCheck={() => q.submit(checkBlanks(values, answers, caseSensitive))}
     >
-      <EditorFrame file={file} lang="js" className="my-3">
+      <EditorFrame file={file ?? `blanks.${lang}`} lang={lang} className="my-3">
         <pre className="overflow-x-auto bg-ed-bg px-4 py-3.5 font-mono text-[14px] leading-[30px] text-ed-text">
           <code>
             {segments.map((seg, i) =>

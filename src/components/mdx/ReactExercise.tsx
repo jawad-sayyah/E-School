@@ -88,7 +88,7 @@ export function ReactExercise({
   const load = (next: Record<string, string>) => {
     setFiles(next);
     setSummary(null);
-    setVersion((v) => v + 1); // remount Sandpack with the new files
+    setVersion((v) => v + 1); // pushes the new files into the running sandbox
   };
 
   const headingId = `exercise-${id}`;
@@ -133,7 +133,7 @@ export function ReactExercise({
             </p>
             <div className="overflow-hidden rounded-xl border border-ed-line">
               <Suspense fallback={<p className="p-4 text-sm text-faint">Loading the target…</p>}>
-                <LiveTarget files={solution} />
+                <LiveTarget files={{ ...starter, ...solution }} />
               </Suspense>
             </div>
           </div>
@@ -144,7 +144,7 @@ export function ReactExercise({
             fallback={<SandpackFallback files={files} note="Loading the live editor and tests…" />}
           >
             <LiveExercise
-              key={version}
+              version={version}
               files={files}
               hiddenFiles={tests}
               height={height}

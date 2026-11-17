@@ -68,6 +68,12 @@ for (const course of fs.readdirSync(ROOT)) {
       const tests = Object.fromEntries(
         Object.entries(pick('tests')).map(([f, c]) => [f, cleanTests(c)]),
       );
+      if (Object.values(tests).some((c) => c.includes('@testing-library/user-event'))) {
+        // Sandpack's test runner crashes on user-event v14 ("not of type 'Element'").
+        throw new Error(
+          `${course}/${file} (${attr(ex, 'id')}): use fireEvent, not user-event, in Sandpack tests`,
+        );
+      }
       const dir = path.join(OUT, `${course}--${lesson}--${attr(ex, 'id')}`);
       write(dir, { ...pick('starter'), ...pick('solution'), ...tests });
       exercises++;
@@ -75,9 +81,30 @@ for (const course of fs.readdirSync(ROOT)) {
 
     findAll(tree, ['ReactPlayground']).forEach((pg, i) => {
       const blocks = (pg.children ?? []).filter((c) => c.type === 'code');
-      const files = Object.fromEntries(blocks.map((b) => [fileName(b), b.value]));
-      if (!files['/App.js']) return;
+      const vanilla = attr(pg, 'template') === 'vanilla';
+      const files = Object.fromEntries(
+        blocks.map((b) => [fileName(b, vanilla ? '/index.js' : '/App.js'), b.value]),
+      );
       const dir = path.join(OUT, `${course}--${lesson}--playground-${i + 1}`);
+      if (vanilla) {
+        // Plain JS: put the page's <body> into jsdom, then run index.js against it.
+        const body = (files['/index.html'] ?? '')
+          .replace(/^[\s\S]*<body[^>]*>|<\/body>[\s\S]*$/g, '')
+          .replace(/<script[\s\S]*?<\/script>/g, '');
+        write(dir, {
+          ...files,
+          '/smoke.test.js': [
+            "test('runs without errors', async () => {",
+            `  document.body.innerHTML = ${JSON.stringify(body)};`,
+            "  await import('./index.jsx');",
+            '});',
+            '',
+          ].join('\n'),
+        });
+        playgrounds++;
+        return;
+      }
+      if (!files['/App.js']) return;
       write(dir, {
         ...files,
         '/smoke.test.js': [

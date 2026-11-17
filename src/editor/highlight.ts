@@ -1,4 +1,4 @@
-export type TokenKind = 'kw' | 'str' | 'num' | 'fn' | 'prop' | 'cm' | 'plain';
+export type TokenKind = 'kw' | 'str' | 'num' | 'fn' | 'prop' | 'tag' | 'cm' | 'plain';
 
 export interface Token {
   kind: TokenKind;
@@ -16,7 +16,8 @@ const PATTERN = new RegExp(
     KEYWORDS +
     ')\\b' + // 4 keyword
     '|([A-Za-z_$][\\w$]*)(?=\\()' + // 5 function call
-    '|(?<!\\.)\\.([A-Za-z_$][\\w$]*)(?!\\s*\\()', // 6 property
+    '|(?<!\\.)\\.([A-Za-z_$][\\w$]*)(?!\\s*\\()' + // 6 property
+    '|(?<=<\\/?)([A-Za-z][\\w.]*)(?=[\\s/>])', // 7 JSX tag name
   'gm',
 );
 
@@ -46,7 +47,7 @@ export function tokenize(code: string): Token[] {
     else if (m[6]) {
       push('plain', '.');
       push('prop', m[6]);
-    }
+    } else if (m[7]) push('tag', m[7]);
     last = PATTERN.lastIndex;
   }
   push('plain', code.slice(last));
@@ -59,6 +60,7 @@ export const TOKEN_CLASS: Record<TokenKind, string> = {
   num: 'text-syn-num',
   fn: 'text-syn-fn',
   prop: 'text-syn-prop',
+  tag: 'text-syn-tag',
   cm: 'text-syn-cm italic',
   plain: '',
 };

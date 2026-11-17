@@ -2,7 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { CheckIcon } from 'lucide-react';
 import { TextWithCode } from '@/components/InlineCode';
 import { checkChoice } from '@/questions/check';
-import { getCodeBlocks } from '@/components/mdx/codeBlocks';
+import { getCodeBlocks, langOf } from '@/components/mdx/codeBlocks';
 import { cn } from '@/lib/utils';
 import { CodeView } from './CodeView';
 import { QuestionCard } from './QuestionCard';
@@ -24,7 +24,8 @@ const LETTERS = 'ABCDEFGH';
 
 /** One multiple-choice question; an array `answer` makes it multi-select. */
 export function Choice({ id, q: question, options, answer, explain, hint, children }: ChoiceProps) {
-  const code = getCodeBlocks(children)[0]?.code;
+  const block = getCodeBlocks(children)[0];
+  const lang = langOf(block);
   const multi = Array.isArray(answer);
   const correctSet = new Set(Array.isArray(answer) ? answer : [answer]);
   const q = useQuestion(id, 'choice');
@@ -55,7 +56,7 @@ export function Choice({ id, q: question, options, answer, explain, hint, childr
       canCheck={picked.length > 0}
       onCheck={() => q.submit(checkChoice(picked, answer))}
     >
-      {code && <CodeView code={code} />}
+      {block && <CodeView code={block.code} lang={lang} file={`question.${lang}`} />}
       <div role={multi ? 'group' : 'radiogroup'} aria-label="Answers" className="mt-3 grid gap-2">
         {options.map((option, i) => {
           const on = shown.includes(i);

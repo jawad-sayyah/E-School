@@ -1,0 +1,303 @@
+---
+id: before-after
+title: "Before and after: four lines vs. one setCart"
+summary: Put the vanilla and React carts side by side, see what React does for you, and write your first React feature.
+minutes: 14
+tags: [React, setCart, imperative, declarative, filter, remove, first exercise]
+---
+
+Same feature, two ways. On the left, the vanilla cart removing a line; on the right, React.
+
+<Compare
+  wrong="Vanilla: you change the data, then fix every spot on the page yourself"
+  right="React: you change the data; the page follows"
+  wrongFile="vanilla.js"
+  rightFile="App.jsx"
+>
+
+```js
+function removeLine(id) {
+  cart = cart.filter((l) => l.id !== id);
+  document.getElementById(`line-${id}`).remove();
+  total.textContent = getTotal();
+  badge.textContent = getCount();
+  emptyMessage.hidden = cart.length > 0;
+}
+```
+
+```jsx
+function remove(id) {
+  setCart(cart.filter((l) => l.id !== id));
+}
+```
+
+</Compare>
+
+<Concept name="What React takes off your hands" id="what-react-does">
+
+With React you stop writing three kinds of code:
+
+1. **Finding elements** (`getElementById`, `querySelector`): your JSX already says where things go.
+2. **Changing elements** (`textContent`, `append`, `remove`, `hidden`): React works out the changes when it commits.
+3. **Remembering every spot** that depends on the data: each spot reads the state directly in the JSX, so it's always current.
+
+What's left is the part that's actually about your app: **what the data is**, **how it changes**, and **what the page looks like for it**.
+
+</Concept>
+
+<Concept name="Imperative vs. declarative" id="imperative-declarative">
+
+- **Imperative** code says *how*: "find the list, remove this item, set the total text to 9".
+- **Declarative** code says *what*: "the total paragraph shows `total`". It doesn't care what was there before.
+
+A recipe is imperative ("whisk the eggs, then…"); a photo of the finished cake is declarative. React lets you hand over the photo, and it does the baking.
+
+</Concept>
+
+<GoDeeper title="Isn't React slower than changing the DOM directly?">
+
+A perfectly hand-tuned DOM update is as fast as it gets, and React can't beat it: React does the same DOM changes, plus the work of rendering and comparing. But:
+
+- rendering produces plain JavaScript objects, which is very cheap compared with touching the DOM;
+- React batches all the state changes from one event into a single render and commit;
+- in real apps, hand-written updates rarely stay perfectly tuned; they get slower and buggier as features pile up.
+
+So React's selling point isn't raw speed: it's **predictable, correct UI** that stays fast enough, with tools (`memo`, `useMemo`, transitions) for the rare spots that need more. You'll meet those in How React Works.
+
+</GoDeeper>
+
+<Practice>
+
+<SortBuckets
+  id="buckets-who-does-it"
+  prompt="With React, who does each job: you, or React?"
+  buckets={["You write it", "React does it"]}
+  items={[
+    ["Decide what the cart state looks like", 0],
+    ["Describe the page in JSX", 0],
+    ["Call `setCart` with a new array", 0],
+    ["Find the list item to remove", 1],
+    ["Update the badge's text", 1],
+    ["Work out which parts of the page changed", 1],
+  ]}
+  explain="You own the data, the changes to it, and the description of the page. React owns everything that touches the real DOM."
+/>
+
+<CodeReview
+  id="review-add"
+  answer={1}
+  prompt="Which `add` would you approve in a React code review?"
+  reasons={[
+    "It changes the existing array with `push`, then passes the same array to `setCart`. React sees the same value and may not re-render.",
+    "It builds a new array and passes it to the setter. React sees a new value and renders the updated cart.",
+    "It reaches into the DOM by hand. React will overwrite this on the next render, and the state never changes, so the cart and the screen disagree.",
+  ]}
+>
+
+```jsx
+function add(product) {
+  cart.push({ ...product, qty: 1 });
+  setCart(cart);
+}
+```
+
+```jsx
+function add(product) {
+  setCart([...cart, { ...product, qty: 1 }]);
+}
+```
+
+```jsx
+function add(product) {
+  const li = document.createElement("li");
+  li.textContent = product.name;
+  document.querySelector("ul").append(li);
+}
+```
+
+</CodeReview>
+
+<Choice
+  id="choice-new-feature"
+  q="You add a Free shipping banner that shows when the total is over $20. In the React cart, which functions need to change?"
+  options={["`add` and `remove`", "Only the JSX: add the banner with a condition on `total`", "Every function that calls `setCart`", "None: React adds banners automatically"]}
+  answer={1}
+  explain={"The banner reads `total` in the JSX, like `{total > 20 && <p>Free shipping!</p>}`. `add` and `remove` don't need to know it exists."}
+  hint="Which part of a React component describes what the page looks like?"
+/>
+
+</Practice>
+
+<ReactExercise
+  id="remove-button"
+  title="Add a Remove button"
+  hints={[
+    "Write `function remove(id) { setCart(cart.filter((item) => item.id !== id)); }`.",
+    "Inside the cart list, add `<button onClick={() => remove(item.id)}>Remove</button>` next to the name.",
+    "Make sure you pass a function to `onClick`: `onClick={() => remove(item.id)}`, not `onClick={remove(item.id)}`.",
+  ]}
+>
+
+This cart can add products but not remove them. Give every cart line a **Remove** button that takes it out of the cart. You only need to change the state: the total and the badge will follow on their own. The tests click the buttons for you; you can also try them in the preview.
+
+```jsx starter file=/App.js
+import { useState } from "react";
+
+const products = [
+  { id: 1, name: "Coffee", price: 4 },
+  { id: 2, name: "Bagel", price: 3 },
+  { id: 3, name: "Tea", price: 2 },
+];
+
+export default function App() {
+  const [cart, setCart] = useState([]);
+  const total = cart.reduce((sum, item) => sum + item.price, 0);
+
+  function add(product) {
+    setCart([...cart, product]);
+  }
+
+  // TODO: write remove(id)
+
+  return (
+    <main>
+      <header>
+        MiniShop <span className="badge" aria-label="Items in cart">{cart.length}</span>
+      </header>
+      <ul>
+        {products.map((product) => (
+          <li key={product.id}>
+            {product.name} ${product.price}{" "}
+            <button onClick={() => add(product)} disabled={cart.includes(product)}>
+              Add
+            </button>
+          </li>
+        ))}
+      </ul>
+      <h2>Cart</h2>
+      <ul aria-label="Cart">
+        {cart.map((item) => (
+          <li key={item.id}>
+            {item.name}
+            {/* TODO: a Remove button */}
+          </li>
+        ))}
+      </ul>
+      <p>Total: ${total}</p>
+    </main>
+  );
+}
+```
+
+```css starter file=/styles.css
+body { font-family: system-ui, sans-serif; padding: 0 16px; }
+header { font-weight: 700; font-size: 20px; }
+.badge { background: #61dafb; border-radius: 999px; padding: 2px 10px; margin-left: 6px; }
+button { margin-left: 8px; }
+```
+
+```jsx tests file=/App.test.js
+import { fireEvent, render, screen, within } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import App from "./App";
+
+test("each cart line has a Remove button", () => {
+  render(<App />);
+  fireEvent.click(screen.getAllByRole("button", { name: "Add" })[0]);
+  expect(screen.getByRole("button", { name: "Remove" })).toBeInTheDocument();
+});
+
+test("Remove takes the line out of the cart", () => {
+  render(<App />);
+  fireEvent.click(screen.getAllByRole("button", { name: "Add" })[0]);
+  fireEvent.click(screen.getByRole("button", { name: "Remove" }));
+  const cart = screen.getByRole("list", { name: "Cart" });
+  expect(within(cart).queryByText(/Coffee/)).not.toBeInTheDocument();
+});
+
+test("the total and the badge follow", () => {
+  render(<App />);
+  const [coffee, bagel] = screen.getAllByRole("button", { name: "Add" });
+  fireEvent.click(coffee);
+  fireEvent.click(bagel);
+  fireEvent.click(screen.getAllByRole("button", { name: "Remove" })[0]);
+  expect(screen.getByText("Total: $3")).toBeInTheDocument();
+  expect(screen.getByLabelText("Items in cart")).toHaveTextContent("1");
+});
+```
+
+```jsx solution file=/App.js
+import { useState } from "react";
+
+const products = [
+  { id: 1, name: "Coffee", price: 4 },
+  { id: 2, name: "Bagel", price: 3 },
+  { id: 3, name: "Tea", price: 2 },
+];
+
+export default function App() {
+  const [cart, setCart] = useState([]);
+  const total = cart.reduce((sum, item) => sum + item.price, 0);
+
+  function add(product) {
+    setCart([...cart, product]);
+  }
+
+  function remove(id) {
+    setCart(cart.filter((item) => item.id !== id));
+  }
+
+  return (
+    <main>
+      <header>
+        MiniShop <span className="badge" aria-label="Items in cart">{cart.length}</span>
+      </header>
+      <ul>
+        {products.map((product) => (
+          <li key={product.id}>
+            {product.name} ${product.price}{" "}
+            <button onClick={() => add(product)} disabled={cart.includes(product)}>
+              Add
+            </button>
+          </li>
+        ))}
+      </ul>
+      <h2>Cart</h2>
+      <ul aria-label="Cart">
+        {cart.map((item) => (
+          <li key={item.id}>
+            {item.name}{" "}
+            <button onClick={() => remove(item.id)}>Remove</button>
+          </li>
+        ))}
+      </ul>
+      <p>Total: ${total}</p>
+    </main>
+  );
+}
+```
+
+</ReactExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "Which of these do you stop writing by hand when you use React?",
+      options: ["`getElementById` to find elements", "`textContent = ...` to change them", "The code that decides what the cart contains", "Code that remembers every spot on the page that shows the total"],
+      answer: [0, 1, 3],
+      explain: "React handles finding, changing and keeping the DOM in sync. Deciding what the data is stays your job.",
+    },
+    {
+      q: "\"The total paragraph shows `total`\" is an example of…",
+      options: ["Imperative code", "Declarative code", "A bug", "A DOM query"],
+      answer: 1,
+      explain: "It describes what should be on screen, not the steps to get there.",
+    },
+    {
+      q: "Is React faster than perfect hand-written DOM updates?",
+      options: ["Yes, always", "No; its value is UI that stays correct and fast enough as the app grows", "Only on phones", "Only with TypeScript"],
+      answer: 1,
+      explain: "React does the same DOM work plus some extra. It wins on correctness and maintainability, not raw speed.",
+    },
+  ]}
+/>

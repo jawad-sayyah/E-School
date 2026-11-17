@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react';
 import {
   SandpackCodeEditor,
   SandpackConsole,
@@ -5,6 +6,7 @@ import {
   SandpackPreview,
   SandpackProvider,
   SandpackTests,
+  useSandpack,
   type SandpackFiles,
 } from '@codesandbox/sandpack-react';
 import { summarizeSpecs, type SpecResult, type SpecSummary } from './specs';
@@ -64,22 +66,42 @@ export function LivePlayground({
   );
 }
 
+/**
+ * Replaces the editor's files when `version` changes (Reset code, Put the solution in the
+ * editor). Updating the running sandbox, instead of remounting it, keeps the bundler warm,
+ * and the tests re-run because they watch for file changes.
+ */
+function SyncFiles({ files, version }: { files: Record<string, string>; version: number }) {
+  const { sandpack } = useSandpack();
+  const applied = useRef(version);
+  useEffect(() => {
+    if (applied.current === version) return;
+    applied.current = version;
+    sandpack.updateFile(files);
+  }, [version, files, sandpack]);
+  return null;
+}
+
 /** Editor + preview + the hidden tests, with results reported back. */
 export function LiveExercise({
   files,
   hiddenFiles,
   activeFile,
   height = 340,
+  version = 0,
   onResult,
-}: LiveProps & { onResult: (summary: SpecSummary) => void }) {
+}: LiveProps & { version?: number; onResult: (summary: SpecSummary) => void }) {
+  // The provider only reads its files once; later changes go through SyncFiles.
+  const [initial] = useState(() => toSandpackFiles(files, hiddenFiles));
   return (
     <SandpackProvider
       template="react"
       theme={sandpackTheme}
-      files={toSandpackFiles(files, hiddenFiles)}
+      files={initial}
       customSetup={setup}
       options={{ activeFile, recompileMode: 'delayed', recompileDelay: 500 }}
     >
+      <SyncFiles files={files} version={version} />
       <SandpackLayout>
         <SandpackCodeEditor showLineNumbers showTabs style={{ height }} />
         <SandpackPreview style={{ height }} showOpenInCodeSandbox={false} showRefreshButton />

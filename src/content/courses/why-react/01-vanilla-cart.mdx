@@ -1,0 +1,203 @@
+---
+id: vanilla-cart
+title: The cart in plain JavaScript
+summary: Build MiniShop's product list and cart with nothing but the DOM, and count how many things you update by hand on every click.
+minutes: 12
+tags: [DOM, createElement, textContent, addEventListener, vanilla JavaScript, imperative]
+---
+
+Before React, let's build the cart the way you would with the JavaScript you already know: find elements on the page, create new ones, and change their text when something happens. This is called **vanilla JavaScript**: no libraries.
+
+Our page has three things that depend on the cart: the **cart list**, the **total**, and the **badge** in the header that counts the items.
+
+<Concept name="The page and the script" id="page-and-script">
+
+The HTML has empty spots with ids; the script fills them in. Click **Add** and watch all three spots change. Then read `addToCart` to see the work behind it.
+
+<ReactPlayground template="vanilla" height={420}>
+
+```js file=/index.js
+import "./styles.css";
+
+const products = [
+  { id: 1, name: "Coffee", price: 4 },
+  { id: 2, name: "Bagel", price: 3 },
+  { id: 3, name: "Tea", price: 2 },
+];
+let cart = [];
+
+const productList = document.getElementById("products");
+const cartList = document.getElementById("cart");
+const total = document.getElementById("total");
+const badge = document.getElementById("badge");
+
+// Build the product list once
+for (const product of products) {
+  const li = document.createElement("li");
+  li.textContent = `${product.name} $${product.price} `;
+  const button = document.createElement("button");
+  button.textContent = "Add";
+  button.addEventListener("click", () => addToCart(product));
+  li.append(button);
+  productList.append(li);
+}
+
+function addToCart(product) {
+  cart.push(product);
+
+  // The data changed. Now update the page by hand, in three places:
+  const li = document.createElement("li");   // 1. the cart list
+  li.textContent = product.name;
+  cartList.append(li);
+  total.textContent = cart.reduce((sum, p) => sum + p.price, 0);   // 2. the total
+  badge.textContent = cart.length;   // 3. the badge
+}
+```
+
+```html file=/index.html
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+  </head>
+  <body>
+    <header>MiniShop <span id="badge">0</span></header>
+    <ul id="products"></ul>
+    <h2>Cart</h2>
+    <ul id="cart"></ul>
+    <p>Total: $<span id="total">0</span></p>
+    <script src="index.js"></script>
+  </body>
+</html>
+```
+
+```css file=/styles.css
+body { font-family: system-ui, sans-serif; padding: 0 16px; }
+header { font-weight: 700; font-size: 20px; }
+#badge { background: #61dafb; border-radius: 999px; padding: 2px 10px; margin-left: 6px; }
+button { margin-left: 8px; }
+```
+
+</ReactPlayground>
+</Concept>
+
+<Concept name="Two copies of the truth" id="two-copies">
+
+Look at what the script keeps track of:
+
+- the **data**: the `cart` array;
+- the **page**: the list items, the total text and the badge text.
+
+They are two separate copies of the same truth. Every time the data changes, *you* must make the page match it, line by line. Forget one line and the page lies to the user.
+
+<Callout type="warn">
+Adding is the easy case. Removing an item, changing a quantity or emptying the cart each need their own "find the right element and fix it" code. The next lesson shows how quickly that goes wrong.
+</Callout>
+</Concept>
+
+<HowItWorks title="What the DOM is">
+
+The browser turns your HTML into a tree of objects called the **DOM** (Document Object Model). Each tag becomes a node you can find (`getElementById`), create (`createElement`), change (`textContent`) and attach (`append`). The browser redraws the screen whenever the DOM changes.
+
+This style is called **imperative**: you give the browser step-by-step commands ("create a list item, set its text, append it"). React lets you work **declaratively** instead: you describe what the page should look like for the current data, and React works out the commands.
+
+</HowItWorks>
+
+<GoDeeper title="Why not just rebuild everything with innerHTML?">
+
+You could redraw the whole cart on every change: `cartList.innerHTML = cart.map(p => "<li>" + p.name + "</li>").join("")`. That's simpler, and it's actually close to React's idea. But it throws away every element and builds new ones, so:
+
+- anything the user typed into an input inside the list is lost, and focus jumps away;
+- it's slow for big pages;
+- building HTML from strings is a security risk (a product called `<img onerror=...>` would run code).
+
+React gives you the simplicity of "redraw everything" without these problems: it compares the new description with the old one and only changes what differs.
+
+</GoDeeper>
+
+<Practice>
+
+<OrderLines
+  id="order-add-li"
+  prompt="Put the lines in order to add a cart item to the page."
+  explain="You create the element first, give it its text, then attach it to the list. Until it's appended, it exists only in memory."
+>
+
+```js
+const li = document.createElement("li");
+li.textContent = product.name;
+cartList.append(li);
+```
+
+</OrderLines>
+
+<MatchPairs
+  id="match-dom-api"
+  prompt="Match each DOM call with what it does."
+  columns={["Call", "Does"]}
+  pairs={[
+    ["`document.getElementById(\"cart\")`", "Finds an existing element"],
+    ["`document.createElement(\"li\")`", "Makes a new element in memory"],
+    ["`el.textContent = \"Tea\"`", "Replaces an element's text"],
+    ["`list.append(li)`", "Puts an element on the page"],
+    ["`button.addEventListener(\"click\", fn)`", "Runs a function when clicked"],
+  ]}
+/>
+
+<Predict
+  id="predict-total"
+  answer={["9 3"]}
+  explain="`reduce` adds the prices (4 + 3 + 2), and `length` counts the items. This is the same math the script uses for the total and the badge."
+>
+
+```js
+const cart = [
+  { name: "Coffee", price: 4 },
+  { name: "Bagel", price: 3 },
+  { name: "Tea", price: 2 },
+];
+const total = cart.reduce((sum, p) => sum + p.price, 0);
+console.log(total, cart.length);
+```
+
+</Predict>
+
+<Choice
+  id="choice-places"
+  q="In the playground, how many places on the page does `addToCart` update by hand after `cart.push(product)`?"
+  options={["One", "Two", "Three", "None: the page updates itself"]}
+  answer={2}
+  explain="The cart list, the total and the badge. The page never updates itself: the script must touch every part that depends on the cart."
+  hint="Count the numbered comments in `addToCart`."
+/>
+
+</Practice>
+
+<Quiz
+  questions={[
+    {
+      q: "What does \"vanilla JavaScript\" mean?",
+      options: ["JavaScript with React", "Plain JavaScript with no libraries or frameworks", "An old version of JavaScript", "JavaScript that only runs on servers"],
+      answer: 1,
+      explain: "Vanilla means plain: just the language and the browser's built-in APIs like the DOM.",
+    },
+    {
+      q: "After `cart.push(product)`, why doesn't the badge change on its own?",
+      options: ["The badge is broken", "The page doesn't know about the `cart` array; you must set `badge.textContent` yourself", "`push` is asynchronous", "Arrays can't hold objects"],
+      answer: 1,
+      explain: "The data and the page are separate copies. Changing the array changes nothing on screen.",
+    },
+    {
+      q: "Which style is \"create an element, set its text, append it\"?",
+      options: ["Declarative", "Imperative", "Functional", "Reactive"],
+      answer: 1,
+      explain: "Imperative code lists the steps. Declarative code describes the result and lets something else work out the steps.",
+    },
+    {
+      q: "Which are problems with redrawing a list using `innerHTML` on every change?",
+      options: ["It loses what the user typed in inputs inside it", "It can run code hidden in product names", "It is slow for big pages", "It can't show text"],
+      answer: [0, 1, 2],
+      explain: "Rebuilding from strings throws away elements (and their state), is a security risk, and does extra work. It shows text just fine.",
+    },
+  ]}
+/>

@@ -113,7 +113,7 @@ export const COURSES: CourseInfo[] = [
     color: 'react',
     description:
       'Build the cart in plain JavaScript, feel the pain of keeping the page in sync, then see how React makes the UI a function of state.',
-    lessons: [],
+    lessons: ['vanilla-cart', 'sync-pain', 'ui-from-state', 'before-after', 'review'],
     phase: 5,
   },
   {

@@ -34,3 +34,8 @@ export function findBlock(blocks: CodeBlockData[], word: string): CodeBlockData 
 export function metaFile(meta: string): string | undefined {
   return /(?:^|\s)file=(\S+)/.exec(meta)?.[1];
 }
+
+/** A block's language for display ("js" when the fence names none). */
+export function langOf(block: CodeBlockData | undefined): string {
+  return block?.lang || 'js';
+}

@@ -2,7 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { Input } from '@/components/ui/input';
 import { TextWithCode } from '@/components/InlineCode';
 import { checkTrace } from '@/questions/check';
-import { getCodeBlocks } from '@/components/mdx/codeBlocks';
+import { getCodeBlocks, langOf } from '@/components/mdx/codeBlocks';
 import { cn } from '@/lib/utils';
 import { CodeView } from './CodeView';
 import { QuestionCard } from './QuestionCard';
@@ -35,10 +35,12 @@ export function TraceState({
   prompt,
   explain,
   hint,
-  file = 'trace.js',
+  file,
   children,
 }: TraceStateProps) {
-  const code = getCodeBlocks(children)[0]?.code;
+  const block = getCodeBlocks(children)[0];
+  const lang = langOf(block);
+  const code = block?.code;
   const answers = steps.map((s) => (Array.isArray(s.answer) ? s.answer : [s.answer]));
   const q = useQuestion(id, 'trace');
   const [values, setValues] = useState<string[]>(() => steps.map(() => ''));
@@ -55,7 +57,7 @@ export function TraceState({
       canCheck={values.every((v) => v.trim() !== '')}
       onCheck={() => q.submit(checkTrace(values, answers))}
     >
-      {code && <CodeView code={code} file={file} />}
+      {code && <CodeView code={code} lang={lang} file={file ?? `trace.${lang}`} />}
       <ol className="mt-3 space-y-2">
         {steps.map((step, i) => (
           <li

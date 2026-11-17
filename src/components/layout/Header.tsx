@@ -48,7 +48,7 @@ function SearchButton() {
       variant="outline"
       onClick={open}
       aria-label="Search lessons (press / or Ctrl+K)"
-      className="h-9 w-full max-w-md justify-start gap-2 rounded-lg bg-sidebar px-3 font-normal text-faint hover:text-muted-foreground md:min-w-56"
+      className="h-9 w-full max-w-md justify-start gap-2 rounded-lg bg-sidebar px-3 font-normal text-faint hover:text-muted-foreground lg:min-w-56"
     >
       <SearchIcon aria-hidden />
       <span className="hidden sm:inline">Search the docs…</span>
@@ -93,17 +93,17 @@ export function Header() {
         <Button
           variant="ghost"
           size="icon"
-          className="md:hidden"
+          className="lg:hidden"
           aria-label="Open menu"
           onClick={() => setMenuOpen(true)}
         >
           <MenuIcon aria-hidden />
         </Button>
         <Logo />
-        <div className="hidden md:block">
+        <div className="hidden lg:block">
           <NavLinks />
         </div>
-        <div className="flex flex-1 justify-end md:justify-center">
+        <div className="flex min-w-0 flex-1 justify-end lg:justify-center">
           <SearchButton />
         </div>
         <XpStreak />

@@ -1,0 +1,297 @@
+---
+id: ui-from-state
+title: "The same cart in React: UI = f(state)"
+summary: Rebuild the cart in React, where you describe the page for the current cart and React keeps the screen in sync for you.
+minutes: 15
+tags: [React, useState, JSX, components, declarative, render, UI = f(state)]
+---
+
+Here's the cart from the last lesson, quantities and Remove included, rewritten in React. Try the same steps: add Coffee twice and Tea once, then remove Coffee. The badge is right this time, and nowhere in the code is there a line that updates it.
+
+<ReactPlayground height={520}>
+
+```jsx file=/App.js
+import { useState } from "react";
+
+const products = [
+  { id: 1, name: "Coffee", price: 4 },
+  { id: 2, name: "Bagel", price: 3 },
+  { id: 3, name: "Tea", price: 2 },
+];
+
+export default function App() {
+  const [cart, setCart] = useState([]);
+
+  // Everything below is worked out from `cart` on every render
+  const total = cart.reduce((sum, l) => sum + l.price * l.qty, 0);
+  const count = cart.reduce((sum, l) => sum + l.qty, 0);
+
+  function add(product) {
+    const line = cart.find((l) => l.id === product.id);
+    if (line) {
+      setCart(cart.map((l) => (l.id === product.id ? { ...l, qty: l.qty + 1 } : l)));
+    } else {
+      setCart([...cart, { ...product, qty: 1 }]);
+    }
+  }
+
+  function remove(id) {
+    setCart(cart.filter((l) => l.id !== id));
+  }
+
+  return (
+    <main>
+      <header>
+        MiniShop <span className="badge" aria-label="Items in cart">{count}</span>
+      </header>
+      <ul>
+        {products.map((product) => (
+          <li key={product.id}>
+            {product.name} ${product.price}{" "}
+            <button onClick={() => add(product)}>Add</button>
+          </li>
+        ))}
+      </ul>
+      <h2>Cart</h2>
+      {cart.length === 0 && <p>Your cart is empty.</p>}
+      <ul>
+        {cart.map((line) => (
+          <li key={line.id}>
+            {line.name} × {line.qty}{" "}
+            <button onClick={() => remove(line.id)}>Remove</button>
+          </li>
+        ))}
+      </ul>
+      <p>Total: ${total}</p>
+    </main>
+  );
+}
+```
+
+```css file=/styles.css
+body { font-family: system-ui, sans-serif; padding: 0 16px; }
+header { font-weight: 700; font-size: 20px; }
+.badge { background: #61dafb; border-radius: 999px; padding: 2px 10px; margin-left: 6px; }
+button { margin-left: 8px; }
+```
+
+</ReactPlayground>
+
+<Concept name="Describe, don't update" id="describe">
+
+Compare `remove` with the vanilla version:
+
+- **Vanilla:** change the array, find the list item and delete it, update the total, update the badge (or forget to).
+- **React:** `setCart(cart.filter(...))`. That's it.
+
+The `return (...)` part describes the *whole* page for any cart: the badge shows `count`, the list shows one item per line, the empty message shows when the cart is empty. When the cart changes, React runs `App` again to get the new description, and updates the screen to match. You never write "now update the badge".
+
+This is the idea behind React in one line: **UI = f(state)**. The page is a function of the state.
+
+</Concept>
+
+<Concept name="The pieces" id="pieces">
+
+- **Component:** a function that returns what to show, here `App`. Its name starts with a capital letter.
+- **JSX:** the HTML-like code in the `return`. It's JavaScript underneath, so `{count}` drops a value in, and `{cart.map(...)}` turns an array into list items.
+- **State:** `const [cart, setCart] = useState([])` gives you the current cart and a function to replace it. Calling `setCart` tells React "the data changed, draw the page again".
+
+<Callout type="react">
+Notice that `add` and `remove` never change `cart` itself: they build a **new** array with `map`, `filter` or spread. React compares the old and the new value to see that something changed, so mutating with `push` or `qty++` would leave the screen stale. The React Fundamentals course covers this in detail.
+</Callout>
+</Concept>
+
+<Concept name="What happens when you click Add" id="render-cycle">
+
+Clicking **Add** on Coffee starts React's **render cycle**: a *trigger* (you set state), a *render* (React calls your components to get the new description), and a *commit* (React changes only the parts of the real page that differ). Step through it here. This version splits `App` into smaller components to show the tree.
+
+<RenderCycle
+  title="Adding Coffee to the cart"
+  frames={[
+    { phase: "idle", line: 2, tree: [{ name: "App", depth: 0, state: "cart = []" }, { name: "Header", depth: 1, state: "count = 0" }, { name: "ProductList", depth: 1 }, { name: "Cart", depth: 1, state: "lines = []" }], screen: "MiniShop `0` · Your cart is empty. · Total: $0", note: "The first render is done. The screen shows an empty cart." },
+    { phase: "trigger", line: 9, tree: [{ name: "App", depth: 0, state: "cart = [] → [Coffee × 1]" }, { name: "Header", depth: 1, state: "count = 0" }, { name: "ProductList", depth: 1 }, { name: "Cart", depth: 1, state: "lines = []" }], screen: "MiniShop `0` · Your cart is empty. · Total: $0", note: "You click Add on Coffee. setCart asks React for a new render with the new cart. The screen hasn't changed yet." },
+    { phase: "render", line: 2, tree: [{ name: "App", depth: 0, state: "cart = [Coffee × 1]", status: "rendering" }, { name: "Header", depth: 1, state: "count = 0" }, { name: "ProductList", depth: 1 }, { name: "Cart", depth: 1, state: "lines = []" }], screen: "MiniShop `0` · Your cart is empty. · Total: $0", note: "React calls App again. This time useState returns the new cart, so count becomes 1." },
+    { phase: "render", line: 6, tree: [{ name: "App", depth: 0, state: "cart = [Coffee × 1]", status: "rendered" }, { name: "Header", depth: 1, state: "count = 1", status: "rendering" }, { name: "ProductList", depth: 1, status: "rendering" }, { name: "Cart", depth: 1, state: "lines = [Coffee × 1]", status: "rendering" }], screen: "MiniShop `0` · Your cart is empty. · Total: $0", note: "App's JSX contains its children, so React calls them too. Rendering only builds a description of the page: the screen is still untouched." },
+    { phase: "commit", line: 6, tree: [{ name: "App", depth: 0, state: "cart = [Coffee × 1]", status: "rendered" }, { name: "Header", depth: 1, state: "count = 1", status: "updated" }, { name: "ProductList", depth: 1, status: "rendered" }, { name: "Cart", depth: 1, state: "lines = [Coffee × 1]", status: "updated" }], screen: "MiniShop `1` · Coffee × 1 · Total: $4", note: "React compares the new description with the old one and changes only what differs: the badge, the cart list and the total. ProductList's output is the same, so its buttons are left alone." },
+    { phase: "idle", line: 2, tree: [{ name: "App", depth: 0, state: "cart = [Coffee × 1]" }, { name: "Header", depth: 1, state: "count = 1" }, { name: "ProductList", depth: 1 }, { name: "Cart", depth: 1, state: "lines = [Coffee × 1]" }], screen: "MiniShop `1` · Coffee × 1 · Total: $4", note: "Done. You changed the state; React worked out every change to the page." },
+  ]}
+>
+
+```jsx
+export default function App() {
+  const [cart, setCart] = useState([]);
+  const count = cart.reduce((sum, l) => sum + l.qty, 0);
+  return (
+    <main>
+      <Header count={count} />
+      <ProductList
+        products={products}
+        onAdd={(p) => setCart(addLine(cart, p))}
+      />
+      <Cart lines={cart} />
+    </main>
+  );
+}
+```
+
+</RenderCycle>
+</Concept>
+
+<GoDeeper title="What JSX turns into">
+
+Browsers don't understand JSX. A build tool (Vite, here) turns each tag into a function call before the code runs:
+
+```jsx
+<span className="badge">{count}</span>
+```
+
+becomes roughly
+
+```js
+jsx("span", { className: "badge", children: count });
+```
+
+and that call returns a plain object, `{ type: "span", props: { className: "badge", children: 1 } }`. A component's JSX is a tree of these objects: a cheap description of the page. React compares the new tree with the previous one (this is called **reconciliation**) and only then touches the real DOM. The How React Works course goes through it in depth.
+
+</GoDeeper>
+
+<Practice>
+
+<TraceState
+  id="trace-badge"
+  track="the number in the badge"
+  steps={[
+    { action: "The page first loads", answer: "0" },
+    { action: "Click Add on Coffee", answer: "1" },
+    { action: "Click Add on Coffee again", answer: "2" },
+    { action: "Click Add on Tea", answer: "3" },
+    { action: "Click Remove on the Coffee line", answer: "1" },
+  ]}
+  explain="The badge is `count`, the sum of every line's `qty`. Removing the Coffee line removes both coffees, leaving Tea × 1."
+  hint="Remove takes out the whole line, whatever its quantity."
+/>
+
+<MatchPairs
+  id="match-react-words"
+  prompt="Match each React word with what it means."
+  columns={["Word", "Meaning"]}
+  pairs={[
+    ["Component", "A function that returns what to show"],
+    ["JSX", "HTML-like syntax that becomes JavaScript"],
+    ["State", "Data that changes and redraws the page"],
+    ["`setCart`", "Replaces the state and asks for a new render"],
+    ["Render", "React calling your component to get a description"],
+    ["Commit", "React changing the real page to match"],
+  ]}
+/>
+
+<FillBlanks
+  id="blanks-usestate"
+  prompt="Fill in the blanks to create the cart state and add a product to it."
+  explain="`useState` returns a pair: the current value and a setter. The setter gets a new array built with spread."
+>
+
+```jsx
+const [cart, __[setCart]__] = __[useState]__([]);
+
+function add(product) {
+  setCart([__[...cart]__, { ...product, qty: 1 }]);
+}
+```
+
+</FillBlanks>
+
+</Practice>
+
+<BuildUI
+  id="build-product-card"
+  title="A product card"
+  hints={[
+    "A heading is `<h2>Coffee</h2>`.",
+    "Put the price in a `<p>`, and the button text must be exactly `Add to cart`.",
+  ]}
+>
+
+Build the card on the right with JSX: a heading with the product name **Coffee**, the price **$4** in a paragraph, and an **Add to cart** button. The styles are ready in `styles.css`.
+
+```jsx starter file=/App.js
+export default function App() {
+  return (
+    <article className="card">
+      {/* Your JSX here */}
+    </article>
+  );
+}
+```
+
+```css starter file=/styles.css
+body { font-family: system-ui, sans-serif; padding: 16px; }
+.card { border: 1px solid #ddd; border-radius: 12px; padding: 16px; max-width: 220px; }
+.card h2 { margin: 0 0 4px; }
+.card p { color: #555; margin: 0 0 12px; }
+.card button { background: #61dafb; border: 0; border-radius: 8px; padding: 8px 14px; font-weight: 600; }
+```
+
+```jsx tests file=/App.test.js
+import { render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import App from "./App";
+
+test("shows the product name as a heading", () => {
+  render(<App />);
+  expect(screen.getByRole("heading", { name: "Coffee" })).toBeInTheDocument();
+});
+
+test("shows the price", () => {
+  render(<App />);
+  expect(screen.getByText("$4")).toBeInTheDocument();
+});
+
+test("has an Add to cart button", () => {
+  render(<App />);
+  expect(screen.getByRole("button", { name: "Add to cart" })).toBeInTheDocument();
+});
+```
+
+```jsx solution file=/App.js
+export default function App() {
+  return (
+    <article className="card">
+      <h2>Coffee</h2>
+      <p>$4</p>
+      <button>Add to cart</button>
+    </article>
+  );
+}
+```
+
+</BuildUI>
+
+<Quiz
+  questions={[
+    {
+      q: "In the React cart, what updates the badge after you remove a line?",
+      options: ["A line in `remove` that sets the badge", "React renders `App` again and the badge shows the new `count`", "The browser", "Nothing; it stays stale"],
+      answer: 1,
+      explain: "`setCart` triggers a new render, `count` is recalculated from the new cart, and React updates the badge on screen.",
+    },
+    {
+      q: "What does UI = f(state) mean?",
+      options: ["The UI is stored inside the state", "The page is worked out from the state, like a function's result from its input", "State is a function", "Every UI needs exactly one state"],
+      answer: 1,
+      explain: "Same state in, same page out. To change the page, change the state.",
+    },
+    {
+      q: "During the **render** phase, what does React do?",
+      options: ["Changes the real DOM", "Calls your components to get a description of the page", "Downloads the page again", "Runs CSS animations"],
+      answer: 1,
+      explain: "Render builds the description. The commit phase is when the real DOM changes, and only where something differs.",
+    },
+    {
+      q: "Why does `add` use `setCart([...cart, line])` instead of `cart.push(line)`?",
+      options: ["`push` doesn't work on arrays", "React needs a new array to notice the change; `push` changes the old one and nothing re-renders", "Spread is faster", "`push` only works with numbers"],
+      answer: 1,
+      explain: "Only calling the setter with a new value tells React to render again.",
+    },
+  ]}
+/>

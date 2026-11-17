@@ -2,7 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { TOKEN_CLASS, tokenize } from '@/editor/highlight';
 import { EditorFrame } from '@/editor/EditorFrame';
 import { checkSpotBug } from '@/questions/check';
-import { findBlock, getCodeBlocks } from '@/components/mdx/codeBlocks';
+import { findBlock, getCodeBlocks, langOf } from '@/components/mdx/codeBlocks';
 import { cn } from '@/lib/utils';
 import { CodeView } from './CodeView';
 import { QuestionCard } from './QuestionCard';
@@ -27,11 +27,14 @@ export function SpotTheBug({
   prompt = 'One line has a bug. Click it, then press Check.',
   explain,
   hint,
-  file = 'buggy.js',
+  file,
   children,
 }: SpotTheBugProps) {
   const blocks = getCodeBlocks(children);
-  const code = blocks.find((b) => !b.meta.includes('fixed'))?.code ?? '';
+  const buggy = blocks.find((b) => !b.meta.includes('fixed'));
+  const lang = langOf(buggy);
+  const code = buggy?.code ?? '';
+  const name = file ?? `buggy.${lang}`;
   const fixed = findBlock(blocks, 'fixed')?.code;
   const bugs = Array.isArray(bug) ? bug : [bug];
   const lines = code.split('\n');
@@ -50,7 +53,7 @@ export function SpotTheBug({
       onCheck={() => q.submit(checkSpotBug(picked, bugs))}
       onRetry={() => setPicked(null)}
     >
-      <EditorFrame file={file} lang="js" className="my-3">
+      <EditorFrame file={name} lang={lang} className="my-3">
         <ol
           aria-label="Lines of code: pick the one with the bug"
           className="bg-ed-bg py-2 font-mono text-[14px] leading-[24px]"
@@ -96,7 +99,7 @@ export function SpotTheBug({
       {answered && fixed && (
         <div>
           <p className="mt-2 text-sm font-semibold">Fixed</p>
-          <CodeView code={fixed} file={file.replace('buggy', 'fixed')} />
+          <CodeView code={fixed} lang={lang} file={name.replace('buggy', 'fixed')} />
         </div>
       )}
     </QuestionCard>

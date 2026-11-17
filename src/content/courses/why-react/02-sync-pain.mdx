@@ -1,0 +1,201 @@
+---
+id: sync-pain
+title: Keeping the page in sync
+summary: Add quantities and a Remove button to the vanilla cart, and watch the list, the total and the badge drift out of sync.
+minutes: 12
+tags: [DOM, sync bugs, state, imperative, quantities, remove]
+---
+
+A real cart needs more than "add": adding Coffee twice should show **Coffee × 2**, not two Coffee lines, and every line needs a **Remove** button. Each new feature means more "find the element and fix it" code, and more chances to forget one place.
+
+<Concept name="One click, three updates" id="three-updates">
+
+Here's the cart with quantities and removing. Try this in the preview:
+
+1. Add Coffee twice and Tea once. The badge says 3.
+2. Remove Coffee. The list and the total are right… but look at the badge.
+
+<ReactPlayground template="vanilla" height={460}>
+
+```js file=/index.js
+import "./styles.css";
+
+const products = [
+  { id: 1, name: "Coffee", price: 4 },
+  { id: 2, name: "Bagel", price: 3 },
+  { id: 3, name: "Tea", price: 2 },
+];
+let cart = []; // lines like { id, name, price, qty }
+
+const productList = document.getElementById("products");
+const cartList = document.getElementById("cart");
+const total = document.getElementById("total");
+const badge = document.getElementById("badge");
+
+const getTotal = () => cart.reduce((sum, l) => sum + l.price * l.qty, 0);
+const getCount = () => cart.reduce((sum, l) => sum + l.qty, 0);
+
+for (const product of products) {
+  const li = document.createElement("li");
+  li.textContent = `${product.name} $${product.price} `;
+  const button = document.createElement("button");
+  button.textContent = "Add";
+  button.addEventListener("click", () => add(product));
+  li.append(button);
+  productList.append(li);
+}
+
+function add(product) {
+  const line = cart.find((l) => l.id === product.id);
+  if (line) {
+    line.qty++;
+    // find the existing <li> and fix its text
+    document.getElementById(`line-${product.id}`).firstChild.textContent =
+      `${line.name} × ${line.qty} `;
+  } else {
+    cart.push({ ...product, qty: 1 });
+    // build a new <li> with its own Remove button
+    const li = document.createElement("li");
+    li.id = `line-${product.id}`;
+    li.append(`${product.name} × 1 `);
+    const remove = document.createElement("button");
+    remove.textContent = "Remove";
+    remove.addEventListener("click", () => removeLine(product.id));
+    li.append(remove);
+    cartList.append(li);
+  }
+  total.textContent = getTotal();
+  badge.textContent = getCount();
+}
+
+function removeLine(id) {
+  cart = cart.filter((l) => l.id !== id);
+  document.getElementById(`line-${id}`).remove();
+  total.textContent = getTotal();
+}
+```
+
+```html file=/index.html
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+  </head>
+  <body>
+    <header>MiniShop <span id="badge">0</span></header>
+    <ul id="products"></ul>
+    <h2>Cart</h2>
+    <ul id="cart"></ul>
+    <p>Total: $<span id="total">0</span></p>
+    <script src="index.js"></script>
+  </body>
+</html>
+```
+
+```css file=/styles.css
+body { font-family: system-ui, sans-serif; padding: 0 16px; }
+header { font-weight: 700; font-size: 20px; }
+#badge { background: #61dafb; border-radius: 999px; padding: 2px 10px; margin-left: 6px; }
+button { margin-left: 8px; }
+```
+
+</ReactPlayground>
+
+`removeLine` updates the list and the total but **forgets the badge**. Nothing crashes, no error shows up in the console. The page just quietly lies. This is the most common kind of UI bug: the data is right, the screen is out of sync.
+
+</Concept>
+
+<Concept name="The work grows with every feature" id="work-grows">
+
+Count the updates each action needs:
+
+| Action | Cart list | Total | Badge | "Cart is empty" message |
+| --- | --- | --- | --- | --- |
+| Add a new product | create an item | update | update | hide |
+| Add one more of a product | find the item, fix its text | update | update | — |
+| Remove a line | find the item, remove it | update | update | show if empty |
+| Empty the cart | remove every item | update | update | show |
+
+Every new feature (a discount, a "free shipping" banner, a checkout button that's disabled when the cart is empty) adds a column, and *every* action must remember it. With four features and four actions, that's sixteen places to get right.
+
+</Concept>
+
+<HowItWorks title="Why the bugs happen">
+
+The cart's **state** (the data that changes over time) lives in one place: the `cart` array. But the page shows things **derived** from that state in many places. In imperative code, each action has to know every place that depends on the state. The knowledge is spread out, so it's easy to miss one.
+
+The fix is to flip it around: write *one* function that turns the state into the whole page, and run it after every change. Then no action needs to know what the page looks like. That's exactly the idea React is built on, and the next lesson shows it.
+
+</HowItWorks>
+
+<Practice>
+
+<SpotTheBug
+  id="bug-badge-count"
+  bug={6}
+  prompt="Add Coffee twice: the badge says 1, but there are 2 items. Click the buggy line."
+  explain="The badge shows the number of lines, `cart.length`, but it should count the items: `getCount()` adds up every line's `qty`."
+  hint="Coffee × 2 is one line in the array, but two items."
+>
+
+```js
+function add(product) {
+  const line = cart.find((l) => l.id === product.id);
+  if (line) line.qty++;
+  else cart.push({ ...product, qty: 1 });
+  total.textContent = getTotal();
+  badge.textContent = cart.length;
+}
+```
+
+</SpotTheBug>
+
+<Choice
+  id="choice-after-remove"
+  q="In the playground, you add Coffee twice and Tea once, then remove Coffee. What does the badge show?"
+  options={["`0`", "`1`", "`3`", "Nothing: it disappears"]}
+  answer={2}
+  explain="`removeLine` never touches the badge, so it keeps its last value, 3, even though only one Tea is left."
+  hint="Which three lines does `removeLine` run? Is the badge one of them?"
+/>
+
+<TrueFalse
+  id="tf-sync"
+  statements={[
+    { text: "When the page is out of sync with the data, the browser shows an error.", answer: false, explain: "Nothing fails. The page just shows old values, which is why these bugs are easy to miss." },
+    { text: "The `cart` array was right the whole time; only the page was wrong.", answer: true, explain: "The data was correct. The bug is a missing page update." },
+    { text: "Adding a new feature to the page means updating the code of every action that changes the cart.", answer: true, explain: "In imperative code each action must know every place that depends on the cart." },
+    { text: "Rebuilding the whole page from the data after every change would make this kind of bug impossible.", answer: true, explain: "If one function turns the data into the page, no action can forget a spot. That's React's idea." },
+  ]}
+/>
+
+</Practice>
+
+<Quiz
+  questions={[
+    {
+      q: "What is **state**?",
+      options: ["The CSS of a page", "Data that changes over time, like the cart", "A kind of HTML element", "The browser's history"],
+      answer: 1,
+      explain: "State is the changing data the page is drawn from: the cart, the logged-in user, what's typed in a search box.",
+    },
+    {
+      q: "Which values on the cart page are *derived* from the cart?",
+      options: ["The total", "The badge count", "The \"Cart is empty\" message", "The product prices"],
+      answer: [0, 1, 2],
+      explain: "The total, the count and the empty message are all worked out from the cart. The product prices are fixed data.",
+    },
+    {
+      q: "Why are \"out of sync\" bugs hard to catch?",
+      options: ["They crash the page", "They don't throw errors; the screen just shows stale values", "They only happen on phones", "They only happen with large carts"],
+      answer: 1,
+      explain: "Everything keeps running. You only notice if you look at the right spot after the right sequence of clicks.",
+    },
+    {
+      q: "What's the idea that fixes this whole class of bugs?",
+      options: ["Write more comments", "Describe the whole page as a function of the data, and redraw from it after every change", "Use more global variables", "Update the page before the data"],
+      answer: 1,
+      explain: "UI = f(state). One description of the page means no action can forget a spot.",
+    },
+  ]}
+/>

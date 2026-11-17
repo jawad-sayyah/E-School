@@ -79,7 +79,10 @@ test('every course with lessons has at least one exercise (PROMPT.md §10)', () 
   for (const course of courses) {
     const exercises = lessonFiles
       .filter((l) => l.course === course)
-      .flatMap((l) => findAll(parser.parse(fs.readFileSync(l.abs, 'utf8')) as Node, 'Exercise'));
+      .flatMap((l) => {
+        const tree = parser.parse(fs.readFileSync(l.abs, 'utf8')) as Node;
+        return ['Exercise', 'ReactExercise', 'BuildUI'].flatMap((n) => findAll(tree, n));
+      });
     expect(exercises.length, course).toBeGreaterThanOrEqual(1);
   }
 });
@@ -192,7 +195,7 @@ describe.each(lessonFiles)('$course/$file questions', ({ abs }) => {
     async ({ b }) => {
       const code = String(codeIn(b)[0]?.value ?? '');
       expect(parseBlanks(code).answers.length).toBeGreaterThan(0);
-      if (attr(b, 'run') === 'false') return;
+      if (attr(b, 'run') === 'false' || codeIn(b)[0]?.lang === 'jsx') return; // JSX can't run in the worker
       const out = await runToEnd(fillBlanks(code), run);
       expect(out.status).toBe('done');
       expect(out.lines.filter((l) => l.level === 'error')).toEqual([]);
@@ -212,7 +215,7 @@ describe.each(lessonFiles)('$course/$file questions', ({ abs }) => {
         expect(line).toBeLessThanOrEqual(lines);
       }
       const fixed = blocks.find((c) => (c.meta ?? '').includes('fixed'));
-      if (fixed) {
+      if (fixed && fixed.lang !== 'jsx') {
         const out = await runToEnd(String(fixed.value), run);
         expect(out.lines.filter((l) => l.level === 'error')).toEqual([]);
       }

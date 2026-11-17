@@ -1,0 +1,107 @@
+---
+id: review
+title: "Review: Why React?"
+summary: Mixed questions on the vanilla cart, sync bugs, UI = f(state) and the render cycle.
+minutes: 10
+kind: review
+tags: [review, React, state, render cycle, declarative, DOM]
+---
+
+A quick check before React Fundamentals. The lesson names in brackets tell you where to look if a question stumps you.
+
+<Practice title="Why React, all together">
+
+<MatchPairs
+  id="match-review-terms"
+  prompt="Match each idea with its description."
+  columns={["Idea", "Description"]}
+  pairs={[
+    ["Imperative", "Step-by-step commands: find, create, change"],
+    ["Declarative", "Describe the result for the current data"],
+    ["State", "Data that changes over time"],
+    ["Derived value", "Worked out from state, like the total"],
+    ["Out of sync", "The data is right but the screen shows old values"],
+  ]}
+/>
+
+<OrderLines
+  id="order-review-counter"
+  prompt="Order the lines to make a counter component. (The same cart in React)"
+  explain="Import first, then the component: its state comes before the JSX that uses it, and the closing brace ends it."
+>
+
+```jsx
+import { useState } from "react";
+export default function Counter() {
+  const [count, setCount] = useState(0);
+  return <button onClick={() => setCount(count + 1)}>{count}</button>;
+}
+```
+
+</OrderLines>
+
+<SpotTheBug
+  id="bug-review-mutate"
+  bug={[4, 5]}
+  prompt="Adding Coffee a second time doesn't update the screen. Click a buggy line. (UI = f(state))"
+  explain="`line.qty++` changes the existing object, and `setCart(cart)` passes the very same array back. React sees the same value and skips the render. Build a new array: `setCart(cart.map(...))`."
+  hint="Does React get a new array in the `if` branch?"
+>
+
+```jsx
+function add(product) {
+  const line = cart.find((l) => l.id === product.id);
+  if (line) {
+    line.qty++;
+    setCart(cart);
+  } else {
+    setCart([...cart, { ...product, qty: 1 }]);
+  }
+}
+```
+
+</SpotTheBug>
+
+<TrueFalse
+  id="tf-review-why"
+  statements={[
+    { text: "In React, you update the badge by setting its `textContent`.", answer: false, explain: "The badge reads the state in JSX. You change the state; React updates the badge. (Before and after)" },
+    { text: "React's render phase changes the real DOM.", answer: false, explain: "Rendering only builds a description. The commit phase changes the DOM, and only where something differs. (The same cart in React)" },
+    { text: "A component is a function that returns what to show.", answer: true, explain: "`App` is a function; its JSX is the description of the page. (The same cart in React)" },
+    { text: "Vanilla JS bugs where the page shows stale values usually throw errors.", answer: false, explain: "They fail silently: nothing crashes, the page just shows old values. (Keeping the page in sync)" },
+  ]}
+/>
+
+<Choice
+  id="choice-review-phases"
+  q="You click Add. In which order do React's phases happen?"
+  options={["Commit → render → trigger", "Trigger → render → commit", "Render → trigger → commit", "Trigger → commit → render"]}
+  answer={1}
+  explain="Setting state triggers a render; rendering builds the new description; committing applies the differences to the page."
+  hint="You can't change the page before you know what it should look like."
+/>
+
+</Practice>
+
+<Quiz
+  questions={[
+    {
+      q: "Which code is the React way to empty the cart?",
+      options: ["`cart.length = 0`", "`setCart([])`", "`document.getElementById(\"cart\").innerHTML = \"\"`", "`cart = []`"],
+      answer: 1,
+      explain: "Replace the state with a new value through the setter. Everything that depends on the cart updates by itself.",
+    },
+    {
+      q: "Which values should be calculated from the cart during render, instead of stored in their own state?",
+      options: ["The total", "The item count", "Whether the cart is empty", "The list of products for sale"],
+      answer: [0, 1, 2],
+      explain: "Derived values are recalculated every render, so they can never go out of sync. The products for sale don't depend on the cart.",
+    },
+    {
+      q: "What problem does React solve, in one sentence?",
+      options: ["It makes JavaScript run on servers", "It keeps the page in sync with your data, so you only describe the page and change the data", "It replaces HTML and CSS", "It stores data in a database"],
+      answer: 1,
+      explain: "UI = f(state): describe the page for any state, change the state, and React keeps the screen matching.",
+    },
+  ]}
+/>
