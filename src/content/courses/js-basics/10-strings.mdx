@@ -1,0 +1,218 @@
+---
+id: strings
+title: Strings
+summary: Clean up what users type, search text, split and replace it, and format prices with toFixed.
+minutes: 12
+tags: [strings, trim, toUpperCase, includes, startsWith, split, replace, slice, toFixed, format]
+---
+
+Text work you'll do every day: clean up what users type, search product names and format prices. String methods never change the original string; they return a new one.
+
+<Concept name="length & [index]" id="string-length">
+
+`length` counts characters. Use `[i]` or `at()` to read one, and `at(-1)` for the last.
+
+<Playground file="length.js" expected={["6", "C e"]}>
+
+```js
+const word = "Coffee";
+
+console.log(word.length);
+console.log(word[0], word.at(-1));
+```
+
+</Playground>
+</Concept>
+
+<Concept name="toUpperCase() / toLowerCase()" id="string-case">
+
+These change letter case. Lowercase both sides before comparing what users type.
+
+<Playground file="case.js" expected={["COFFEE", "true"]}>
+
+```js
+const input = "CoFFee";
+
+console.log(input.toUpperCase());
+console.log(input.toLowerCase() === "coffee");
+```
+
+</Playground>
+</Concept>
+
+<Concept name="trim()" id="trim" react>
+
+`trim` removes spaces from both ends. Always trim what users type into forms.
+
+<Playground file="trim.js" expected={["[  sara@mail.com  ]", "[sara@mail.com]"]}>
+
+```js
+const email = "  sara@mail.com  ";
+
+console.log(`[${email}]`);
+console.log(`[${email.trim()}]`);
+```
+
+</Playground>
+</Concept>
+
+<Concept name="includes() / startsWith()" id="string-includes" react>
+
+These check whether text contains, starts with or ends with something. They're perfect for search boxes.
+
+<Playground file="includes.js" expected={["true", "true", "false"]}>
+
+```js
+const name = "Iced Coffee";
+
+console.log(name.includes("Coffee"));
+console.log(name.startsWith("Iced"));
+console.log(name.endsWith("Tea"));
+```
+
+</Playground>
+</Concept>
+
+<Concept name="split()" id="split">
+
+`split` breaks a string into an array at a separator.
+
+<Playground file="split.js" expected={["[ 'coffee', 'hot', 'large' ]", "3"]}>
+
+```js
+const tags = "coffee,hot,large";
+const list = tags.split(",");
+
+console.log(list);
+console.log(list.length);
+```
+
+</Playground>
+</Concept>
+
+<Concept name="replace() / replaceAll()" id="replace">
+
+`replace` changes the first match, and `replaceAll` changes every one.
+
+<Playground file="replace.js" expected={["iced-coffee latte", "iced-coffee-latte"]}>
+
+```js
+const slug = "iced coffee latte";
+
+console.log(slug.replace(" ", "-"));
+console.log(slug.replaceAll(" ", "-"));
+```
+
+</Playground>
+</Concept>
+
+<Concept name="slice()" id="string-slice">
+
+`slice` cuts out part of a string by position, like `slice()` on arrays. Negative numbers count from the end.
+
+<Playground file="slice.js" expected={["ORDER", "0042"]}>
+
+```js
+const code = "ORDER-2026-0042";
+
+console.log(code.slice(0, 5));
+console.log(code.slice(-4));
+```
+
+</Playground>
+</Concept>
+
+<Concept name="toFixed()" id="to-fixed" react>
+
+`toFixed` formats a number with a fixed number of decimals. It returns a string, ready to display.
+
+<Playground file="to-fixed.js" expected={["4.50", "$20.00", "string"]}>
+
+```js
+const price = 4.5;
+
+console.log(price.toFixed(2));
+console.log(`$${(19.999).toFixed(2)}`);
+console.log(typeof price.toFixed(2));
+```
+
+</Playground>
+</Concept>
+
+<Exercise
+  id="format-price"
+  title="Format a price"
+  hints={[
+    "`toFixed(2)` always gives two decimals, as a string.",
+    "Put a `$` in front with a template literal: `` `$${…}` ``.",
+  ]}
+>
+
+Write `formatPrice(amount)` that returns the amount as a price with a dollar sign and exactly two decimals, like `"$4.50"`.
+
+```js starter
+function formatPrice(amount) {
+  return "$" + amount;
+}
+
+console.log(formatPrice(4.5));
+```
+
+```js tests
+test("adds two decimals", () => {
+  expect(formatPrice(4.5)).toBe("$4.50");
+});
+
+test("whole numbers get .00", () => {
+  expect(formatPrice(12)).toBe("$12.00");
+});
+
+test("rounds to cents", () => {
+  expect(formatPrice(19.999)).toBe("$20.00");
+});
+
+test("zero", () => {
+  expect(formatPrice(0)).toBe("$0.00");
+});
+```
+
+```js solution
+function formatPrice(amount) {
+  return `$${amount.toFixed(2)}`;
+}
+
+console.log(formatPrice(4.5));
+```
+
+</Exercise>
+
+<Quiz
+  questions={[
+    {
+      q: "What does this print?",
+      code: "console.log(\"  Tea \".trim().length);",
+      options: ["`6`", "`3`", "`4`", "`5`"],
+      answer: 1,
+      explain: "`trim()` removes the spaces at both ends, leaving `Tea`, which has 3 characters.",
+    },
+    {
+      q: "What does this print?",
+      code: "console.log(\"a-b-c\".replace(\"-\", \"+\"));",
+      options: ["`a+b+c`", "`a+b-c`", "`a-b+c`", "`abc`"],
+      answer: 1,
+      explain: "`replace` with a string only changes the first match. Use `replaceAll` to change them all.",
+    },
+    {
+      q: "What type is `(4.5).toFixed(2)`?",
+      options: ["number", "string", "boolean", "object"],
+      answer: 1,
+      explain: "`toFixed` returns a string, which is great for display but can't be used in math without converting back.",
+    },
+    {
+      q: "A search box should find \"Iced Coffee\" when the user types \"coffee\". Which check works?",
+      options: ["`name.includes(query)`", "`name === query`", "`name.toLowerCase().includes(query.toLowerCase())`", "`name.startsWith(query)`"],
+      answer: 2,
+      explain: "Lowercase both sides first, then `includes` finds the text anywhere in the name.",
+    },
+  ]}
+/>

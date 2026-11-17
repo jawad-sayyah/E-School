@@ -1,0 +1,193 @@
+---
+id: loops
+title: Loops
+summary: Repeat work with for, for...of and while, and stop early with break.
+minutes: 10
+tags: [loops, for, for of, while, break, iteration]
+---
+
+Loops repeat work: print every item in the cart, add up quantities, count down stock. Later, array methods like `map()` replace most loops, but they work the same way underneath.
+
+<Concept name="for" id="for-loop">
+
+A `for` loop repeats code a set number of times using a counter.
+
+<Playground file="for.js" expected={["Step 1", "Step 2", "Step 3"]}>
+
+```js
+for (let i = 1; i <= 3; i++) {
+  console.log("Step", i);
+}
+```
+
+</Playground>
+</Concept>
+
+<Concept name="for...of" id="for-of">
+
+`for...of` loops over every value in an array (or string). It's cleaner than a counter.
+
+<Playground file="for-of.js" expected={["Coffee", "Bagel"]}>
+
+```js
+const cart = ["Coffee", "Bagel"];
+
+for (const item of cart) {
+  console.log(item);
+}
+```
+
+</Playground>
+</Concept>
+
+<Concept name="Looping to add up" id="accumulate">
+
+Start a variable at 0 before the loop and add to it inside: that's how you total a cart.
+
+<Playground file="sum.js" expected={["5 items"]}>
+
+```js
+const cart = [
+  { name: "Coffee", qty: 2 },
+  { name: "Bagel", qty: 3 },
+];
+
+let count = 0;
+for (const item of cart) {
+  count += item.qty;
+}
+
+console.log(`${count} items`);
+```
+
+</Playground>
+</Concept>
+
+<Concept name="while">
+
+`while` repeats as long as a condition stays true, so make sure it eventually becomes false.
+
+<Playground file="while.js" expected={["In stock: 3", "In stock: 2", "In stock: 1"]}>
+
+```js
+let stock = 3;
+
+while (stock > 0) {
+  console.log("In stock:", stock);
+  stock--;
+}
+```
+
+</Playground>
+
+<Callout type="warn">
+If the condition never becomes false, the loop runs forever. Here the runner stops it after 4 seconds; in a real page the tab freezes.
+</Callout>
+</Concept>
+
+<Concept name="break & continue" id="break-continue">
+
+`break` leaves the loop early, and `continue` skips to the next round.
+
+<Playground file="break.js" expected={["Coffee", "Found the bagel!"]}>
+
+```js
+const cart = ["Coffee", "Tea", "Bagel", "Muffin"];
+
+for (const item of cart) {
+  if (item === "Tea") continue;   // skip tea
+  if (item === "Bagel") {
+    console.log("Found the bagel!");
+    break;                        // stop looking
+  }
+  console.log(item);
+}
+```
+
+</Playground>
+</Concept>
+
+<Exercise
+  id="count-items"
+  title="Count the items"
+  hints={[
+    "Start with `let count = 0;` before the loop.",
+    "Use `for (const item of cart)` and add `item.qty` to the count each time.",
+  ]}
+>
+
+Write `countItems(cart)` that returns the total number of items: the sum of every item's `qty`.
+
+```js starter
+function countItems(cart) {
+  let count = 0;
+  // loop over the cart here
+  return count;
+}
+
+console.log(countItems([{ name: "Coffee", qty: 2 }]));
+```
+
+```js tests
+test("empty cart has 0 items", () => {
+  expect(countItems([])).toBe(0);
+});
+
+test("one line", () => {
+  expect(countItems([{ name: "Coffee", qty: 2 }])).toBe(2);
+});
+
+test("several lines", () => {
+  const cart = [
+    { name: "Coffee", qty: 2 },
+    { name: "Bagel", qty: 3 },
+    { name: "Muffin", qty: 1 },
+  ];
+  expect(countItems(cart)).toBe(6);
+});
+```
+
+```js solution
+function countItems(cart) {
+  let count = 0;
+  for (const item of cart) {
+    count += item.qty;
+  }
+  return count;
+}
+
+console.log(countItems([{ name: "Coffee", qty: 2 }]));
+```
+
+</Exercise>
+
+<Quiz
+  questions={[
+    {
+      q: "How many lines does this print?",
+      code: "for (let i = 0; i < 3; i++) {\n  console.log(i);\n}",
+      options: ["2", "3", "4", "It never stops"],
+      answer: 1,
+      explain: "`i` goes 0, 1, 2. When it reaches 3, `i < 3` is false and the loop ends.",
+    },
+    {
+      q: "Which loop is the cleanest way to visit every item in an array?",
+      options: ["`while`", "`for...of`", "`for...in`", "`do...while`"],
+      answer: 1,
+      explain: "`for...of` gives you each value directly, without a counter.",
+    },
+    {
+      q: "What does `break` do inside a loop?",
+      options: ["Skips the current round", "Stops the whole program", "Leaves the loop immediately", "Restarts the loop"],
+      answer: 2,
+      explain: "`break` exits the loop. `continue` is the one that skips to the next round.",
+    },
+    {
+      q: "What's wrong with this loop?",
+      code: "let stock = 3;\nwhile (stock > 0) {\n  console.log(stock);\n}",
+      options: ["Nothing", "`stock` never changes, so it runs forever", "`while` needs a counter", "It prints nothing"],
+      answer: 1,
+      explain: "Nothing inside the loop lowers `stock`, so `stock > 0` stays true forever. Add `stock--`.",
+    },
+  ]}
+/>

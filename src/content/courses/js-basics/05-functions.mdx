@@ -1,0 +1,203 @@
+---
+id: functions
+title: Functions
+summary: Package logic into reusable functions, with arrow functions, default and rest parameters and early returns.
+minutes: 13
+tags: [functions, arrow functions, parameters, default parameters, rest, return, early return]
+---
+
+A function packages logic you can reuse: give it inputs, get back a result. React components are functions too, so this lesson matters a lot.
+
+<Concept name="function" id="function-declaration">
+
+A named, reusable block of code that takes inputs (parameters) and returns a result.
+
+<Playground file="function.js" expected={["5"]}>
+
+```js
+function add(a, b) {
+  return a + b;
+}
+
+console.log(add(2, 3));
+```
+
+</Playground>
+</Concept>
+
+<Concept name="return vs console.log" id="return-vs-log" warn>
+
+`return` hands a value back to the caller; `console.log` only prints it. A function without `return` gives `undefined`.
+
+<Playground file="return.js" expected={["8", "undefined"]}>
+
+```js
+function double(n) {
+  return n * 2;
+}
+
+function doubleAndForget(n) {
+  n * 2;   // calculated, then thrown away
+}
+
+console.log(double(4));
+console.log(doubleAndForget(4));
+```
+
+</Playground>
+</Concept>
+
+<Concept name="() =>" id="arrow-functions" react>
+
+Arrow functions are a shorter way to write functions. With a single expression, the value is returned automatically.
+
+<Playground file="arrow.js" expected={["8 5"]}>
+
+```js
+const double = n => n * 2;
+const add = (a, b) => a + b;
+
+console.log(double(4), add(2, 3));
+```
+
+</Playground>
+</Concept>
+
+<Concept name="Default parameters" id="default-params">
+
+A default gives a parameter a value when the caller leaves it out.
+
+<Playground file="defaults.js" expected={["1 × Coffee", "3 × Bagel"]}>
+
+```js
+function addItem(name, qty = 1) {
+  return `${qty} × ${name}`;
+}
+
+console.log(addItem("Coffee"));
+console.log(addItem("Bagel", 3));
+```
+
+</Playground>
+</Concept>
+
+<Concept name="...rest" id="rest-params">
+
+`...rest` collects any number of arguments into an array.
+
+<Playground file="rest.js" expected={["12", "[ 4, 3, 5 ]"]}>
+
+```js
+function total(...prices) {
+  let sum = 0;
+  for (const p of prices) sum += p;
+  return sum;
+}
+
+function list(...prices) {
+  return prices;
+}
+
+console.log(total(4, 3, 5));
+console.log(list(4, 3, 5));
+```
+
+</Playground>
+</Concept>
+
+<Concept name="Early return" id="early-return">
+
+Returning early skips the rest of the function. It's great for rejecting bad input first.
+
+<Playground file="early-return.js" expected={["Cart is empty", "Paying for 1 item(s)"]}>
+
+```js
+function checkout(cart) {
+  if (cart.length === 0) return "Cart is empty";
+  return `Paying for ${cart.length} item(s)`;
+}
+
+console.log(checkout([]));
+console.log(checkout(["Coffee"]));
+```
+
+</Playground>
+</Concept>
+
+<Exercise
+  id="apply-discount"
+  title="Apply a discount"
+  hints={[
+    "Give `percent` a default value: `function applyDiscount(price, percent = 10)`.",
+    "The discount amount is `price * percent / 100`. Subtract it from the price.",
+  ]}
+>
+
+Write `applyDiscount(price, percent)` that returns the price after taking off `percent` %. If no percent is given, use 10.
+
+```js starter
+function applyDiscount(price, percent) {
+  return price;
+}
+
+console.log(applyDiscount(20));
+```
+
+```js tests
+test("10% off by default", () => {
+  expect(applyDiscount(20)).toBe(18);
+});
+
+test("50% off", () => {
+  expect(applyDiscount(20, 50)).toBe(10);
+});
+
+test("0% off keeps the price", () => {
+  expect(applyDiscount(20, 0)).toBe(20);
+});
+
+test("returns the value instead of logging it", () => {
+  expect(applyDiscount(100, 25)).toBe(75);
+});
+```
+
+```js solution
+function applyDiscount(price, percent = 10) {
+  return price - (price * percent) / 100;
+}
+
+console.log(applyDiscount(20));
+```
+
+</Exercise>
+
+<Quiz
+  questions={[
+    {
+      q: "What does this print?",
+      code: "const double = n => { n * 2 };\nconsole.log(double(4));",
+      options: ["`8`", "`undefined`", "`n * 2`", "An error"],
+      answer: 1,
+      explain: "With curly braces, an arrow function needs `return`. Without it, the function gives `undefined`. Write `n => n * 2` instead.",
+    },
+    {
+      q: "What does this print?",
+      code: "function greet(name = \"friend\") {\n  return `Hi ${name}`;\n}\nconsole.log(greet());",
+      options: ["`Hi undefined`", "`Hi `", "`Hi friend`", "An error"],
+      answer: 2,
+      explain: "No argument was passed, so the default value `friend` is used.",
+    },
+    {
+      q: "What does `...items` collect in `function add(...items)`?",
+      options: ["Only the first argument", "All arguments, as an array", "All arguments, as an object", "Nothing; it spreads them out"],
+      answer: 1,
+      explain: "A rest parameter gathers every argument into a real array.",
+    },
+    {
+      q: "Why put `if (!cart.length) return;` at the top of a function?",
+      options: ["It makes the code faster", "It stops early on bad input, so the rest can assume a non-empty cart", "It's required syntax", "It clears the cart"],
+      answer: 1,
+      explain: "An early return handles the special case first, which keeps the main code simple.",
+    },
+  ]}
+/>

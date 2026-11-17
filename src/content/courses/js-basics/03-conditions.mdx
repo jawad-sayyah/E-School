@@ -1,0 +1,208 @@
+---
+id: conditions
+title: Conditions
+summary: Make decisions with if/else, the ternary operator, && and ||, and switch.
+minutes: 12
+tags: [conditions, if, else, ternary, and, or, switch, logic]
+---
+
+Programs make decisions: show "Cart is empty" or a list, charge shipping or not. Conditions pick which code runs.
+
+<Concept name="if / else" id="if-else">
+
+`if` runs code only when a condition is true, and `else` runs when it isn't.
+
+<Playground file="if-else.js" expected={["Cart is empty"]}>
+
+```js
+const qty = 0;
+
+if (qty === 0) {
+  console.log("Cart is empty");
+} else {
+  console.log(`${qty} items`);
+}
+```
+
+</Playground>
+</Concept>
+
+<Concept name="else if" id="else-if">
+
+Chain `else if` to check several conditions in order; the first one that's true wins.
+
+<Playground file="else-if.js" expected={["Free shipping"]}>
+
+```js
+const total = 64;
+
+if (total === 0) {
+  console.log("Nothing to ship");
+} else if (total >= 50) {
+  console.log("Free shipping");
+} else {
+  console.log("Shipping: $4.99");
+}
+```
+
+</Playground>
+</Concept>
+
+<Concept name="condition ? a : b" id="ternary" react>
+
+The ternary is a one-line if/else that gives back a value. You'll use it inside JSX all the time.
+
+<Playground file="ternary.js" expected={["3 items", "1 item"]}>
+
+```js
+const label = (qty) => (qty === 1 ? "item" : "items");
+
+console.log(`3 ${label(3)}`);
+console.log(`1 ${label(1)}`);
+```
+
+</Playground>
+</Concept>
+
+<Concept name="&& and ||" id="and-or" react>
+
+`&&` gives the right side only if the left side is truthy. `||` gives a fallback when the left side is falsy.
+
+<Playground file="and-or.js" expected={["Welcome back!", "Guest", "false"]}>
+
+```js
+const isLoggedIn = true;
+
+console.log(isLoggedIn && "Welcome back!");
+console.log("" || "Guest");
+console.log(false && "never shown");
+```
+
+</Playground>
+</Concept>
+
+<Concept name="! (not)" id="not">
+
+`!` flips true to false and false to true. It's handy for "if the cart is not empty".
+
+<Playground file="not.js" expected={["false", "Show the cart"]}>
+
+```js
+const cartIsEmpty = false;
+
+console.log(!true);
+if (!cartIsEmpty) {
+  console.log("Show the cart");
+}
+```
+
+</Playground>
+</Concept>
+
+<Concept name="switch">
+
+`switch` picks one branch out of many by matching a value. Reducers in React use it.
+
+<Playground file="switch.js" expected={["Adding item"]}>
+
+```js
+const action = "add";
+
+switch (action) {
+  case "add":
+    console.log("Adding item");
+    break;
+  case "remove":
+    console.log("Removing item");
+    break;
+  default:
+    console.log("Unknown action");
+}
+```
+
+</Playground>
+
+<Callout type="warn">
+Forget `break` and the code falls through into the next `case` too.
+</Callout>
+</Concept>
+
+<Exercise
+  id="shipping-cost"
+  title="Shipping cost"
+  hints={[
+    "Check the empty cart first: if the total is 0, return 0.",
+    "Then check `total >= 50`. Everything else costs 4.99.",
+  ]}
+>
+
+Write `shippingCost(total)`: an empty cart (total `0`) ships for `0`, a total of 50 or more ships free (`0`), and anything else costs `4.99`.
+
+```js starter
+function shippingCost(total) {
+  return 4.99;
+}
+
+console.log(shippingCost(20));
+```
+
+```js tests
+test("empty cart: no shipping", () => {
+  expect(shippingCost(0)).toBe(0);
+});
+
+test("small order pays 4.99", () => {
+  expect(shippingCost(20)).toBe(4.99);
+});
+
+test("exactly 50 ships free", () => {
+  expect(shippingCost(50)).toBe(0);
+});
+
+test("big order ships free", () => {
+  expect(shippingCost(120)).toBe(0);
+});
+```
+
+```js solution
+function shippingCost(total) {
+  if (total === 0) return 0;
+  if (total >= 50) return 0;
+  return 4.99;
+}
+
+console.log(shippingCost(20));
+```
+
+</Exercise>
+
+<Quiz
+  questions={[
+    {
+      q: "What does this print?",
+      code: "const qty = 1;\nconsole.log(qty === 1 ? \"item\" : \"items\");",
+      options: ["`items`", "`item`", "`true`", "`1`"],
+      answer: 1,
+      explain: "The condition is true, so the ternary gives the first value: `item`.",
+    },
+    {
+      q: "What does this print?",
+      code: "const name = \"\";\nconsole.log(name || \"Guest\");",
+      options: ["`\"\"`", "`undefined`", "`Guest`", "`false`"],
+      answer: 2,
+      explain: "An empty string is falsy, so `||` gives the fallback `Guest`.",
+    },
+    {
+      q: "In React you want to show a badge only when `count > 0`. Which expression fits?",
+      options: ["`count > 0 || <Badge />`", "`count > 0 && <Badge />`", "`count > 0 ? <Badge />`", "`if (count > 0) <Badge />`"],
+      answer: 1,
+      explain: "`&&` gives the right side only when the left side is true. That's the usual way to show something conditionally in JSX.",
+    },
+    {
+      q: "What happens if you forget `break` in a `switch` case?",
+      options: ["A syntax error", "Nothing, `break` is optional", "The code continues into the next case", "The switch restarts"],
+      answer: 2,
+      explain: "Without `break`, JavaScript falls through and runs the next case's code too.",
+    },
+  ]}
+/>

@@ -42,7 +42,11 @@ export function parseFrontmatter(source: string, fileForErrors = 'lesson'): Fron
 function attr(node: AnyNode, name: string): string | undefined {
   const found = node.attributes?.find((a) => a.type === 'mdxJsxAttribute' && a.name === name);
   if (!found) return undefined;
-  return typeof found.value === 'string' ? found.value : '';
+  if (typeof found.value === 'string') return found.value;
+  // An expression like name={'"5" + 1'}: read a plain string literal, ignore anything else.
+  const expr = (found.value as { value?: unknown } | null)?.value;
+  const literal = typeof expr === 'string' ? /^\s*(['"`])([\s\S]*)\1\s*$/.exec(expr) : null;
+  return literal ? literal[2] : '';
 }
 
 /** Code fences that would spoil an exercise if they showed up in search. */

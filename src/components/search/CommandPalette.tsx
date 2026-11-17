@@ -38,7 +38,7 @@ export default function CommandPalette({ open, onOpenChange }: CommandPalettePro
       onOpenChange={onOpenChange}
       title="Search lessons"
       description="Search lesson titles, concepts, tags and code"
-      className="sm:max-w-xl"
+      className="border border-border shadow-2xl sm:max-w-xl"
     >
       {/* We rank results ourselves (MiniSearch), so cmdk's own filter is off. */}
       <Command shouldFilter={false} className="bg-popover">

@@ -1,0 +1,249 @@
+---
+id: arrays-basics
+title: Arrays I
+summary: Store lists, add and remove items, and transform them with forEach, map and filter.
+minutes: 14
+tags: [arrays, push, pop, forEach, map, filter, spread, immutable]
+---
+
+Arrays hold ordered lists, like the items in a cart. `map()` and `filter()` return a **new** array and leave the original alone, which is exactly how React wants you to work.
+
+<Concept name="[ ] and length" id="array-basics">
+
+An array is a list in square brackets. Items are numbered from 0, and `length` counts them.
+
+<Playground file="basics.js" expected={["Coffee", "Muffin", "3"]}>
+
+```js
+const cart = ["Coffee", "Bagel", "Muffin"];
+
+console.log(cart[0]);
+console.log(cart[cart.length - 1]);
+console.log(cart.length);
+```
+
+</Playground>
+</Concept>
+
+<Concept name="push() / pop()" id="push-pop" warn>
+
+`push` adds to the end and `pop` removes from the end. Both change the original array, so don't use them on React state.
+
+<Playground file="push-pop.js" expected={["[ 'Coffee', 'Bagel' ] 2", "[ 'Coffee' ]"]}>
+
+```js
+const cart = ["Coffee"];
+
+cart.push("Bagel");
+console.log(cart, cart.length);
+
+cart.pop();
+console.log(cart);
+```
+
+</Playground>
+</Concept>
+
+<Concept name="forEach()" id="for-each">
+
+`forEach` runs a function for every item. It returns nothing, so use `map()` when you need a new array.
+
+<Playground file="for-each.js" expected={["0 Coffee", "1 Bagel"]}>
+
+```js
+const cart = ["Coffee", "Bagel"];
+
+cart.forEach((item, index) => {
+  console.log(index, item);
+});
+```
+
+</Playground>
+</Concept>
+
+<Concept name="map()" id="map" react>
+
+`map` transforms every item and returns a new array of the same length.
+
+<Playground file="map.js" expected={["[ 8, 6, 10 ]", "[ 'Coffee', 'Bagel' ]"]}>
+
+```js
+const prices = [4, 3, 5];
+const doubled = prices.map(p => p * 2);
+console.log(doubled);
+
+const cart = [{ name: "Coffee", price: 4 }, { name: "Bagel", price: 3 }];
+console.log(cart.map(item => item.name));
+```
+
+</Playground>
+
+<Callout type="react">
+In React, `items.map(item => <li key={item.id}>{item.name}</li>)` is how every list is rendered.
+</Callout>
+</Concept>
+
+<Concept name="filter()" id="filter" react>
+
+`filter` keeps only the items that pass a test, in a new array.
+
+<Playground file="filter.js" expected={["[ 4, 3 ]", "[ { id: 2, name: 'Bagel' } ]"]}>
+
+```js
+const prices = [4, 3, 5];
+console.log(prices.filter(p => p < 5));
+
+const cart = [{ id: 1, name: "Coffee" }, { id: 2, name: "Bagel" }];
+console.log(cart.filter(item => item.id !== 1));   // "remove" item 1
+```
+
+</Playground>
+</Concept>
+
+<Concept name="[...spread]" id="spread-array" react>
+
+Spread copies an array, so you can add items without changing the original.
+
+<Playground file="spread.js" expected={["[ 'Coffee' ]", "[ 'Coffee', 'Bagel' ]"]}>
+
+```js
+const cart = ["Coffee"];
+const next = [...cart, "Bagel"];
+
+console.log(cart);
+console.log(next);
+```
+
+</Playground>
+
+<Compare
+  wrong="Changes the original cart, so React can't tell anything changed"
+  right="Builds a new array and leaves the original alone"
+  wrongFile="mutate.js"
+  rightFile="copy.js"
+>
+
+```js
+const cart = ["Coffee"];
+cart.push("Bagel");
+setCart(cart);   // same array as before!
+```
+
+```js
+const cart = ["Coffee"];
+const next = [...cart, "Bagel"];
+setCart(next);   // a new array
+```
+
+</Compare>
+</Concept>
+
+<Concept name="const [a, b] = arr" id="array-destructuring" react>
+
+Destructuring pulls items out by position. This is exactly how `useState` gives you `[value, setValue]`.
+
+<Playground file="destructuring.js" expected={["Coffee", "Bagel"]}>
+
+```js
+const [first, second] = ["Coffee", "Bagel"];
+
+console.log(first);
+console.log(second);
+```
+
+</Playground>
+</Concept>
+
+<Exercise
+  id="remove-item"
+  title="Remove an item without mutating"
+  hints={[
+    "`filter()` returns a new array and never changes the original.",
+    "Keep every item whose `id` is not the one to remove: `cart.filter(item => item.id !== id)`.",
+  ]}
+>
+
+Write `removeItem(cart, id)` that returns a **new** cart without the item that has this `id`. The original cart must not change.
+
+```js starter
+function removeItem(cart, id) {
+  const index = cart.findIndex(item => item.id === id);
+  cart.splice(index, 1);
+  return cart;
+}
+
+const cart = [{ id: 1, name: "Coffee" }, { id: 2, name: "Bagel" }];
+console.log(removeItem(cart, 1));
+```
+
+```js tests
+const cart = () => [
+  { id: 1, name: "Coffee" },
+  { id: 2, name: "Bagel" },
+  { id: 3, name: "Muffin" },
+];
+
+test("removes the item with that id", () => {
+  expect(removeItem(cart(), 2)).toEqual([
+    { id: 1, name: "Coffee" },
+    { id: 3, name: "Muffin" },
+  ]);
+});
+
+test("does not change the original cart", () => {
+  const original = cart();
+  removeItem(original, 1);
+  expect(original).toHaveLength(3);
+});
+
+test("returns a new array", () => {
+  const original = cart();
+  expect(removeItem(original, 1)).not.toBe(original);
+});
+
+test("an unknown id removes nothing", () => {
+  expect(removeItem(cart(), 99)).toHaveLength(3);
+});
+```
+
+```js solution
+function removeItem(cart, id) {
+  return cart.filter(item => item.id !== id);
+}
+
+const cart = [{ id: 1, name: "Coffee" }, { id: 2, name: "Bagel" }];
+console.log(removeItem(cart, 1));
+```
+
+</Exercise>
+
+<Quiz
+  questions={[
+    {
+      q: "What does this print?",
+      code: "const prices = [1, 2, 3];\nconsole.log(prices.map(p => p * 10));",
+      options: ["`60`", "`[ 10, 20, 30 ]`", "`[ 1, 2, 3 ]`", "`undefined`"],
+      answer: 1,
+      explain: "`map` returns a new array with every item transformed.",
+    },
+    {
+      q: "Which method is safe for React state because it does NOT change the original array?",
+      options: ["`push()`", "`pop()`", "`filter()`", "`splice()`"],
+      answer: 2,
+      explain: "`filter` returns a new array. `push`, `pop` and `splice` all change the original.",
+    },
+    {
+      q: "What does `forEach` return?",
+      options: ["A new array", "The original array", "`undefined`", "The number of items"],
+      answer: 2,
+      explain: "`forEach` is for side effects and always returns `undefined`. Use `map` when you need a result.",
+    },
+    {
+      q: "What does this print?",
+      code: "const cart = [\"Coffee\"];\nconst next = [...cart, \"Tea\"];\nconsole.log(cart.length);",
+      options: ["`1`", "`2`", "`0`", "An error"],
+      answer: 0,
+      explain: "Spread makes a copy, so adding to `next` leaves `cart` with one item.",
+    },
+  ]}
+/>

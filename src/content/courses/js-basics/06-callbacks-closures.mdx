@@ -1,0 +1,192 @@
+---
+id: callbacks-closures
+title: Callbacks & closures
+summary: Pass functions to other functions, and see how a function remembers the variables around it.
+minutes: 12
+tags: [callbacks, closures, higher-order functions, functions, scope]
+---
+
+In JavaScript, functions are values: you can store them, pass them around and return them. That one idea powers event handlers, array methods and React hooks.
+
+<Concept name="Functions are values" id="functions-are-values">
+
+A function can be stored in a variable and called through it, like any other value.
+
+<Playground file="values.js" expected={["Hi, Sara", "function"]}>
+
+```js
+const greet = (name) => `Hi, ${name}`;
+const sayHi = greet;   // no () : we store the function itself
+
+console.log(sayHi("Sara"));
+console.log(typeof sayHi);
+```
+
+</Playground>
+</Concept>
+
+<Concept name="Callbacks" id="callbacks" react>
+
+A callback is a function you pass to another function, to be called later. Event handlers are callbacks.
+
+<Playground file="callbacks.js" expected={["Got Coffee", "Got Bagel"]}>
+
+```js
+function forEachItem(items, callback) {
+  for (const item of items) callback(item);
+}
+
+forEachItem(["Coffee", "Bagel"], item => console.log("Got", item));
+```
+
+</Playground>
+</Concept>
+
+<Concept name="fn vs fn()" id="pass-not-call" react warn>
+
+`fn` passes the function; `fn()` calls it right now and passes its result. In React, `onClick={handleClick}` is right and `onClick={handleClick()}` runs on every render.
+
+<Playground file="pass-vs-call.js" expected={["Clicked!", "callback is: undefined"]}>
+
+```js
+function handleClick() {
+  console.log("Clicked!");
+}
+
+function onClick(callback) {
+  console.log("callback is:", callback);
+}
+
+onClick(handleClick());   // calls handleClick NOW, passes undefined
+```
+
+</Playground>
+</Concept>
+
+<Concept name="Returning functions" id="returning-functions">
+
+A function can build and return another function, already set up with some values.
+
+<Playground file="factory.js" expected={["18", "15"]}>
+
+```js
+function makeDiscount(percent) {
+  return (price) => price - (price * percent) / 100;
+}
+
+const tenOff = makeDiscount(10);
+const quarterOff = makeDiscount(25);
+
+console.log(tenOff(20));
+console.log(quarterOff(20));
+```
+
+</Playground>
+</Concept>
+
+<Concept name="Closures" id="closures" react>
+
+A function remembers the variables around where it was created, even after that code has finished.
+
+<Playground file="closure.js" expected={["1 2 3"]}>
+
+```js
+function makeCounter() {
+  let count = 0;
+  return () => ++count;
+}
+
+const next = makeCounter();
+console.log(next(), next(), next());
+```
+
+</Playground>
+
+<Callout type="react">
+Hooks rely on closures: your event handlers "see" the state values from the render they were created in. That's why stale state happens, and the Hooks course shows the fix.
+</Callout>
+</Concept>
+
+<Exercise
+  id="id-generator"
+  title="An id generator"
+  hints={[
+    "Inside `makeIdGenerator`, create `let lastId = 0;` and return an arrow function.",
+    "The returned function adds 1 to `lastId` and returns it: `() => ++lastId`.",
+  ]}
+>
+
+Write `makeIdGenerator()` that returns a function. Each call of that function returns the next id: `1`, then `2`, then `3`… Two generators must count separately.
+
+```js starter
+function makeIdGenerator() {
+  return () => 1;
+}
+
+const nextId = makeIdGenerator();
+console.log(nextId(), nextId());
+```
+
+```js tests
+test("starts at 1 and counts up", () => {
+  const nextId = makeIdGenerator();
+  expect(nextId()).toBe(1);
+  expect(nextId()).toBe(2);
+  expect(nextId()).toBe(3);
+});
+
+test("each generator has its own counter", () => {
+  const a = makeIdGenerator();
+  const b = makeIdGenerator();
+  a();
+  a();
+  expect(b()).toBe(1);
+  expect(a()).toBe(3);
+});
+
+test("returns a function", () => {
+  expect(typeof makeIdGenerator()).toBe("function");
+});
+```
+
+```js solution
+function makeIdGenerator() {
+  let lastId = 0;
+  return () => ++lastId;
+}
+
+const nextId = makeIdGenerator();
+console.log(nextId(), nextId());
+```
+
+</Exercise>
+
+<Quiz
+  questions={[
+    {
+      q: "What is a callback?",
+      options: ["A function that calls itself", "A function you pass to another function to be called later", "A function that returns a value", "A built-in browser function"],
+      answer: 1,
+      explain: "Callbacks are passed in and called later, like click handlers or the function you give to `map()`.",
+    },
+    {
+      q: "What does this print?",
+      code: "function makeCounter() {\n  let count = 0;\n  return () => ++count;\n}\nconst a = makeCounter();\nconst b = makeCounter();\na(); a();\nconsole.log(b());",
+      options: ["`1`", "`2`", "`3`", "`0`"],
+      answer: 0,
+      explain: "Each call to `makeCounter` creates its own `count`. `b` has never been called, so it returns 1.",
+    },
+    {
+      q: "Which line passes the handler without calling it?",
+      options: ["`button.onclick = save();`", "`button.onclick = save;`", "`button.onclick = save(event);`", "`button.onclick = () => save;`"],
+      answer: 1,
+      explain: "`save` (no parentheses) is the function itself. `save()` would call it right away and assign its result.",
+    },
+    {
+      q: "Why can the returned function still use `count` after `makeCounter` has finished?",
+      options: ["`count` is a global variable", "Closures: the function keeps access to the variables where it was created", "JavaScript copies `count` into the function", "It can't; this throws an error"],
+      answer: 1,
+      explain: "That's a closure. The inner function keeps a live link to the variables in scope when it was created.",
+    },
+  ]}
+/>

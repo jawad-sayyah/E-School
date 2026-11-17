@@ -1,0 +1,202 @@
+---
+id: operators
+title: Operators & comparisons
+summary: Do math, compare values with === and learn which values count as true or false.
+minutes: 12
+tags: [operators, math, comparison, equality, truthy, falsy, number, conversion]
+---
+
+Operators turn values into new values: a price times a quantity, a check that a cart is empty, a total compared with a limit.
+
+<Concept name="+ - * / % **" id="arithmetic">
+
+The usual math operators, plus `%` for the remainder and `**` for powers.
+
+<Playground file="arithmetic.js" expected={["9 5 14", "3.5", "1", "8"]}>
+
+```js
+console.log(7 + 2, 7 - 2, 7 * 2);
+console.log(7 / 2);
+console.log(7 % 2);   // remainder
+console.log(2 ** 3);  // power
+```
+
+</Playground>
+</Concept>
+
+<Concept name="+= and ++" id="shorthand-operators">
+
+`+=` adds to a variable and `++` adds one, so updating a running total stays short.
+
+<Playground file="update.js" expected={["12", "3"]}>
+
+```js
+let total = 0;
+total += 4;   // same as total = total + 4
+total += 8;
+
+let qty = 2;
+qty++;        // same as qty = qty + 1
+
+console.log(total);
+console.log(qty);
+```
+
+</Playground>
+</Concept>
+
+<Concept name="=== !== < >" id="comparison">
+
+Comparisons always give `true` or `false`. Use `===` and `!==` for equality.
+
+<Playground file="comparison.js" expected={["true", "true", "false"]}>
+
+```js
+console.log(5 === 5);
+console.log(5 !== 3);
+console.log(4 >= 5);
+```
+
+</Playground>
+</Concept>
+
+<Concept name="== vs ===" id="equality" warn>
+
+`==` converts types before comparing, which gives surprises. Always use `===`.
+
+<Playground file="equality.js" expected={["true", "false", "true", "false"]}>
+
+```js
+console.log(0 == "");    // converted, then compared
+console.log(0 === "");   // different types: false
+console.log("5" == 5);
+console.log("5" === 5);
+```
+
+</Playground>
+</Concept>
+
+<Concept name="Truthy & falsy" id="truthy-falsy" react>
+
+In conditions, `0`, `""`, `null`, `undefined`, `NaN` and `false` count as false. Everything else counts as true.
+
+<Playground file="truthy.js" expected={["false", "false", "true", "true"]}>
+
+```js
+console.log(Boolean(0));
+console.log(Boolean(""));
+console.log(Boolean("0"));   // non-empty text!
+console.log(Boolean([]));    // an empty array is truthy
+```
+
+</Playground>
+</Concept>
+
+<Concept name="Number()" id="number-conversion">
+
+`Number()` turns text into a number. Bad input gives `NaN`, which you can check with `Number.isNaN()`.
+
+<Playground file="number.js" expected={["42", "3.5", "NaN", "true"]}>
+
+```js
+console.log(Number("42"));
+console.log(parseFloat("3.5kg"));
+console.log(Number("abc"));
+console.log(Number.isNaN(Number("abc")));
+```
+
+</Playground>
+</Concept>
+
+<Concept name={'"5" + 1'} id="string-plus" warn>
+
+`+` with a string joins text instead of adding, and values from inputs are always strings.
+
+<Playground file="string-plus.js" expected={["51", "6", "4"]}>
+
+```js
+console.log("5" + 1);           // text + number = text
+console.log(Number("5") + 1);   // convert first
+console.log("5" - 1);           // - always means math
+```
+
+</Playground>
+</Concept>
+
+<Exercise
+  id="line-total"
+  title="Price from an input"
+  hints={[
+    "The price arrives as text, like `\"4.5\"`. What happens with `\"4.5\" * 2`? And with `+`?",
+    "Convert first: `Number(priceText)` gives you a real number.",
+  ]}
+>
+
+Write `lineTotal(priceText, qty)`: the price comes from a text input as a string. Return the price times the quantity, as a number.
+
+```js starter
+function lineTotal(priceText, qty) {
+  return priceText + qty;
+}
+
+console.log(lineTotal("4", 2));
+```
+
+```js tests
+test("4 × 2 = 8", () => {
+  expect(lineTotal("4", 2)).toBe(8);
+});
+
+test("works with decimals", () => {
+  expect(lineTotal("4.5", 2)).toBe(9);
+});
+
+test("quantity 0 gives 0", () => {
+  expect(lineTotal("10", 0)).toBe(0);
+});
+
+test("returns a number, not text", () => {
+  expect(typeof lineTotal("3", 3)).toBe("number");
+});
+```
+
+```js solution
+function lineTotal(priceText, qty) {
+  return Number(priceText) * qty;
+}
+
+console.log(lineTotal("4", 2));
+```
+
+</Exercise>
+
+<Quiz
+  questions={[
+    {
+      q: "What does this print?",
+      code: "console.log(\"5\" + 1);",
+      options: ["`6`", "`51`", "`\"6\"`", "`NaN`"],
+      answer: 1,
+      explain: "With a string on either side, `+` joins text. Convert with `Number()` first to add.",
+    },
+    {
+      q: "Which comparison should you use to check that `qty` is exactly 0?",
+      options: ["`qty = 0`", "`qty == 0`", "`qty === 0`", "`qty => 0`"],
+      answer: 2,
+      explain: "`===` compares without converting types. `=` assigns, and `==` converts first, so `\"\" == 0` would be true.",
+    },
+    {
+      q: "Which of these values is truthy?",
+      options: ["`0`", "`\"\"`", "`null`", "`\"0\"`"],
+      answer: 3,
+      explain: "`\"0\"` is a non-empty string, so it counts as true. `0`, the empty string and `null` are all falsy.",
+    },
+    {
+      q: "What does this print?",
+      code: "console.log(10 % 3);",
+      options: ["`3.33`", "`3`", "`1`", "`0`"],
+      answer: 2,
+      explain: "`%` gives the remainder: 10 divided by 3 is 3, with 1 left over.",
+    },
+  ]}
+/>

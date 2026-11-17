@@ -1,0 +1,218 @@
+---
+id: arrays-methods
+title: Arrays II
+summary: Total a cart with reduce, search with find, some and includes, and copy, sort and join arrays.
+minutes: 14
+tags: [arrays, reduce, find, some, every, includes, slice, sort, join, total]
+---
+
+These methods answer questions about a list: what's the total, where's item 2, is anything out of stock? Most of them return a new value and leave the array alone.
+
+<Concept name="reduce()" id="reduce">
+
+`reduce` combines all items into a single value, like a total. The second argument is the starting value.
+
+<Playground file="reduce.js" expected={["12", "11"]}>
+
+```js
+const prices = [4, 3, 5];
+const total = prices.reduce((sum, p) => sum + p, 0);
+console.log(total);
+
+const cart = [
+  { name: "Coffee", price: 4, qty: 2 },
+  { name: "Bagel", price: 3, qty: 1 },
+];
+console.log(cart.reduce((sum, item) => sum + item.price * item.qty, 0));
+```
+
+</Playground>
+</Concept>
+
+<Concept name="find()" id="find">
+
+`find` returns the first item that matches, or `undefined` if none does.
+
+<Playground file="find.js" expected={["{ id: 2, name: 'Bagel' }", "undefined"]}>
+
+```js
+const cart = [
+  { id: 1, name: "Coffee" },
+  { id: 2, name: "Bagel" },
+];
+
+console.log(cart.find(i => i.id === 2));
+console.log(cart.find(i => i.id === 9));
+```
+
+</Playground>
+</Concept>
+
+<Concept name="some() / every()" id="some-every">
+
+`some` asks whether at least one item passes; `every` asks whether all of them do.
+
+<Playground file="some-every.js" expected={["true", "false"]}>
+
+```js
+const prices = [4, 3, 5];
+
+console.log(prices.some(p => p > 4));
+console.log(prices.every(p => p > 4));
+```
+
+</Playground>
+</Concept>
+
+<Concept name="includes()" id="includes">
+
+`includes` checks whether an array contains a value.
+
+<Playground file="includes.js" expected={["true", "false"]}>
+
+```js
+const tags = ["hot", "coffee"];
+
+console.log(tags.includes("coffee"));
+console.log(tags.includes("tea"));
+```
+
+</Playground>
+</Concept>
+
+<Concept name="slice()" id="slice">
+
+`slice` copies part of an array, from a start index up to (not including) an end index. The original stays the same.
+
+<Playground file="slice.js" expected={["[ 'b', 'c' ]", "[ 'a', 'b', 'c', 'd' ]"]}>
+
+```js
+const items = ["a", "b", "c", "d"];
+
+console.log(items.slice(1, 3));
+console.log(items);
+```
+
+</Playground>
+</Concept>
+
+<Concept name="sort()" id="sort" warn>
+
+`sort` changes the array in place and compares as text by default. Copy first, and pass a compare function for numbers.
+
+<Playground file="sort.js" expected={["[ 1, 10, 5 ]", "[ 1, 5, 10 ]", "[ 10, 1, 5 ]"]}>
+
+```js
+const nums = [10, 1, 5];
+
+console.log([...nums].sort());                 // as text!
+console.log([...nums].sort((a, b) => a - b));  // as numbers
+console.log(nums);                             // untouched thanks to [...nums]
+```
+
+</Playground>
+</Concept>
+
+<Concept name="join()" id="join">
+
+`join` glues all items into one string with a separator.
+
+<Playground file="join.js" expected={["Coffee, Bagel", "Coffee-Bagel"]}>
+
+```js
+const cart = ["Coffee", "Bagel"];
+
+console.log(cart.join(", "));
+console.log(cart.join("-"));
+```
+
+</Playground>
+</Concept>
+
+<Exercise
+  id="get-total"
+  title="The cart total"
+  hints={[
+    "`reduce` takes a function `(sum, item) => …` and a starting value of `0`.",
+    "For each item, add `item.price * item.qty` to the sum.",
+    "Don't forget the `0` at the end: without it, an empty cart throws an error.",
+  ]}
+>
+
+Write `getTotal(cart)` that returns the sum of `price * qty` for every item.
+
+```js starter
+function getTotal(cart) {
+  return 0;
+}
+
+console.log(getTotal([{ name: "Coffee", price: 4, qty: 2 }]));
+```
+
+```js tests
+test("an empty cart totals 0", () => {
+  expect(getTotal([])).toBe(0);
+});
+
+test("one item", () => {
+  expect(getTotal([{ name: "Coffee", price: 4, qty: 2 }])).toBe(8);
+});
+
+test("several items", () => {
+  const cart = [
+    { name: "Coffee", price: 4, qty: 2 },
+    { name: "Bagel", price: 3, qty: 1 },
+    { name: "Muffin", price: 5, qty: 3 },
+  ];
+  expect(getTotal(cart)).toBe(26);
+});
+
+test("decimal prices", () => {
+  const cart = [
+    { name: "Tea", price: 2.2, qty: 3 },
+    { name: "Cookie", price: 0.5, qty: 2 },
+  ];
+  expect(getTotal(cart)).toBeCloseTo(7.6);
+});
+```
+
+```js solution
+function getTotal(cart) {
+  return cart.reduce((sum, item) => sum + item.price * item.qty, 0);
+}
+
+console.log(getTotal([{ name: "Coffee", price: 4, qty: 2 }]));
+```
+
+</Exercise>
+
+<Quiz
+  questions={[
+    {
+      q: "What does this print?",
+      code: "console.log([10, 1, 5].sort());",
+      options: ["`[ 1, 5, 10 ]`", "`[ 10, 5, 1 ]`", "`[ 1, 10, 5 ]`", "An error"],
+      answer: 2,
+      explain: "Without a compare function, `sort` compares as text, and \"10\" comes before \"5\". Use `sort((a, b) => a - b)` for numbers.",
+    },
+    {
+      q: "What does `find()` return when nothing matches?",
+      options: ["`null`", "`-1`", "`undefined`", "An empty array"],
+      answer: 2,
+      explain: "`find` returns `undefined`. (`findIndex` is the one that returns `-1`.)",
+    },
+    {
+      q: "Which method answers \"is ANY item out of stock?\"",
+      options: ["`every()`", "`some()`", "`filter()`", "`includes()`"],
+      answer: 1,
+      explain: "`some` returns true as soon as one item passes the test.",
+    },
+    {
+      q: "What does this print?",
+      code: "const total = [2, 3].reduce((sum, n) => sum + n, 10);\nconsole.log(total);",
+      options: ["`5`", "`15`", "`10`", "`23`"],
+      answer: 1,
+      explain: "The starting value is 10, then 2 and 3 are added: 15.",
+    },
+  ]}
+/>

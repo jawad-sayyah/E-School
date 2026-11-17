@@ -1,0 +1,251 @@
+---
+id: objects
+title: Objects
+summary: Describe things with key–value pairs, then copy, destructure and safely read them the way React code does.
+minutes: 15
+tags: [objects, destructuring, spread, shorthand, Object.keys, optional chaining, nullish, computed keys]
+---
+
+An object describes one thing with named values, like a cart item: `{ name: "Coffee", price: 4, qty: 2 }`. Most of your app's data, and every React prop, is an object.
+
+<Concept name="{ key: value }" id="object-basics">
+
+Objects group related values under named keys. Read them with a dot or with brackets.
+
+<Playground file="object.js" expected={["Coffee", "4", "{ name: 'Coffee', price: 4, qty: 2 }"]}>
+
+```js
+const item = { name: "Coffee", price: 4 };
+
+console.log(item.name);
+console.log(item["price"]);
+
+item.qty = 2;
+console.log(item);
+```
+
+</Playground>
+</Concept>
+
+<Concept name="Shorthand properties" id="shorthand" react>
+
+When a key and a variable have the same name, write it once.
+
+<Playground file="shorthand.js" expected={["{ name: 'Coffee', price: 4 }"]}>
+
+```js
+const name = "Coffee";
+const price = 4;
+const item = { name, price };
+
+console.log(item);
+```
+
+</Playground>
+</Concept>
+
+<Concept name="Destructuring" id="destructuring" react>
+
+Destructuring pulls properties out into variables in one line. React props use it all the time.
+
+<Playground file="destructuring.js" expected={["Coffee 4", "2 × Coffee"]}>
+
+```js
+const item = { name: "Coffee", price: 4, qty: 2 };
+const { name, price } = item;
+console.log(name, price);
+
+// the same thing, right in the parameters (like React props)
+function label({ name, qty }) {
+  return `${qty} × ${name}`;
+}
+console.log(label(item));
+```
+
+</Playground>
+</Concept>
+
+<Concept name="{...spread}" id="spread-object" react>
+
+Spread copies an object and lets you override some of its fields, without touching the original.
+
+<Playground file="spread.js" expected={["{ name: 'Coffee', qty: 1 }", "{ name: 'Coffee', qty: 3 }"]}>
+
+```js
+const item = { name: "Coffee", qty: 1 };
+const updated = { ...item, qty: 3 };
+
+console.log(item);
+console.log(updated);
+```
+
+</Playground>
+</Concept>
+
+<Concept name="Copy by reference" id="reference-copy" warn react>
+
+Assigning an object doesn't copy it: both names point to the same object.
+
+<Playground file="reference.js" expected={["5", "true"]}>
+
+```js
+const a = { qty: 1 };
+const b = a;      // not a copy!
+b.qty = 5;
+
+console.log(a.qty);     // a changed too
+console.log(a === b);
+```
+
+</Playground>
+</Concept>
+
+<Concept name="Object.keys / values / entries" id="object-keys">
+
+These turn an object into arrays you can loop over or `map()`.
+
+<Playground file="entries.js" expected={["[ 'coffee', 'bagel' ]", "[ 5, 2 ]", "[ [ 'coffee', 5 ], [ 'bagel', 2 ] ]"]}>
+
+```js
+const stock = { coffee: 5, bagel: 2 };
+
+console.log(Object.keys(stock));
+console.log(Object.values(stock));
+console.log(Object.entries(stock));
+```
+
+</Playground>
+</Concept>
+
+<Concept name="{ [key]: value }" id="computed-keys" react>
+
+Square brackets use a variable as the key name. It's handy for updating form fields.
+
+<Playground file="computed.js" expected={["{ email: 'sara@mail.com', name: 'Sara' }"]}>
+
+```js
+const form = { email: "", name: "Sara" };
+const field = "email";
+
+console.log({ ...form, [field]: "sara@mail.com" });
+```
+
+</Playground>
+</Concept>
+
+<Concept name="?." id="optional-chaining" react>
+
+Optional chaining reads a nested value safely: you get `undefined` instead of a crash.
+
+<Playground file="optional.js" expected={["undefined", "Uncaught TypeError: Cannot read properties of undefined (reading 'city')"]}>
+
+```js
+const user = { name: "Sara" };
+
+console.log(user.address?.city);
+console.log(user.address.city);  // crashes
+```
+
+</Playground>
+</Concept>
+
+<Concept name="??" id="nullish">
+
+`??` uses a fallback only when the value is `null` or `undefined`, unlike `||`, which also replaces `0` and `""`.
+
+<Playground file="nullish.js" expected={["0", "1", "1"]}>
+
+```js
+console.log(0 ?? 1);     // keeps 0
+console.log(0 || 1);     // replaces 0
+console.log(null ?? 1);
+```
+
+</Playground>
+</Concept>
+
+<Exercise
+  id="update-qty"
+  title="Update a quantity without mutating"
+  hints={[
+    "Don't write `item.qty = qty`: that changes the original object.",
+    "Spread the item into a new object and override `qty`: `{ ...item, qty }`.",
+  ]}
+>
+
+Write `updateQty(item, qty)` that returns a **new** item with the new `qty`. The original item must not change.
+
+```js starter
+function updateQty(item, qty) {
+  item.qty = qty;
+  return item;
+}
+
+const coffee = { id: 1, name: "Coffee", price: 4, qty: 1 };
+console.log(updateQty(coffee, 3));
+```
+
+```js tests
+const coffee = () => ({ id: 1, name: "Coffee", price: 4, qty: 1 });
+
+test("sets the new quantity", () => {
+  expect(updateQty(coffee(), 3)).toEqual({ id: 1, name: "Coffee", price: 4, qty: 3 });
+});
+
+test("keeps the other fields", () => {
+  expect(updateQty(coffee(), 2).name).toBe("Coffee");
+});
+
+test("does not change the original item", () => {
+  const original = coffee();
+  updateQty(original, 5);
+  expect(original.qty).toBe(1);
+});
+
+test("returns a new object", () => {
+  const original = coffee();
+  expect(updateQty(original, 5)).not.toBe(original);
+});
+```
+
+```js solution
+function updateQty(item, qty) {
+  return { ...item, qty };
+}
+
+const coffee = { id: 1, name: "Coffee", price: 4, qty: 1 };
+console.log(updateQty(coffee, 3));
+```
+
+</Exercise>
+
+<Quiz
+  questions={[
+    {
+      q: "What does this print?",
+      code: "const a = { qty: 1 };\nconst b = { ...a };\nb.qty = 9;\nconsole.log(a.qty);",
+      options: ["`9`", "`1`", "`undefined`", "An error"],
+      answer: 1,
+      explain: "Spread made a copy, so changing `b` leaves `a` alone. With `const b = a;` it would print 9.",
+    },
+    {
+      q: "What does `const { name } = item;` do?",
+      options: ["Creates an object called name", "Copies `item.name` into a variable called `name`", "Renames `item` to `name`", "Deletes `name` from `item`"],
+      answer: 1,
+      explain: "Object destructuring pulls the `name` property out into its own variable.",
+    },
+    {
+      q: "What does this print?",
+      code: "const qty = 0;\nconsole.log(qty ?? 5, qty || 5);",
+      options: ["`0 5`", "`5 5`", "`0 0`", "`5 0`"],
+      answer: 0,
+      explain: "`??` only replaces `null` and `undefined`, so 0 stays. `||` replaces every falsy value, including 0.",
+    },
+    {
+      q: "`user` may not have an `address`. How do you read the city without crashing?",
+      options: ["`user.address.city`", "`user?.address.city`", "`user.address?.city`", "`user.address.city?`"],
+      answer: 2,
+      explain: "Put `?.` right after the part that might be missing: `user.address?.city` gives `undefined` instead of a TypeError.",
+    },
+  ]}
+/>
