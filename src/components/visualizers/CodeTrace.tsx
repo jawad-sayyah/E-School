@@ -61,7 +61,7 @@ export function CodeTrace({
         className="my-0"
         actions={<StepperControls stepper={stepper} count={frames.length} />}
       >
-        <div className="grid bg-ed-bg md:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+        <div className="grid grid-cols-1 bg-ed-bg md:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
           <CodeLines code={code} current={frame?.line} />
 
           <div className="space-y-3 border-t border-ed-line p-3 font-mono text-[13px] md:border-t-0 md:border-l">

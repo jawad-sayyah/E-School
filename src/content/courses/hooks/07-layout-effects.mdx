@@ -1,0 +1,164 @@
+---
+id: layout-effects
+title: useLayoutEffect and useInsertionEffect
+summary: Measure the page and adjust it before the user sees a flicker with useLayoutEffect, and know what useInsertionEffect is for (and why you'll rarely write it).
+minutes: 12
+tags: [useLayoutEffect, useInsertionEffect, measuring, tooltip, flicker, paint]
+---
+
+`useEffect` runs **after** the browser paints. Usually that's what you want. But if an effect reads the layout (an element's size or position) and then changes what's on screen, the user sees the "before" version for one frame: a **flicker**. `useLayoutEffect` closes that gap.
+
+<Concept name="useLayoutEffect" id="layout-effect">
+
+Same signature as `useEffect`, different timing: it runs after React updates the DOM but **before the browser paints**, and the browser waits for it. Any state you set inside it is applied before the user sees anything.
+
+<ReactPlayground height={360}>
+
+```jsx file=/App.js
+import { useLayoutEffect, useRef, useState } from "react";
+
+function Tooltip({ text, targetRect }) {
+  const ref = useRef(null);
+  const [height, setHeight] = useState(0);
+
+  // Measure our own height before paint, then place ourselves above the target
+  useLayoutEffect(() => {
+    setHeight(ref.current.getBoundingClientRect().height);
+  }, [text]);
+
+  const top = targetRect.top - height - 8;
+  return (
+    <div ref={ref} className="tooltip" style={{ top, left: targetRect.left }}>
+      {text}
+    </div>
+  );
+}
+
+export default function App() {
+  const [rect, setRect] = useState(null);
+  return (
+    <div className="page">
+      <button
+        onMouseEnter={(e) => setRect(e.currentTarget.getBoundingClientRect())}
+        onMouseLeave={() => setRect(null)}
+      >
+        Hover for the delivery info
+      </button>
+      {rect && (
+        <Tooltip
+          targetRect={rect}
+          text="Free delivery on orders over $20. Orders placed before 2 pm arrive the next day."
+        />
+      )}
+    </div>
+  );
+}
+```
+
+```css file=/styles.css
+body { font-family: system-ui, sans-serif; }
+.page { padding: 140px 16px 16px; }
+.tooltip { position: fixed; max-width: 220px; background: #1a1d2e; color: white; font-size: 13px; padding: 8px 10px; border-radius: 8px; }
+```
+
+</ReactPlayground>
+
+The tooltip can't know its height until it's in the DOM, but it must use that height to position itself. With `useEffect`, it would first paint at the wrong spot, then jump. With `useLayoutEffect`, the first frame the user sees is already correct.
+
+</Concept>
+
+<Concept name="When to use which" id="which">
+
+| Hook | Runs | Use it for |
+| --- | --- | --- |
+| `useEffect` | after paint | almost everything: data, subscriptions, timers, logging |
+| `useLayoutEffect` | after the DOM update, before paint (blocks paint) | measuring layout and adjusting what's shown, scroll position |
+| `useInsertionEffect` | before any layout effects | **only** CSS-in-JS libraries injecting `<style>` tags |
+
+Start with `useEffect`. Switch to `useLayoutEffect` only when you see a visual flicker caused by an effect that measures. Layout effects block painting, so slow code in them makes the app feel sluggish.
+
+</Concept>
+
+<HowItWorks title="Where each hook runs in a commit">
+
+During the commit, React:
+
+1. runs `useInsertionEffect` setups (so styles exist before anyone measures),
+2. updates the DOM and sets refs,
+3. runs `useLayoutEffect` setups. If they set state, React re-renders **synchronously** and commits again, still before paint,
+4. lets the browser **paint**,
+5. runs `useEffect` setups (soon after the paint).
+
+Cleanups follow the same order. That's the whole difference between the three: timing.
+
+</HowItWorks>
+
+<GoDeeper title="useInsertionEffect in one paragraph">
+
+Libraries like styled-components or Emotion generate CSS while your components render and need to add `<style>` rules before any layout effect measures elements. `useInsertionEffect` is the hook for exactly that: it runs before layout effects, can't access refs, and can't set state. If you're not writing a CSS-in-JS library, you won't need it. It's listed here because this course covers every hook.
+
+</GoDeeper>
+
+<Practice>
+
+<OrderLines
+  id="order-commit-hooks"
+  prompt="Order what happens during a commit."
+  explain="Insertion effects first (styles), then the DOM update, then layout effects, then paint, then regular effects."
+>
+
+```js
+// useInsertionEffect setups run
+// React updates the DOM and sets refs
+// useLayoutEffect setups run
+// The browser paints
+// useEffect setups run
+```
+
+</OrderLines>
+
+<MatchPairs
+  id="match-effect-hooks"
+  prompt="Match each situation with the right hook."
+  columns={["Situation", "Hook"]}
+  pairs={[
+    ["Fetch the product when the id changes", "`useEffect`"],
+    ["Position a popover from its measured size, without a jump", "`useLayoutEffect`"],
+    ["A CSS-in-JS library inserting style rules", "`useInsertionEffect`"],
+    ["Keep a timer id between renders, without re-rendering", "`useRef`"],
+  ]}
+/>
+
+<TrueFalse
+  id="tf-layout"
+  statements={[
+    { text: "`useLayoutEffect` runs before the browser paints.", answer: true, explain: "And the browser waits for it, so the first visible frame includes its changes." },
+    { text: "You should use `useLayoutEffect` by default because it's safer.", answer: false, explain: "It blocks painting. Use `useEffect` unless you see a flicker from measuring." },
+    { text: "Setting state in `useLayoutEffect` causes an extra render before paint.", answer: true, explain: "React re-renders synchronously, so the user only sees the final result." },
+  ]}
+/>
+
+</Practice>
+
+<Quiz
+  questions={[
+    {
+      q: "What's the difference between `useEffect` and `useLayoutEffect`?",
+      options: ["Their signatures", "Their timing: layout effects run before paint, regular effects after", "Only `useEffect` can return a cleanup", "Only `useLayoutEffect` can read refs"],
+      answer: 1,
+      explain: "Same API, different moment in the commit.",
+    },
+    {
+      q: "When is `useLayoutEffect` the right choice?",
+      options: ["Fetching data", "Measuring an element and adjusting the UI before the user sees it", "Logging analytics", "Starting a timer"],
+      answer: 1,
+      explain: "It prevents the flicker between the first paint and the corrected one.",
+    },
+    {
+      q: "Who should use `useInsertionEffect`?",
+      options: ["Every component with styles", "Authors of CSS-in-JS libraries", "Components that fetch data", "Forms"],
+      answer: 1,
+      explain: "It exists so style tags are inserted before layout is read.",
+    },
+  ]}
+/>

@@ -1,0 +1,202 @@
+---
+id: why-hooks
+title: Why hooks exist, and their rules
+summary: See the class components hooks replaced, what a hook really is, the full list of built-in hooks, and the two Rules of Hooks that make them work.
+minutes: 14
+tags: [hooks, class components, Rules of Hooks, eslint-plugin-react-hooks, lifecycle]
+---
+
+**Hooks** are functions whose names start with `use` that let a function component "hook into" React features: state, effects, context, refs and more. You've already used `useState` and `useRef`. This course covers **every** built-in hook, and how to write your own.
+
+<Concept name="Before hooks: class components" id="classes">
+
+Until 2019, a component that needed state had to be a **class**. Here's the same counter both ways:
+
+<Compare
+  wrong="A class: this, binding, and the logic split across lifecycle methods"
+  right="A function with hooks: the same behavior in a few lines"
+  wrongFile="Counter.jsx"
+  rightFile="Counter.jsx"
+>
+
+```jsx
+class Counter extends Component {
+  state = { count: 0 };
+  componentDidMount() {
+    document.title = `Clicked ${this.state.count} times`;
+  }
+  componentDidUpdate() {
+    document.title = `Clicked ${this.state.count} times`;
+  }
+  render() {
+    return (
+      <button onClick={() => this.setState({ count: this.state.count + 1 })}>
+        {this.state.count}
+      </button>
+    );
+  }
+}
+```
+
+```jsx
+function Counter() {
+  const [count, setCount] = useState(0);
+  useEffect(() => {
+    document.title = `Clicked ${count} times`;
+  }, [count]);
+  return <button onClick={() => setCount(count + 1)}>{count}</button>;
+}
+```
+
+</Compare>
+
+Classes had three big problems that hooks solve:
+
+1. **Logic was split by lifecycle, not by meaning.** Setting up a subscription went in `componentDidMount`, updating it in `componentDidUpdate`, and cleaning it up in `componentWillUnmount`. One feature lived in three places.
+2. **Reusing stateful logic was awkward.** Sharing "track the window width" between components needed wrappers (higher-order components, render props) that piled up. With hooks, it's one function: `useWindowWidth()`.
+3. **`this` was confusing**, and forgetting to bind a method was a classic bug.
+
+You'll still meet classes in older code (and error boundaries still need one), so it helps to recognize them.
+
+</Concept>
+
+<Concept name="The built-in hooks" id="all-hooks">
+
+Here's the map of this course and the next one:
+
+| Group | Hooks |
+| --- | --- |
+| State | `useState`, `useReducer` |
+| Context | `useContext` |
+| Refs | `useRef`, `useImperativeHandle` |
+| Effects | `useEffect`, `useLayoutEffect`, `useInsertionEffect`, `useEffectEvent` |
+| Performance | `useMemo`, `useCallback`, `useTransition`, `useDeferredValue` |
+| Other | `useId`, `useSyncExternalStore`, `useDebugValue` |
+| React 19 (next course) | `use`, `useActionState`, `useOptimistic`, `useFormStatus` |
+
+</Concept>
+
+<Concept name="The Rules of Hooks" id="rules">
+
+Hooks only work if you follow two rules:
+
+1. **Only call hooks at the top level** of a component or custom hook. Not inside `if`, loops, nested functions, or after an early `return`.
+2. **Only call hooks from React functions**: function components and custom hooks (functions whose names start with `use`). Not from regular functions or event handlers.
+
+<Compare
+  wrong="A hook inside a condition: on some renders it's skipped"
+  right="Always call the hook; put the condition inside it, or after it"
+  wrongFile="Search.jsx"
+  rightFile="Search.jsx"
+>
+
+```jsx
+function Search({ enabled }) {
+  if (!enabled) return null;
+  const [query, setQuery] = useState("");
+  // ...
+}
+```
+
+```jsx
+function Search({ enabled }) {
+  const [query, setQuery] = useState("");
+  if (!enabled) return null;
+  // ...
+}
+```
+
+</Compare>
+
+The official ESLint plugin, `eslint-plugin-react-hooks`, checks both rules (and effect dependencies) as you type. Every serious React project has it on.
+
+</Concept>
+
+<HowItWorks title="Why the order matters">
+
+React doesn't know your hooks by name. It stores each component's hook data in a **list**, in the order the hooks are called. On the first render, `useState("")` creates slot 1, `useState(1)` slot 2, `useEffect` slot 3. On every later render, React walks the same list in the same order: the first `useState` call gets slot 1's value, and so on.
+
+If a hook is skipped on some render (because it's inside an `if`), every hook after it reads the **wrong slot**: your `qty` might get the search text. React detects this and throws "Rendered fewer hooks than expected". The rules exist so the order is always the same.
+
+</HowItWorks>
+
+<Practice>
+
+<SpotTheBug
+  id="bug-hook-in-condition"
+  bug={4}
+  prompt="React throws 'Rendered more hooks than during the previous render' when the user logs in. Click the line that breaks the Rules of Hooks."
+  explain="`useState` is called only when `user` exists, so the number of hooks changes between renders. Call it unconditionally at the top, before any early return or condition."
+>
+
+```jsx
+function Account({ user }) {
+  const [tab, setTab] = useState("orders");
+  if (user) {
+    const [name, setName] = useState(user.name);
+  }
+  return <Tabs value={tab} onChange={setTab} />;
+}
+```
+
+</SpotTheBug>
+
+<SortBuckets
+  id="buckets-rules"
+  prompt="Is each hook call allowed?"
+  buckets={["Allowed", "Breaks the rules"]}
+  items={[
+    ["`useState` at the top of a component", 0],
+    ["`useEffect` inside a custom hook called `useOnline`", 0],
+    ["`useState` inside an `if`", 1],
+    ["`useRef` inside a `for` loop", 1],
+    ["`useContext` inside an `onClick` handler", 1],
+    ["`useMemo` after an early `return null`", 1],
+    ["`useState` in a regular function `getCart()`", 1],
+  ]}
+  explain="Top level of components and custom hooks only, and always in the same order. Event handlers, loops, conditions, early returns and plain functions are out."
+/>
+
+<MatchPairs
+  id="match-class-hooks"
+  prompt="Match each class feature with its hooks equivalent."
+  columns={["Class", "Hooks"]}
+  pairs={[
+    ["`this.state` / `this.setState`", "`useState`"],
+    ["`componentDidMount` + `componentWillUnmount`", "`useEffect` with a cleanup and `[]`"],
+    ["`componentDidUpdate` when `id` changes", "`useEffect` with `[id]`"],
+    ["`this.inputRef = createRef()`", "`useRef`"],
+    ["`static contextType`", "`useContext`"],
+  ]}
+/>
+
+</Practice>
+
+<Quiz
+  questions={[
+    {
+      q: "What is a hook?",
+      options: ["A special kind of component", "A function starting with `use` that lets a component use a React feature", "A browser API", "A CSS feature"],
+      answer: 1,
+      explain: "`useState`, `useEffect` and friends, plus the custom hooks you write.",
+    },
+    {
+      q: "Why must hooks be called in the same order every render?",
+      options: ["For speed", "React matches each call to its stored data by position in a list", "Because JavaScript requires it", "They don't have to be"],
+      answer: 1,
+      explain: "Skipping one shifts every hook after it onto the wrong data.",
+    },
+    {
+      q: "Where can you call hooks?",
+      options: ["At the top level of function components", "At the top level of custom hooks", "Inside event handlers", "Inside class components"],
+      answer: [0, 1],
+      explain: "Only function components and custom hooks, and only at their top level.",
+    },
+    {
+      q: "Which problem with class components do custom hooks solve best?",
+      options: ["Reusing stateful logic between components", "Making components render faster", "Styling", "Routing"],
+      answer: 0,
+      explain: "A custom hook packages state and effects into one reusable function.",
+    },
+  ]}
+/>

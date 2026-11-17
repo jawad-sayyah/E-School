@@ -1,0 +1,295 @@
+---
+id: use-reducer
+title: useReducer
+summary: Move complex state logic out of event handlers into one reducer function that takes the current state and an action, and returns the next state.
+minutes: 18
+tags: [useReducer, reducer, dispatch, actions, cartReducer, state machine]
+---
+
+As the cart grows (add, remove, change quantity, apply a coupon, empty it), the `setCart` calls spread across many handlers, each with its own copy-and-change logic. **`useReducer`** gathers all of it into one function.
+
+<Concept name="A reducer" id="reducer">
+
+A **reducer** is a plain function: `(state, action) => nextState`. The **action** is an object that describes what happened, usually with a `type` and whatever data is needed.
+
+<Playground file="cartReducer.js" expected={["[ { id: 1, name: 'Coffee', price: 4, qty: 2 } ]", "[]"]}>
+
+```js
+function cartReducer(cart, action) {
+  switch (action.type) {
+    case "added": {
+      const line = cart.find((l) => l.id === action.product.id);
+      if (line) {
+        return cart.map((l) => (l.id === line.id ? { ...l, qty: l.qty + 1 } : l));
+      }
+      return [...cart, { ...action.product, qty: 1 }];
+    }
+    case "removed":
+      return cart.filter((l) => l.id !== action.id);
+    case "emptied":
+      return [];
+    default:
+      throw new Error("Unknown action: " + action.type);
+  }
+}
+
+const coffee = { id: 1, name: "Coffee", price: 4 };
+let cart = cartReducer([], { type: "added", product: coffee });
+cart = cartReducer(cart, { type: "added", product: coffee });
+console.log(cart);
+console.log(cartReducer(cart, { type: "emptied" }));
+```
+
+</Playground>
+
+Because it's a plain function with no React in it, you can run it, read it and test it on its own. Like any state update, it must **not mutate** `cart`: it returns a new array.
+
+</Concept>
+
+<Concept name="Using it in a component" id="use-reducer">
+
+`useReducer(reducer, initialState)` returns the current state and a **`dispatch`** function. Event handlers no longer say *how* the state changes; they say *what happened*: `dispatch({ type: "added", product })`.
+
+<ReactPlayground height={420}>
+
+```jsx file=/App.js
+import { useReducer } from "react";
+import { cartReducer } from "./cartReducer";
+
+const products = [
+  { id: 1, name: "Coffee", price: 4 },
+  { id: 2, name: "Bagel", price: 3 },
+];
+
+export default function App() {
+  const [cart, dispatch] = useReducer(cartReducer, []);
+  const total = cart.reduce((sum, l) => sum + l.price * l.qty, 0);
+
+  return (
+    <>
+      {products.map((p) => (
+        <button key={p.id} onClick={() => dispatch({ type: "added", product: p })}>
+          Add {p.name}
+        </button>
+      ))}
+      <ul>
+        {cart.map((l) => (
+          <li key={l.id}>
+            {l.name} × {l.qty}{" "}
+            <button onClick={() => dispatch({ type: "removed", id: l.id })}>Remove</button>
+          </li>
+        ))}
+      </ul>
+      <p>Total: ${total}</p>
+      <button onClick={() => dispatch({ type: "emptied" })} disabled={cart.length === 0}>
+        Empty cart
+      </button>
+    </>
+  );
+}
+```
+
+```js file=/cartReducer.js
+export function cartReducer(cart, action) {
+  switch (action.type) {
+    case "added": {
+      const line = cart.find((l) => l.id === action.product.id);
+      if (line) {
+        return cart.map((l) => (l.id === line.id ? { ...l, qty: l.qty + 1 } : l));
+      }
+      return [...cart, { ...action.product, qty: 1 }];
+    }
+    case "removed":
+      return cart.filter((l) => l.id !== action.id);
+    case "emptied":
+      return [];
+    default:
+      throw new Error("Unknown action: " + action.type);
+  }
+}
+```
+
+</ReactPlayground>
+</Concept>
+
+<Concept name="useState or useReducer?" id="which">
+
+| | `useState` | `useReducer` |
+| --- | --- | --- |
+| Best for | independent, simple values | several values that change together, by rules |
+| Update logic lives | in each event handler | in one reducer function |
+| Testing | through the component | the reducer alone, as a plain function |
+| Debugging | "who called setCart?" | log every action: you see exactly what happened |
+
+Both are fine; you can switch later. A good hint: if several handlers do similar copy-and-change work on the same state, or one update needs to change several state values at once, reach for a reducer.
+
+</Concept>
+
+<HowItWorks title="What dispatch does">
+
+`dispatch(action)` doesn't run the reducer immediately. Like a setter, it **queues** the action and schedules a render. During that render, React runs your reducer for each queued action, in order, passing each one the result of the previous one, exactly like updater functions. That's why reducers must be **pure**: React may call them more than once (StrictMode does, on purpose).
+
+`dispatch` itself never changes between renders, so it's safe to pass down to children or leave out of effect dependencies.
+
+</HowItWorks>
+
+<GoDeeper title="Naming actions, and the third argument">
+
+- Name actions after **what happened**, in the past tense (`"added"`, `"couponApplied"`), not after the state change you want (`"setCart"`). The reducer decides what it means.
+- Put the data an action needs in it: `{ type: "qtyChanged", id, qty }`.
+- `useReducer(reducer, arg, init)` takes an optional `init` function for lazy initialization: React calls `init(arg)` once, like `useState(() => …)`.
+- Libraries such as Redux Toolkit and Zustand use the same reducer idea for app-wide state; the React Ecosystem course compares them.
+
+</GoDeeper>
+
+<Practice>
+
+<Predict
+  id="predict-reducer"
+  answer={["3", "0"]}
+  explain="Each dispatch is just a call to the reducer with the previous state. Two increments and one more give 3; the reset ignores the old state."
+>
+
+```js
+function counter(state, action) {
+  if (action.type === "incremented") return state + (action.by ?? 1);
+  if (action.type === "reset") return 0;
+  return state;
+}
+
+let n = counter(0, { type: "incremented" });
+n = counter(n, { type: "incremented", by: 2 });
+console.log(n);
+console.log(counter(n, { type: "reset" }));
+```
+
+</Predict>
+
+<SpotTheBug
+  id="bug-reducer-mutate"
+  bug={4}
+  prompt="Clicking + on a cart line doesn't update the screen, even though the reducer runs. Click the buggy line."
+  explain="`line.qty++` mutates the existing object, and the reducer returns the same array, so React sees no change. Return a new array with a new object: `cart.map((l) => l.id === action.id ? { ...l, qty: l.qty + 1 } : l)`."
+>
+
+```js
+function cartReducer(cart, action) {
+  if (action.type === "qtyIncreased") {
+    const line = cart.find((l) => l.id === action.id);
+    line.qty++;
+    return cart;
+  }
+  return cart;
+}
+```
+
+</SpotTheBug>
+
+<MatchPairs
+  id="match-reducer-terms"
+  prompt="Match each term with its meaning."
+  columns={["Term", "Meaning"]}
+  pairs={[
+    ["Reducer", "A pure function `(state, action) => nextState`"],
+    ["Action", "An object describing what happened, like `{ type: \"removed\", id }`"],
+    ["`dispatch`", "Sends an action to React, which queues it for the next render"],
+    ["`type`", "The field the reducer switches on"],
+  ]}
+/>
+
+</Practice>
+
+<Exercise
+  id="cart-reducer"
+  title="Finish the cart reducer"
+  hints={[
+    "For `\"qtyChanged\"`, return `cart.map(...)` and replace the line whose id matches with `{ ...l, qty: action.qty }`.",
+    "When `action.qty` is 0 or less, remove the line instead: `cart.filter((l) => l.id !== action.id)`.",
+    "Never change `cart` or its objects: always return new ones.",
+  ]}
+>
+
+`cartReducer` already handles `"added"`. Add a `"qtyChanged"` action, `{ type: "qtyChanged", id, qty }`, that sets that line's quantity, and **removes the line** when the new quantity is 0 or less. Don't mutate the state.
+
+```js starter
+function cartReducer(cart, action) {
+  switch (action.type) {
+    case "added":
+      return [...cart, { ...action.product, qty: 1 }];
+    default:
+      return cart;
+  }
+}
+```
+
+```js tests
+const coffee = { id: 1, name: "Coffee", price: 4 };
+const tea = { id: 2, name: "Tea", price: 2 };
+const start = [{ ...coffee, qty: 1 }, { ...tea, qty: 2 }];
+
+test("changes the quantity of the matching line", () => {
+  const next = cartReducer(start, { type: "qtyChanged", id: 2, qty: 5 });
+  expect(next).toEqual([{ ...coffee, qty: 1 }, { ...tea, qty: 5 }]);
+});
+
+test("removes the line when the quantity is 0", () => {
+  const next = cartReducer(start, { type: "qtyChanged", id: 1, qty: 0 });
+  expect(next).toEqual([{ ...tea, qty: 2 }]);
+});
+
+test("does not mutate the old state", () => {
+  const before = JSON.stringify(start);
+  const next = cartReducer(start, { type: "qtyChanged", id: 2, qty: 9 });
+  expect(JSON.stringify(start)).toBe(before);
+  expect(next).not.toBe(start);
+});
+
+test("still handles added", () => {
+  expect(cartReducer([], { type: "added", product: coffee })).toEqual([{ ...coffee, qty: 1 }]);
+});
+```
+
+```js solution
+function cartReducer(cart, action) {
+  switch (action.type) {
+    case "added":
+      return [...cart, { ...action.product, qty: 1 }];
+    case "qtyChanged":
+      if (action.qty <= 0) return cart.filter((l) => l.id !== action.id);
+      return cart.map((l) => (l.id === action.id ? { ...l, qty: action.qty } : l));
+    default:
+      return cart;
+  }
+}
+```
+
+</Exercise>
+
+<Quiz
+  questions={[
+    {
+      q: "What does `useReducer(reducer, initial)` return?",
+      options: ["`[state, setState]`", "`[state, dispatch]`", "The reducer", "A promise"],
+      answer: 1,
+      explain: "You read `state` and send actions with `dispatch`.",
+    },
+    {
+      q: "Which belong in a reducer?",
+      options: ["A `switch` on `action.type`", "Returning a new state object", "`fetch` calls", "`Math.random()` to make ids"],
+      answer: [0, 1],
+      explain: "Reducers must be pure: no side effects and no randomness. Make ids in the event handler and put them in the action.",
+    },
+    {
+      q: "What's a good action name for removing a line?",
+      options: ["`{ type: \"setCart\" }`", "`{ type: \"removed\", id }`", "`{ type: \"filter\" }`", "`{ remove: true }`"],
+      answer: 1,
+      explain: "Describe what happened, and include the data the reducer needs.",
+    },
+    {
+      q: "Why are reducers easy to test?",
+      options: ["They run on the server", "They're plain functions: call them with a state and an action, and check the result", "React tests them automatically", "They can't have bugs"],
+      answer: 1,
+      explain: "No rendering needed. The Testing course tests `cartReducer` action by action.",
+    },
+  ]}
+/>

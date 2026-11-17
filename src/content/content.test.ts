@@ -91,6 +91,12 @@ describe.each(lessonFiles)('$course/$file', ({ abs }) => {
   const source = fs.readFileSync(abs, 'utf8');
   const tree = parser.parse(source) as Node;
 
+  test('no string attribute contains an escaped quote (MDX would mis-parse it)', () => {
+    // Write explain={"say \"hi\""} instead of explain="say \"hi\"".
+    const bad = source.split('\n').filter((line) => /^\s*\w+="[^"\n]*\\"/.test(line));
+    expect(bad).toEqual([]);
+  });
+
   test('has one quiz with 3–5 valid questions', () => {
     const quizzes = findAll(tree, 'Quiz');
     expect(quizzes).toHaveLength(1);

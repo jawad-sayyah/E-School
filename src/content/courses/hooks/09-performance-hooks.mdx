@@ -1,0 +1,203 @@
+---
+id: performance-hooks
+title: "Performance hooks: useMemo, useCallback, useTransition, useDeferredValue"
+summary: Recap caching with useMemo and useCallback, then keep the page responsive during slow updates with transitions and deferred values.
+minutes: 18
+tags: [useMemo, useCallback, useTransition, useDeferredValue, startTransition, isPending, concurrent rendering, Activity]
+---
+
+You met `memo`, `useMemo` and `useCallback` in How React Works. They make work **cheaper** by skipping it. This lesson adds two hooks that make slow work **less disruptive**: `useTransition` and `useDeferredValue` let React keep the page responsive while a heavy render happens in the background.
+
+<Concept name="Recap: useMemo and useCallback" id="recap">
+
+```jsx file=Orders.jsx
+// Cache a calculation: re-run only when orders or filter change
+const visible = useMemo(() => filterOrders(orders, filter), [orders, filter]);
+
+// Cache a function: same identity between renders (for memo children or effect deps)
+const handleSelect = useCallback((id) => setSelected(id), []);
+```
+
+Both take a **dependency array** and return the cached value until a dependency changes. Neither changes what your code does; they're optimizations to add when you've measured a problem (or let the React Compiler add them for you).
+
+</Concept>
+
+<Concept name="useDeferredValue: let the slow part lag behind" id="deferred">
+
+Type quickly in the first box: every keystroke re-renders a deliberately slow list, so typing feels stuck. In the second box, the list uses a **deferred** copy of the text: React updates the input first, then re-renders the list in the background, and drops that background work if you type again.
+
+<ReactPlayground height={460}>
+
+```jsx file=/App.js
+import { memo, useDeferredValue, useState } from "react";
+
+const SlowList = memo(function SlowList({ text }) {
+  const items = [];
+  for (let i = 0; i < 250; i++) {
+    const start = performance.now();
+    while (performance.now() - start < 1) {} // 1 ms of fake work per item
+    items.push(<li key={i}>{text} #{i}</li>);
+  }
+  return <ul className="list">{items}</ul>;
+});
+
+export default function App() {
+  const [plain, setPlain] = useState("");
+  const [smooth, setSmooth] = useState("");
+  const deferred = useDeferredValue(smooth);
+
+  return (
+    <div className="cols">
+      <section>
+        <h3>Without</h3>
+        <input value={plain} onChange={(e) => setPlain(e.target.value)} placeholder="Type fast…" />
+        <SlowList text={plain} />
+      </section>
+      <section>
+        <h3>useDeferredValue</h3>
+        <input value={smooth} onChange={(e) => setSmooth(e.target.value)} placeholder="Type fast…" />
+        <div style={{ opacity: smooth !== deferred ? 0.5 : 1 }}>
+          <SlowList text={deferred} />
+        </div>
+      </section>
+    </div>
+  );
+}
+```
+
+```css file=/styles.css
+body { font-family: system-ui, sans-serif; padding: 8px 16px; }
+.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.list { height: 280px; overflow: auto; font-size: 12px; }
+input { width: 100%; padding: 6px; }
+```
+
+</ReactPlayground>
+
+`useDeferredValue(value)` returns the **old** value during urgent renders, and the new one in a background render that React can interrupt. Comparing `smooth !== deferred` tells you the list is stale, which the example uses to dim it. The slow component must be wrapped in `memo`, or it would still re-render on every keystroke with the old value.
+
+</Concept>
+
+<Concept name="useTransition: mark an update as non-urgent" id="transition">
+
+`useDeferredValue` works on a **value**. `useTransition` works on the **update** itself: wrap a state change in `startTransition`, and React treats the render it causes as interruptible background work. You also get `isPending` to show that something is happening.
+
+```jsx file=Tabs.jsx
+import { useState, useTransition } from "react";
+
+function ProductTabs() {
+  const [tab, setTab] = useState("about");
+  const [isPending, startTransition] = useTransition();
+
+  function selectTab(next) {
+    startTransition(() => {
+      setTab(next); // the slow tab renders in the background
+    });
+  }
+
+  return (
+    <>
+      <TabButtons current={tab} onSelect={selectTab} />
+      <div style={{ opacity: isPending ? 0.6 : 1 }}>
+        {tab === "reviews" ? <SlowReviews /> : <About />}
+      </div>
+    </>
+  );
+}
+```
+
+While the slow Reviews tab renders, clicking another tab still responds immediately, and the old tab stays visible (dimmed) instead of a frozen page.
+
+- Use `useTransition` when **you** make the state update (a click, a selection).
+- Use `useDeferredValue` when you **receive** a value (a prop, or state you don't control) and only a part of the UI is slow.
+- Don't use transitions for controlled inputs: typing must stay urgent.
+
+</Concept>
+
+<HowItWorks title="Concurrent rendering, in short">
+
+Since React 18, rendering can be **interrupted**. Urgent updates (typing, clicking) render right away. Transition updates render in small chunks; between chunks React checks whether something urgent arrived, and if so it pauses or throws away the background render and handles the urgent one first. That's only safe because rendering is pure: an abandoned render left no trace. Nothing makes your code faster; the slow work just stops blocking the important work.
+
+</HowItWorks>
+
+<GoDeeper title="The Activity component: keep hidden UI alive">
+
+React 19.2 added `<Activity mode="visible" | "hidden">`. A hidden activity keeps its subtree's **state** (and DOM) but unmounts its effects and renders it at the lowest priority. It's useful for tabs or pages the user is likely to come back to: switching back is instant and nothing typed is lost.
+
+```jsx file=Tabs.jsx
+<Activity mode={tab === "reviews" ? "visible" : "hidden"}>
+  <Reviews />
+</Activity>
+```
+
+</GoDeeper>
+
+<Practice>
+
+<MatchPairs
+  id="match-perf-hooks"
+  prompt="Match each hook with its job."
+  columns={["Hook", "Job"]}
+  pairs={[
+    ["`useMemo`", "Cache the result of a calculation"],
+    ["`useCallback`", "Keep a function's identity between renders"],
+    ["`useTransition`", "Mark a state update as non-urgent and get `isPending`"],
+    ["`useDeferredValue`", "Get a lagging copy of a value for a slow part of the UI"],
+  ]}
+/>
+
+<SortBuckets
+  id="buckets-urgent"
+  prompt="Should this update be urgent, or can it be a transition?"
+  buckets={["Urgent", "Transition is fine"]}
+  items={[
+    ["The text in a search input as the user types", 0],
+    ["The 5,000 search results below the input", 1],
+    ["A checkbox being ticked", 0],
+    ["Rendering the newly selected heavy dashboard tab", 1],
+    ["The button's pressed state", 0],
+  ]}
+  explain="Direct feedback for what the user just did must be urgent. Big re-renders that follow from it can wait in the background."
+/>
+
+<Choice
+  id="choice-deferred-memo"
+  q="You added `useDeferredValue` for a slow chart, but typing is still laggy. What's the most likely missing piece?"
+  options={["The chart component isn't wrapped in `memo`", "You need `useLayoutEffect`", "You should call `startTransition` inside the chart", "Deferred values only work with numbers"]}
+  answer={0}
+  explain="Without `memo`, the chart re-renders on every urgent render anyway (with the old value), so nothing is skipped."
+/>
+
+<TrueFalse
+  id="tf-perf"
+  statements={[
+    { text: "Transitions make the slow render itself faster.", answer: false, explain: "They make it interruptible, so it stops blocking urgent updates." },
+    { text: "`isPending` is true while a transition's render hasn't been committed yet.", answer: true, explain: "Use it to dim the old content or show a spinner." },
+    { text: "You should wrap a controlled input's `setText` in `startTransition`.", answer: false, explain: "Input updates must be urgent, or typing would lag. Defer the expensive part instead." },
+  ]}
+/>
+
+</Practice>
+
+<Quiz
+  questions={[
+    {
+      q: "What does `useTransition` return?",
+      options: ["`[value, setValue]`", "`[isPending, startTransition]`", "A promise", "A deferred value"],
+      answer: 1,
+      explain: "Wrap state updates in `startTransition`; read `isPending` to show progress.",
+    },
+    {
+      q: "When is `useDeferredValue` the better choice?",
+      options: ["When you don't control the state update, only the value you receive", "When fetching data", "For every value in the app", "When you need `isPending`"],
+      answer: 0,
+      explain: "It defers a value (often a prop); `useTransition` wraps an update you make.",
+    },
+    {
+      q: "What makes it safe for React to abandon a background render?",
+      options: ["Effects", "Pure rendering: an abandoned render changed nothing", "Error boundaries", "Keys"],
+      answer: 1,
+      explain: "Another reason renders must not have side effects.",
+    },
+  ]}
+/>

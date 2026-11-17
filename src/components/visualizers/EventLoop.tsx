@@ -78,7 +78,7 @@ export function EventLoop({
         className="my-0"
         actions={<StepperControls stepper={stepper} count={frames.length} />}
       >
-        <div className="grid bg-ed-bg lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
+        <div className="grid grid-cols-1 bg-ed-bg lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
           <CodeLines code={code} current={frame.line} />
           <div className="space-y-3 border-t border-ed-line p-3 lg:border-t-0 lg:border-l">
             <LayoutGroup>

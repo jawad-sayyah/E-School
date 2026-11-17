@@ -1,0 +1,341 @@
+---
+id: effects-in-practice
+title: "Effects in practice: fetching, pitfalls and useEffectEvent"
+summary: Fetch data in an effect without race conditions, recognize the effects you don't need, escape infinite loops, and read the latest values without re-running an effect.
+minutes: 20
+tags: [useEffect, data fetching, race condition, AbortController, you might not need an effect, useEffectEvent, infinite loop]
+---
+
+Effects are powerful and easy to misuse. This lesson is about using them well: fetching data correctly, and **not** using them when something simpler works.
+
+<Concept name="Fetching data, and the race condition" id="fetching">
+
+Here's a product page that loads the selected product. The fake API answers **Coffee slowly** and **Tea quickly**. Click **Tea** right after the page loads, then wait.
+
+<ReactPlayground height={360}>
+
+```jsx file=/App.js
+import { useEffect, useState } from "react";
+import { fetchProduct } from "./api";
+
+export default function App() {
+  const [id, setId] = useState(1);
+  const [product, setProduct] = useState(null);
+
+  useEffect(() => {
+    setProduct(null);
+    fetchProduct(id).then((data) => setProduct(data)); // no protection!
+  }, [id]);
+
+  return (
+    <>
+      <button onClick={() => setId(1)}>Coffee</button>{" "}
+      <button onClick={() => setId(2)}>Tea</button>
+      <p>Selected: #{id}</p>
+      {product ? <h2>{product.name}</h2> : <p>Loading…</p>}
+    </>
+  );
+}
+```
+
+```js file=/api.js
+const PRODUCTS = { 1: { id: 1, name: "Coffee" }, 2: { id: 2, name: "Tea" } };
+
+// A fake network: Coffee takes 1.5 seconds, Tea 0.3
+export function fetchProduct(id) {
+  const delay = id === 1 ? 1500 : 300;
+  return new Promise((resolve) => setTimeout(() => resolve(PRODUCTS[id]), delay));
+}
+```
+
+</ReactPlayground>
+
+"Selected: #2" but the heading says **Coffee**. Tea's response arrived first; then Coffee's slow response arrived and overwrote it. That's a **race condition**: responses can come back in any order.
+
+The fix is the cleanup. Each effect run gets its own `ignore` flag, and when the id changes, the cleanup marks the old request as stale:
+
+```jsx file=App.jsx
+useEffect(() => {
+  let ignore = false;
+  setProduct(null);
+  fetchProduct(id).then((data) => {
+    if (!ignore) setProduct(data);
+  });
+  return () => {
+    ignore = true; // this request is out of date
+  };
+}, [id]);
+```
+
+With real `fetch`, you can also cancel the request itself: create an `AbortController`, pass `{ signal: controller.signal }` to `fetch`, and call `controller.abort()` in the cleanup.
+
+<Callout type="tip">
+Fetching in effects works, but real apps usually use a data library (TanStack Query, the React Ecosystem course) or a framework's loaders. They handle races, caching, retries and loading states for you.
+</Callout>
+
+</Concept>
+
+<Concept name="You might not need an effect" id="not-needed">
+
+The most common effect bug is an effect that shouldn't exist. If there's no **outside system** involved, you almost certainly don't need one.
+
+<Compare
+  wrong="Derived state in an effect: an extra render, and a moment where total is wrong"
+  right="Calculate it during render"
+  wrongFile="Cart.jsx"
+  rightFile="Cart.jsx"
+>
+
+```jsx
+const [total, setTotal] = useState(0);
+useEffect(() => {
+  setTotal(cart.reduce((s, l) => s + l.price * l.qty, 0));
+}, [cart]);
+```
+
+```jsx
+const total = cart.reduce((s, l) => s + l.price * l.qty, 0);
+```
+
+</Compare>
+
+| You want to… | Instead of an effect… |
+| --- | --- |
+| compute something from props or state | calculate it during render (`useMemo` if slow) |
+| reset state when a prop changes | give the component a `key` |
+| react to a user action (submit, buy) | do it in the event handler |
+| notify the parent of a change | call the parent's callback in the same handler |
+| chain "when A changes, set B, then C" | compute B and C in the handler that changes A |
+
+</Concept>
+
+<Concept name="Infinite loops" id="loops">
+
+An effect that sets state which is also one of its dependencies (or that has no dependency array) can loop forever: render → effect → set state → render → effect…
+
+```jsx file=Loop.jsx
+useEffect(() => {
+  setCount(count + 1);   // changes count…
+}, [count]);             // …which re-runs the effect, forever
+```
+
+Also watch out for **objects and functions created during render** in the dependency array: they're new every render, so the effect runs every render. Move them inside the effect, or memoize them.
+
+</Concept>
+
+<Concept name="useEffectEvent: read the latest values without re-syncing" id="effect-event">
+
+Sometimes an effect needs a value that should **not** cause a re-sync. A chat connection should reconnect when `roomId` changes, but not when the `theme` used for its notification changes. **`useEffectEvent`** (stable in React 19.2) pulls that logic out into an **effect event**: a function that always sees the latest props and state, but isn't a dependency.
+
+```jsx file=ChatRoom.jsx
+import { useEffect, useEffectEvent } from "react";
+
+function ChatRoom({ roomId, theme }) {
+  const onConnected = useEffectEvent(() => {
+    showNotification("Connected!", theme); // always the current theme
+  });
+
+  useEffect(() => {
+    const connection = createConnection(roomId);
+    connection.on("connected", () => onConnected());
+    connection.connect();
+    return () => connection.disconnect();
+  }, [roomId]); // theme isn't a dependency: changing it doesn't reconnect
+}
+```
+
+Only call effect events from inside effects, and don't pass them to other components.
+
+</Concept>
+
+<HowItWorks title="Why each effect run has its own ignore flag">
+
+`let ignore = false` is declared **inside** the effect, so every run creates a fresh variable, captured by that run's `.then` callback and that run's cleanup (closures!). When `id` changes, React calls the old run's cleanup, which sets the **old** `ignore` to true. The old request's callback checks its own `ignore`, sees `true`, and does nothing. The new run's flag is still `false`, so its response is used.
+
+</HowItWorks>
+
+<Practice>
+
+<SortBuckets
+  id="buckets-need-effect"
+  prompt="Does each one need an effect?"
+  buckets={["Needs an effect", "No effect needed"]}
+  items={[
+    ["Loading the product when `productId` changes", 0],
+    ["Connecting to a chat server for the current room", 0],
+    ["Showing `fullName` from `first` and `last`", 1],
+    ["Clearing a form when the selected user changes", 1],
+    ["Posting the order when Checkout is clicked", 1],
+    ["Listening to the window's `resize` event", 0],
+  ]}
+  explain="Effects are for syncing with something outside React. Derived values are computed in render, resets use a key, and user actions are handled in event handlers."
+/>
+
+<SpotTheBug
+  id="bug-infinite"
+  bug={4}
+  prompt="This component freezes the tab with endless renders. Click the line that causes it."
+  explain="`filters` is a new object on every render, so the effect sees a changed dependency every time, sets state, renders again, and so on. Depend on the primitive values (`category`, `maxPrice`), or create the object inside the effect."
+>
+
+```jsx
+function Results({ category, maxPrice }) {
+  const [items, setItems] = useState([]);
+  const filters = { category, maxPrice };
+  useEffect(() => {
+    search(filters).then(setItems);
+  }, [filters]);
+  return <List items={items} />;
+}
+```
+
+</SpotTheBug>
+
+<TrueFalse
+  id="tf-effects-practice"
+  statements={[
+    { text: "Responses to fetches started in effects always arrive in the order they were sent.", answer: false, explain: "Networks don't promise order. That's why you ignore or abort stale requests in the cleanup." },
+    { text: "Computing a filtered list in an effect and storing it in state is the recommended pattern.", answer: false, explain: "Compute it during render. The effect version renders twice and is briefly out of sync." },
+    { text: "A function from `useEffectEvent` sees the latest props and state, but isn't a dependency.", answer: true, explain: "That's its purpose: non-reactive logic used inside an effect." },
+  ]}
+/>
+
+<Choice
+  id="choice-reset-on-prop"
+  q="A `CommentForm` should clear its text whenever `postId` changes. What's the best approach?"
+  options={["`useEffect(() => setText(\"\"), [postId])`", "Render it as `<CommentForm key={postId} />`", "Store the text in a global variable", "Reload the page"]}
+  answer={1}
+  explain="A new key gives a fresh component with fresh state, in one render and with no effect."
+/>
+
+</Practice>
+
+<ReactExercise
+  id="race-condition"
+  title="Fix the race condition"
+  hints={[
+    "Inside the effect, start with `let ignore = false;`.",
+    "In the `.then`, only set state when `!ignore`.",
+    "Return a cleanup: `return () => { ignore = true; };`.",
+  ]}
+>
+
+Switching from Coffee to Tea quickly shows Coffee, because the slow Coffee response arrives last. Make the page always show the product that was picked **last**, by ignoring stale responses in the effect's cleanup.
+
+```jsx starter file=/App.js
+import { useEffect, useState } from "react";
+import { fetchProduct } from "./api";
+
+export default function App() {
+  const [id, setId] = useState(1);
+  const [product, setProduct] = useState(null);
+
+  useEffect(() => {
+    setProduct(null);
+    fetchProduct(id).then((data) => setProduct(data));
+  }, [id]);
+
+  return (
+    <>
+      <button onClick={() => setId(1)}>Coffee</button>{" "}
+      <button onClick={() => setId(2)}>Tea</button>
+      {product ? <h2>{product.name}</h2> : <p>Loading…</p>}
+    </>
+  );
+}
+```
+
+```js starter file=/api.js
+const PRODUCTS = { 1: { id: 1, name: "Coffee" }, 2: { id: 2, name: "Tea" } };
+
+// Coffee takes 300 ms, Tea 50 ms
+export function fetchProduct(id) {
+  const delay = id === 1 ? 300 : 50;
+  return new Promise((resolve) => setTimeout(() => resolve(PRODUCTS[id]), delay));
+}
+```
+
+```jsx tests file=/App.test.js
+import { act, fireEvent, render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import App from "./App";
+
+const wait = (ms) => act(async () => {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+});
+
+test("loads the first product", async () => {
+  render(<App />);
+  await wait(400);
+  expect(screen.getByRole("heading")).toHaveTextContent("Coffee");
+});
+
+test("a slow old response never overwrites the newer one", async () => {
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "Tea" }));
+  await wait(100);
+  expect(screen.getByRole("heading")).toHaveTextContent("Tea");
+  await wait(400);
+  expect(screen.getByRole("heading")).toHaveTextContent("Tea");
+});
+```
+
+```jsx solution file=/App.js
+import { useEffect, useState } from "react";
+import { fetchProduct } from "./api";
+
+export default function App() {
+  const [id, setId] = useState(1);
+  const [product, setProduct] = useState(null);
+
+  useEffect(() => {
+    let ignore = false;
+    setProduct(null);
+    fetchProduct(id).then((data) => {
+      if (!ignore) setProduct(data);
+    });
+    return () => {
+      ignore = true;
+    };
+  }, [id]);
+
+  return (
+    <>
+      <button onClick={() => setId(1)}>Coffee</button>{" "}
+      <button onClick={() => setId(2)}>Tea</button>
+      {product ? <h2>{product.name}</h2> : <p>Loading…</p>}
+    </>
+  );
+}
+```
+
+</ReactExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "What's a race condition when fetching in an effect?",
+      options: ["Two components fetching the same data", "An older, slower response arriving after a newer one and overwriting it", "A fetch that never finishes", "Fetching during render"],
+      answer: 1,
+      explain: "Ignore or abort stale requests in the cleanup.",
+    },
+    {
+      q: "Which of these should **not** be effects?",
+      options: ["Filtering a list for display", "Resetting state when a prop changes", "Sending analytics when the user clicks Buy", "Subscribing to the browser's online/offline events"],
+      answer: [0, 1, 2],
+      explain: "Compute in render, use a key, and handle user actions in event handlers. Browser events are an outside system: an effect fits.",
+    },
+    {
+      q: "Why might `useEffect(fn, [options])` run after every render?",
+      options: ["`options` is an object created during render, so it's new each time", "Effects always run every render", "Arrays can't be dependencies", "It's StrictMode"],
+      answer: 0,
+      explain: "Depend on primitives, create the object inside the effect, or memoize it.",
+    },
+    {
+      q: "What does `useEffectEvent` let you do?",
+      options: ["Run an effect on click", "Read the latest props and state inside an effect without making them dependencies", "Fetch data", "Skip cleanup"],
+      answer: 1,
+      explain: "Use it for logic inside an effect that shouldn't cause a re-sync.",
+    },
+  ]}
+/>

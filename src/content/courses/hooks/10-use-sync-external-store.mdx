@@ -1,0 +1,272 @@
+---
+id: use-sync-external-store
+title: useSyncExternalStore and useDebugValue
+summary: Subscribe components to data that lives outside React (a store, a browser API) safely, and label your custom hooks in React DevTools.
+minutes: 15
+tags: [useSyncExternalStore, external store, subscribe, getSnapshot, navigator.onLine, useDebugValue, DevTools]
+---
+
+Most data lives in React state. Some doesn't: a store shared with non-React code, `navigator.onLine`, `window.innerWidth`, `localStorage` changed by another tab. **`useSyncExternalStore`** is the hook for reading such data and re-rendering when it changes.
+
+<Concept name="Subscribe and snapshot" id="subscribe">
+
+You give it two functions:
+
+- **`subscribe(callback)`**: start listening for changes and call `callback` whenever something changes. Return a function that stops listening.
+- **`getSnapshot()`**: return the current value.
+
+<ReactPlayground height={300}>
+
+```jsx file=/App.js
+import { useSyncExternalStore } from "react";
+
+function subscribe(callback) {
+  window.addEventListener("online", callback);
+  window.addEventListener("offline", callback);
+  return () => {
+    window.removeEventListener("online", callback);
+    window.removeEventListener("offline", callback);
+  };
+}
+
+function useOnlineStatus() {
+  return useSyncExternalStore(subscribe, () => navigator.onLine);
+}
+
+export default function App() {
+  const online = useOnlineStatus();
+  return (
+    <p className={online ? "ok" : "off"}>
+      {online ? "✅ Online: orders go through instantly" : "⚠️ Offline: we'll send your order when you're back"}
+    </p>
+  );
+}
+```
+
+```css file=/styles.css
+body { font-family: system-ui, sans-serif; padding: 16px; }
+.ok { color: #1e7e34; } .off { color: #b45309; font-weight: 600; }
+```
+
+</ReactPlayground>
+
+Turn off your network (or use the browser DevTools' "Offline" option) and the message changes. Declare `subscribe` **outside** the component (or memoize it): a new function every render would make React re-subscribe every time.
+
+</Concept>
+
+<Concept name="A tiny store" id="store">
+
+The same hook works for your own stores. Here's a cart store that non-React code (an analytics script, a web socket) can also use:
+
+```js file=cartStore.js
+let items = [];
+const listeners = new Set();
+
+export const cartStore = {
+  add(item) {
+    items = [...items, item];          // a NEW array, so the snapshot changes
+    listeners.forEach((l) => l());
+  },
+  subscribe(listener) {
+    listeners.add(listener);
+    return () => listeners.delete(listener);
+  },
+  getSnapshot() {
+    return items;
+  },
+};
+```
+
+```jsx file=CartBadge.jsx
+function CartBadge() {
+  const items = useSyncExternalStore(cartStore.subscribe, cartStore.getSnapshot);
+  return <span>{items.length}</span>;
+}
+```
+
+This is, in essence, how libraries like Zustand and Redux connect to React.
+
+</Concept>
+
+<HowItWorks title="Why not just useState + useEffect?">
+
+You could copy the value into state in an effect and subscribe there, but with concurrent rendering that can **tear**: during one interruptible render, some components might read the old value and others the new one, showing an inconsistent screen. `useSyncExternalStore` guarantees every component sees the same snapshot during a render, and forces a synchronous re-render when the store changes.
+
+Two rules for `getSnapshot`: it must return the **same value** when nothing changed (return a cached object, not a new `{...}` each call, or React will loop), and the store must replace its data immutably so a change produces a new snapshot.
+
+</HowItWorks>
+
+<Concept name="useDebugValue" id="debug-value">
+
+`useDebugValue(value)` adds a label to a **custom hook** in React DevTools, so you can see its state at a glance:
+
+```jsx file=useOnlineStatus.js
+function useOnlineStatus() {
+  const online = useSyncExternalStore(subscribe, () => navigator.onLine);
+  useDebugValue(online ? "Online" : "Offline");
+  return online;
+}
+```
+
+In DevTools the component's hooks list then shows `OnlineStatus: "Offline"`. It does nothing in production and isn't needed in every hook; use it in shared hooks whose internals are hard to read. An optional second argument, a formatting function, defers expensive formatting until DevTools actually inspects the hook.
+
+</Concept>
+
+<Practice>
+
+<FillBlanks
+  id="blanks-sync-store"
+  prompt="Fill in the blanks to read the window width and re-render when it changes."
+  explain="`subscribe` listens to the resize event and returns the cleanup; `getSnapshot` returns the current width."
+>
+
+```jsx
+function subscribe(callback) {
+  window.addEventListener("resize", callback);
+  return () => window.__[removeEventListener]__("resize", callback);
+}
+
+function useWindowWidth() {
+  return __[useSyncExternalStore]__(subscribe, () => window.innerWidth);
+}
+```
+
+</FillBlanks>
+
+<SpotTheBug
+  id="bug-snapshot-new-object"
+  bug={3}
+  prompt="React warns that the result of getSnapshot should be cached, and the component renders in a loop. Click the buggy line."
+  explain="`getSnapshot` returns a new object every time it's called, so React always thinks the store changed. Return the stored value itself, and create a new one only when the data actually changes."
+>
+
+```js
+const store = {
+  subscribe,
+  getSnapshot: () => ({ count: items.length, items }),
+};
+```
+
+</SpotTheBug>
+
+<TrueFalse
+  id="tf-sync-store"
+  statements={[
+    { text: "`useSyncExternalStore` is meant for data that lives outside React.", answer: true, explain: "Browser APIs, third-party stores, shared non-React state." },
+    { text: "Defining `subscribe` inside the component without memoizing it makes React re-subscribe on every render.", answer: true, explain: "A new function identity looks like a new subscription." },
+    { text: "`useDebugValue` shows a label on screen for users.", answer: false, explain: "It only labels custom hooks in React DevTools." },
+  ]}
+/>
+
+</Practice>
+
+<ReactExercise
+  id="store-hook"
+  title="Connect the cart store"
+  hints={[
+    "Import `useSyncExternalStore` from \"react\".",
+    "`useCartItems` returns `useSyncExternalStore(cartStore.subscribe, cartStore.getSnapshot)`.",
+    "`cartStore.subscribe` and `cartStore.getSnapshot` are already written; you only need the hook.",
+  ]}
+>
+
+`cartStore.js` is a store used by React and by other scripts. Write the `useCartItems()` hook in `useCartItems.js` so components re-render whenever the store changes, even when something **outside** React adds an item.
+
+```js starter file=/cartStore.js
+let items = [];
+const listeners = new Set();
+
+export const cartStore = {
+  add(item) {
+    items = [...items, item];
+    listeners.forEach((listener) => listener());
+  },
+  subscribe(listener) {
+    listeners.add(listener);
+    return () => listeners.delete(listener);
+  },
+  getSnapshot() {
+    return items;
+  },
+};
+```
+
+```jsx starter file=/useCartItems.js
+import { cartStore } from "./cartStore";
+
+export function useCartItems() {
+  return cartStore.getSnapshot(); // reads once, never updates
+}
+```
+
+```jsx starter file=/App.js
+import { cartStore } from "./cartStore";
+import { useCartItems } from "./useCartItems";
+
+export default function App() {
+  const items = useCartItems();
+  return (
+    <>
+      <p>Items in cart: {items.length}</p>
+      <button onClick={() => cartStore.add("Coffee")}>Add coffee</button>
+    </>
+  );
+}
+```
+
+```jsx tests file=/App.test.js
+import { act, fireEvent, render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import App from "./App";
+import { cartStore } from "./cartStore";
+
+test("updates when the button adds through the store", () => {
+  render(<App />);
+  const before = cartStore.getSnapshot().length;
+  fireEvent.click(screen.getByRole("button", { name: "Add coffee" }));
+  expect(screen.getByText(`Items in cart: ${before + 1}`)).toBeInTheDocument();
+});
+
+test("updates when code outside React changes the store", () => {
+  render(<App />);
+  const before = cartStore.getSnapshot().length;
+  act(() => {
+    cartStore.add("Tea");
+  });
+  expect(screen.getByText(`Items in cart: ${before + 1}`)).toBeInTheDocument();
+});
+```
+
+```jsx solution file=/useCartItems.js
+import { useSyncExternalStore } from "react";
+import { cartStore } from "./cartStore";
+
+export function useCartItems() {
+  return useSyncExternalStore(cartStore.subscribe, cartStore.getSnapshot);
+}
+```
+
+</ReactExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "What two functions does `useSyncExternalStore` need?",
+      options: ["`subscribe` and `getSnapshot`", "`get` and `set`", "`mount` and `unmount`", "`read` and `write`"],
+      answer: 0,
+      explain: "Subscribe to changes, and read the current value.",
+    },
+    {
+      q: "Why is it better than copying an external value into state in an effect?",
+      options: ["It avoids tearing: every component sees the same snapshot in a render", "It's shorter", "It doesn't need cleanup", "It works without React"],
+      answer: 0,
+      explain: "Concurrent rendering could otherwise show mixed old and new values.",
+    },
+    {
+      q: "What must `getSnapshot` do when nothing has changed?",
+      options: ["Return a new copy", "Return the same value as last time", "Throw", "Return undefined"],
+      answer: 1,
+      explain: "A new value each call looks like a change every time, causing loops.",
+    },
+  ]}
+/>

@@ -1,0 +1,285 @@
+---
+id: state-snapshot
+title: "useState in depth: snapshots, batching and updaters"
+summary: Understand why state looks "late" right after you set it, how React batches updates, when to pass an updater function, and how to initialize state lazily.
+minutes: 18
+tags: [useState, snapshot, batching, updater function, lazy initial state, stale state]
+---
+
+You know the basics of `useState`. This lesson explains the one idea that clears up almost every state puzzle: **each render has its own fixed values. State is a snapshot.**
+
+<Concept name="Setting state doesn't change the variable" id="snapshot">
+
+Click the button and look at the console. It logs the **old** value, even though `setQty` was just called.
+
+<ReactPlayground height={280} console>
+
+```jsx file=/App.js
+import { useState } from "react";
+
+export default function App() {
+  const [qty, setQty] = useState(1);
+
+  function handleClick() {
+    setQty(qty + 1);
+    console.log("right after setQty:", qty);
+  }
+
+  return <button onClick={handleClick}>Quantity: {qty}</button>;
+}
+```
+
+</ReactPlayground>
+
+`qty` is a `const` in this render. `setQty` doesn't change it; it asks React for a **new render**, and only in that render will `useState` return the new value. The event handler belongs to the render it was created in, so it sees that render's `qty` forever.
+
+</Concept>
+
+<Concept name="Three updates, one result" id="batching">
+
+What happens when one click calls the setter three times? Step through it.
+
+<StateTimeline
+  title="Calling setQty(qty + 1) three times"
+  frames={[
+    { line: 2, render: 1, snapshot: { qty: "1" }, screen: "Quantity: 1", note: "First render: useState gives qty = 1. The handler below is created with this snapshot." },
+    { line: 5, render: 1, snapshot: { qty: "1" }, queue: [{ update: "setQty(1 + 1)", result: "replace with 2" }], screen: "Quantity: 1", note: "Click. qty is 1 in this snapshot, so setQty(qty + 1) queues \"replace with 2\". The screen doesn't change yet." },
+    { line: 6, render: 1, snapshot: { qty: "1" }, queue: [{ update: "setQty(1 + 1)", result: "replace with 2" }, { update: "setQty(1 + 1)", result: "replace with 2" }], screen: "Quantity: 1", note: "qty is still 1, so the second call queues \"replace with 2\" again." },
+    { line: 7, render: 1, snapshot: { qty: "1" }, queue: [{ update: "setQty(1 + 1)", result: "replace with 2" }, { update: "setQty(1 + 1)", result: "replace with 2" }, { update: "setQty(1 + 1)", result: "replace with 2" }], screen: "Quantity: 1", note: "And a third time. React batches all three: it waits until the handler finishes before rendering." },
+    { line: 2, render: 2, snapshot: { qty: "2" }, screen: "Quantity: 2", note: "React processes the queue: replace with 2, replace with 2, replace with 2. The result is 2, not 4. Render 2 sees qty = 2." },
+  ]}
+>
+
+```jsx
+function Picker() {
+  const [qty, setQty] = useState(1);
+
+  function addThree() {
+    setQty(qty + 1);
+    setQty(qty + 1);
+    setQty(qty + 1);
+  }
+  return <button onClick={addThree}>Quantity: {qty}</button>;
+}
+```
+
+</StateTimeline>
+
+**Batching:** React collects every state update from one event (and in React 18+, from timeouts and promises too) and renders **once** at the end. That's faster, and you never see a half-updated screen.
+
+</Concept>
+
+<Concept name="Updater functions" id="updaters">
+
+When the next value depends on the previous one, pass a **function** to the setter. React puts the function itself in the queue and, while processing it, passes in the result of the update before it.
+
+<StateTimeline
+  title="Calling setQty(q => q + 1) three times"
+  frames={[
+    { line: 5, render: 1, snapshot: { qty: "1" }, queue: [{ update: "q => q + 1" }], screen: "Quantity: 1", note: "The function goes into the queue as it is. It hasn't run yet." },
+    { line: 7, render: 1, snapshot: { qty: "1" }, queue: [{ update: "q => q + 1" }, { update: "q => q + 1" }, { update: "q => q + 1" }], screen: "Quantity: 1", note: "Three functions are queued." },
+    { line: 2, render: 2, snapshot: { qty: "4" }, queue: [{ update: "q => q + 1", result: "1 + 1 = 2" }, { update: "q => q + 1", result: "2 + 1 = 3" }, { update: "q => q + 1", result: "3 + 1 = 4" }], screen: "Quantity: 4", note: "While rendering, React runs each updater with the result of the previous one: 1 → 2 → 3 → 4. Render 2 sees qty = 4." },
+  ]}
+>
+
+```jsx
+function Picker() {
+  const [qty, setQty] = useState(1);
+
+  function addThree() {
+    setQty((q) => q + 1);
+    setQty((q) => q + 1);
+    setQty((q) => q + 1);
+  }
+  return <button onClick={addThree}>Quantity: {qty}</button>;
+}
+```
+
+</StateTimeline>
+
+Use an updater whenever the new state is calculated **from the old state** and more than one update might be queued: several calls in a row, a callback from a timer or a subscription, or a `useCallback` with no dependencies. Name the parameter after the state (`q` for `qty`, `prev`, or `c` for `cart`).
+
+</Concept>
+
+<Concept name="Lazy initial state" id="lazy-init">
+
+The argument to `useState` is only used on the first render, but if it's an expensive call it still **runs** on every render:
+
+```jsx file=Cart.jsx
+const [cart, setCart] = useState(loadCartFromStorage());       // runs every render
+const [cart, setCart] = useState(() => loadCartFromStorage());  // runs once
+```
+
+Passing a **function** (not calling it) tells React to call it only for the first render. Use it for reading localStorage, parsing big data or building large initial structures.
+
+</Concept>
+
+<GoDeeper title="Objects in state: replace, don't merge">
+
+Unlike the old `this.setState`, a hook's setter **replaces** the value; it doesn't merge objects:
+
+```jsx file=Form.jsx
+const [form, setForm] = useState({ name: "", email: "" });
+
+setForm({ name: "Ada" });               // email is gone!
+setForm({ ...form, name: "Ada" });      // keeps email
+setForm((f) => ({ ...f, name: "Ada" })); // same, safe with queued updates
+```
+
+If two values change independently, it's often simpler to use two `useState` calls. If several values change together according to rules, `useReducer` (next lesson) fits better.
+
+</GoDeeper>
+
+<Practice>
+
+<TraceState
+  id="trace-updates"
+  track="what the button shows after the click"
+  steps={[
+    { action: "`setQty(qty + 5); setQty(qty + 1);` (qty was 0)", answer: "1" },
+    { action: "`setQty((q) => q + 5); setQty((q) => q + 1);` (qty was 0)", answer: "6" },
+    { action: "`setQty(qty + 5); setQty((q) => q + 1);` (qty was 0)", answer: "6" },
+    { action: "`setQty((q) => q + 5); setQty(42);` (qty was 0)", answer: "42" },
+  ]}
+  explain="A value replaces whatever was queued before it; an updater builds on it. Process the queue left to right: 0+5 then replace with 1 → 1; 0+5+1 → 6; replace with 5 then +1 → 6; +5 then replace with 42 → 42."
+  hint="Write the queue down, then process it in order starting from 0."
+/>
+
+<Choice
+  id="choice-log-after-set"
+  q={"`const [name, setName] = useState(\"Tea\")`. A handler runs `setName(\"Coffee\"); console.log(name);`. What's logged?"}
+  options={["`Coffee`", "`Tea`", "`undefined`", "An error"]}
+  answer={1}
+  explain="`name` is a constant in this render's snapshot. The new value appears in the next render."
+/>
+
+<FillBlanks
+  id="blanks-updater"
+  prompt="Fill in the blanks so a timer adds one second every second, with no stale value."
+  explain="The interval callback was created in the first render, so it would always see `seconds = 0`. An updater reads the latest value from React instead."
+>
+
+```jsx
+useEffect(() => {
+  const id = setInterval(() => {
+    setSeconds((__[s]__) => s __[+]__ 1);
+  }, 1000);
+  return () => clearInterval(id);
+}, []);
+```
+
+</FillBlanks>
+
+<TrueFalse
+  id="tf-snapshot"
+  statements={[
+    { text: "Three `set` calls in one click cause three renders.", answer: false, explain: "React batches them into one render after the handler finishes." },
+    { text: "`useState(expensive())` calls `expensive` on every render.", answer: true, explain: "The result is ignored after the first render, but the call still happens. Pass `() => expensive()` instead." },
+    { text: "A hook's setter merges objects, like `this.setState` did.", answer: false, explain: "It replaces the value. Spread the old object yourself." },
+  ]}
+/>
+
+</Practice>
+
+<ReactExercise
+  id="add-three"
+  title="Make +3 add three"
+  hints={[
+    "Each `setQty(qty + 1)` uses the same snapshot, so all three ask for the same value.",
+    "Switch to updater functions: `setQty((q) => q + 1)`.",
+  ]}
+>
+
+The **+3** button should add three, but it only adds one. Fix it while keeping three separate `setQty` calls (the shop's real code does three different steps there).
+
+```jsx starter file=/App.js
+import { useState } from "react";
+
+export default function App() {
+  const [qty, setQty] = useState(0);
+
+  function addThree() {
+    setQty(qty + 1); // step 1: add the item
+    setQty(qty + 1); // step 2: add the free sample
+    setQty(qty + 1); // step 3: add the gift
+  }
+
+  return (
+    <>
+      <p>Items: {qty}</p>
+      <button onClick={addThree}>+3</button>
+    </>
+  );
+}
+```
+
+```jsx tests file=/App.test.js
+import { fireEvent, render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import App from "./App";
+
+test("one click adds three", () => {
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "+3" }));
+  expect(screen.getByText("Items: 3")).toBeInTheDocument();
+});
+
+test("two clicks add six", () => {
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "+3" }));
+  fireEvent.click(screen.getByRole("button", { name: "+3" }));
+  expect(screen.getByText("Items: 6")).toBeInTheDocument();
+});
+```
+
+```jsx solution file=/App.js
+import { useState } from "react";
+
+export default function App() {
+  const [qty, setQty] = useState(0);
+
+  function addThree() {
+    setQty((q) => q + 1); // step 1: add the item
+    setQty((q) => q + 1); // step 2: add the free sample
+    setQty((q) => q + 1); // step 3: add the gift
+  }
+
+  return (
+    <>
+      <p>Items: {qty}</p>
+      <button onClick={addThree}>+3</button>
+    </>
+  );
+}
+```
+
+</ReactExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "What does \"state is a snapshot\" mean?",
+      options: ["State is saved as an image", "Each render sees fixed state values; setting state schedules a new render with new values", "State can't change", "State is copied to localStorage"],
+      answer: 1,
+      explain: "That's why a handler logs the old value right after calling the setter.",
+    },
+    {
+      q: "`setCount(count + 1)` twice in one click, starting from 5. What's the next render's `count`?",
+      options: ["5", "6", "7", "An error"],
+      answer: 1,
+      explain: "Both calls ask for 5 + 1. Use `setCount((c) => c + 1)` to get 7.",
+    },
+    {
+      q: "When should you pass an updater function?",
+      options: ["When the new state depends on the previous one and several updates may be queued", "Always, for every update", "Only for strings", "Only in class components"],
+      answer: 0,
+      explain: "It's harmless elsewhere, but that's when it actually changes the result.",
+    },
+    {
+      q: "What does `useState(() => readCart())` do differently from `useState(readCart())`?",
+      options: ["Nothing", "It only calls `readCart` on the first render", "It stores the function in state", "It makes the state read-only"],
+      answer: 1,
+      explain: "Lazy initialization skips the work on every later render.",
+    },
+  ]}
+/>

@@ -1,0 +1,254 @@
+---
+id: custom-hooks
+title: Custom hooks
+summary: Extract stateful logic into your own use-functions, like useLocalStorage, useDebounce and useCart, so components stay small and logic is shared.
+minutes: 18
+tags: [custom hooks, useLocalStorage, useDebounce, useCart, reuse, composition]
+---
+
+A **custom hook** is a function whose name starts with `use` and that calls other hooks. It's how you share **stateful logic** between components, the problem that classes never solved well.
+
+<Concept name="Extract a hook" id="extract">
+
+This search box debounces: it waits until the user stops typing for 400 ms before "searching". The debounce logic is a hook, so any component can reuse it.
+
+<ReactPlayground height={360}>
+
+```jsx file=/App.js
+import { useState } from "react";
+import { useDebounce } from "./useDebounce";
+
+const MENU = ["Coffee", "Iced Coffee", "Tea", "Iced Tea", "Hot Chocolate", "Bagel"];
+
+export default function App() {
+  const [text, setText] = useState("");
+  const query = useDebounce(text, 400);
+  const results = MENU.filter((m) => m.toLowerCase().includes(query.toLowerCase()));
+
+  return (
+    <>
+      <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Search the menu" />
+      <p className="hint">Searching for: "{query}"</p>
+      <ul>
+        {results.map((r) => (
+          <li key={r}>{r}</li>
+        ))}
+      </ul>
+    </>
+  );
+}
+```
+
+```js file=/useDebounce.js
+import { useEffect, useState } from "react";
+
+// Returns `value`, but only after it has stopped changing for `delay` ms
+export function useDebounce(value, delay) {
+  const [debounced, setDebounced] = useState(value);
+
+  useEffect(() => {
+    const id = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(id); // a new keystroke cancels the pending update
+  }, [value, delay]);
+
+  return debounced;
+}
+```
+
+```css file=/styles.css
+body { font-family: system-ui, sans-serif; padding: 16px; }
+.hint { color: #777; font-size: 13px; }
+```
+
+</ReactPlayground>
+
+- The name **must** start with `use`, so React (and the lint rule) know the Rules of Hooks apply inside it.
+- It can take any arguments and return anything: a value, a pair like `[value, setValue]`, or an object.
+- Inside, it can use every hook, including other custom hooks.
+
+</Concept>
+
+<Concept name="Hooks share logic, not state" id="not-state">
+
+Each component that calls a custom hook gets its **own** copy of the state inside it. Two search boxes using `useDebounce` don't share a debounced value; they share the **code**. To share actual data, lift it up or put it in context, then wrap the context in a hook (like `useCart()` from the useContext lesson).
+
+```jsx file=useCart.js
+// A custom hook that hides where the data comes from
+export function useCart() {
+  const { cart, dispatch } = useContext(CartContext);
+  const count = cart.reduce((n, l) => n + l.qty, 0);
+  const total = cart.reduce((s, l) => s + l.qty * l.price, 0);
+  const add = (product) => dispatch({ type: "added", product });
+  return { cart, count, total, add };
+}
+```
+
+Components now read `const { count } = useCart()` and never see reducers or context.
+
+</Concept>
+
+<HowItWorks title="A custom hook is just a function call">
+
+There's no magic: when `SearchBox` calls `useDebounce(text, 400)`, the `useState` and `useEffect` inside it run as if they were written directly in `SearchBox`. They're stored in `SearchBox`'s hook list, in order. That's why custom hooks follow the same rules (top level, same order) and why each component gets independent state.
+
+</HowItWorks>
+
+<GoDeeper title="When to make a custom hook">
+
+Good candidates:
+
+- logic that uses effects to sync with something (`useOnlineStatus`, `useWindowWidth`, `useInterval`),
+- the same `useState` + `useEffect` pair copied into a second component,
+- giving a long component's logic a name (`useCheckoutForm`), even if it's used once.
+
+Avoid hooks that just wrap one `useEffect` with a vague "lifecycle" name like `useMount`: they hide what the effect syncs with. Name hooks after **what they do** for the component.
+
+</GoDeeper>
+
+<Practice>
+
+<SpotTheBug
+  id="bug-hook-name"
+  bug={1}
+  prompt="The lint rule doesn't check this function for Rules of Hooks mistakes, and a teammate called it inside an `if`. Click the line that causes the confusion."
+  explain="A function that calls hooks must be named `use…` (here `useStock`). Without the prefix, neither React's lint rule nor readers know it's a hook."
+>
+
+```jsx
+function getStock(productId) {
+  const [stock, setStock] = useState(null);
+  useEffect(() => {
+    fetchStock(productId).then(setStock);
+  }, [productId]);
+  return stock;
+}
+```
+
+</SpotTheBug>
+
+<TrueFalse
+  id="tf-custom-hooks"
+  statements={[
+    { text: "Two components calling `useDebounce` share the same debounced value.", answer: false, explain: "Each call has its own state. Hooks share logic, not data." },
+    { text: "A custom hook can call other custom hooks.", answer: true, explain: "Hooks compose like functions." },
+    { text: "A custom hook must return an array like `useState`.", answer: false, explain: "It can return anything: a value, an object, a tuple, or nothing." },
+  ]}
+/>
+
+<FillBlanks
+  id="blanks-use-toggle"
+  prompt="Fill in the blanks to write a `useToggle` hook."
+  explain="It's a function whose name starts with `use`, keeps a boolean in state and returns it with a function that flips it."
+>
+
+```jsx
+function __[useToggle]__(initial = false) {
+  const [on, setOn] = __[useState]__(initial);
+  const toggle = () => setOn((v) => __[!v]__);
+  return [on, toggle];
+}
+```
+
+</FillBlanks>
+
+</Practice>
+
+<ReactExercise
+  id="use-local-storage"
+  title="useLocalStorage"
+  hints={[
+    "Start state from storage, lazily: `useState(() => { const saved = localStorage.getItem(key); return saved !== null ? JSON.parse(saved) : initial; })`.",
+    "Save on change with an effect: `useEffect(() => { localStorage.setItem(key, JSON.stringify(value)); }, [key, value]);`",
+    "Return `[value, setValue]`, like `useState`.",
+  ]}
+>
+
+Write `useLocalStorage(key, initialValue)` in `useLocalStorage.js`. It works like `useState`, but the value is **saved to `localStorage`** (as JSON) whenever it changes, and **read back** when the component mounts again, so the gift note survives a page reload.
+
+```jsx starter file=/useLocalStorage.js
+import { useState } from "react";
+
+export function useLocalStorage(key, initialValue) {
+  return useState(initialValue);
+}
+```
+
+```jsx starter file=/App.js
+import { useLocalStorage } from "./useLocalStorage";
+
+export default function App() {
+  const [note, setNote] = useLocalStorage("gift-note", "");
+  return (
+    <label>
+      Gift note <input value={note} onChange={(e) => setNote(e.target.value)} />
+    </label>
+  );
+}
+```
+
+```jsx tests file=/App.test.js
+import { fireEvent, render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import App from "./App";
+
+beforeEach(() => localStorage.clear());
+
+test("starts with the initial value", () => {
+  render(<App />);
+  expect(screen.getByLabelText("Gift note")).toHaveValue("");
+});
+
+test("saves changes to localStorage as JSON", () => {
+  render(<App />);
+  fireEvent.change(screen.getByLabelText("Gift note"), { target: { value: "Happy birthday!" } });
+  expect(localStorage.getItem("gift-note")).toBe(JSON.stringify("Happy birthday!"));
+});
+
+test("reads the saved value when mounted again", () => {
+  localStorage.setItem("gift-note", JSON.stringify("Congrats!"));
+  render(<App />);
+  expect(screen.getByLabelText("Gift note")).toHaveValue("Congrats!");
+});
+```
+
+```jsx solution file=/useLocalStorage.js
+import { useEffect, useState } from "react";
+
+export function useLocalStorage(key, initialValue) {
+  const [value, setValue] = useState(() => {
+    const saved = localStorage.getItem(key);
+    return saved !== null ? JSON.parse(saved) : initialValue;
+  });
+
+  useEffect(() => {
+    localStorage.setItem(key, JSON.stringify(value));
+  }, [key, value]);
+
+  return [value, setValue];
+}
+```
+
+</ReactExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "What makes a function a custom hook?",
+      options: ["It's exported from a file called hooks.js", "Its name starts with `use` and it calls other hooks", "It returns JSX", "It's wrapped in `memo`"],
+      answer: 1,
+      explain: "The `use` prefix is how React tooling recognizes hooks.",
+    },
+    {
+      q: "Two components call `useLocalStorage(\"theme\", \"light\")`. One sets it to dark. Does the other re-render?",
+      options: ["Yes, they share state", "No: each has its own state (they only share the storage key on the next mount)", "Only in StrictMode", "Only if they're siblings"],
+      answer: 1,
+      explain: "Hooks share logic, not state. To sync live, use context or an external store.",
+    },
+    {
+      q: "Which are good custom hooks?",
+      options: ["`useOnlineStatus()`", "`useDebounce(value, ms)`", "`useCart()` wrapping a context", "`useMount(fn)` that hides what an effect does"],
+      answer: [0, 1, 2],
+      explain: "Name hooks after what they provide, not after lifecycle moments.",
+    },
+  ]}
+/>

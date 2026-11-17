@@ -1,0 +1,319 @@
+---
+id: use-context
+title: useContext
+summary: Share data with any component below a provider, without passing props through every layer, and build a CartProvider with a useCart hook.
+minutes: 18
+tags: [useContext, createContext, Provider, prop drilling, CartProvider, theme, React 19]
+---
+
+Some data is needed all over the app: the cart, the logged-in user, the theme, the language. Passing it as props through every layer is **prop drilling**. **Context** lets a parent make a value available to **every** component below it, however deep.
+
+<Concept name="Create, provide, use" id="create-provide-use">
+
+<ReactPlayground height={360}>
+
+```jsx file=/App.js
+import { createContext, useContext, useState } from "react";
+
+// 1. Create a context, with a default for components outside any provider
+const ThemeContext = createContext("light");
+
+function Button({ children }) {
+  // 3. Read it anywhere below the provider
+  const theme = useContext(ThemeContext);
+  return <button className={`btn ${theme}`}>{children}</button>;
+}
+
+function Toolbar() {
+  // Toolbar doesn't know or care about the theme
+  return (
+    <div className="toolbar">
+      <Button>Add to cart</Button> <Button>Wishlist</Button>
+    </div>
+  );
+}
+
+export default function App() {
+  const [theme, setTheme] = useState("light");
+  return (
+    // 2. Provide a value to everything inside
+    <ThemeContext value={theme}>
+      <label>
+        <input type="checkbox" checked={theme === "dark"} onChange={(e) => setTheme(e.target.checked ? "dark" : "light")} /> Dark buttons
+      </label>
+      <Toolbar />
+    </ThemeContext>
+  );
+}
+```
+
+```css file=/styles.css
+body { font-family: system-ui, sans-serif; padding: 16px; }
+.toolbar { margin-top: 12px; }
+.btn { border-radius: 8px; padding: 8px 12px; font-weight: 600; border: 1px solid #ccc; }
+.btn.light { background: white; color: #222; }
+.btn.dark { background: #1a1d2e; color: #61dafb; border-color: #1a1d2e; }
+```
+
+</ReactPlayground>
+
+1. **`createContext(defaultValue)`** creates the context. The default is used only by components with no provider above them.
+2. **`<ThemeContext value={...}>`** provides a value to its whole subtree. (Before React 19 you wrote `<ThemeContext.Provider value={...}>`; that still works.)
+3. **`useContext(ThemeContext)`** reads the value from the **nearest** provider above.
+
+When the provided value changes, every component that reads that context re-renders with the new value.
+
+</Concept>
+
+<Concept name="A CartProvider and a useCart hook" id="cart-provider">
+
+The real-world pattern combines context with state (or a reducer) in one **provider component**, plus a small custom hook so components never touch the context object directly.
+
+```jsx file=CartContext.jsx
+import { createContext, useContext, useReducer } from "react";
+import { cartReducer } from "./cartReducer";
+
+const CartContext = createContext(null);
+
+export function CartProvider({ children }) {
+  const [cart, dispatch] = useReducer(cartReducer, []);
+  const count = cart.reduce((n, l) => n + l.qty, 0);
+  return <CartContext value={{ cart, count, dispatch }}>{children}</CartContext>;
+}
+
+export function useCart() {
+  const value = useContext(CartContext);
+  if (!value) throw new Error("useCart must be used inside <CartProvider>");
+  return value;
+}
+```
+
+```jsx file=main.jsx
+<CartProvider>
+  <App />          {/* any component inside can call useCart() */}
+</CartProvider>
+```
+
+Now `Header` calls `const { count } = useCart()`, `ProductCard` calls `const { dispatch } = useCart()`, and nothing in between passes cart props. The `null` default plus the check in `useCart` gives a clear error if someone forgets the provider.
+
+</Concept>
+
+<HowItWorks title="How React finds the value">
+
+When a component calls `useContext(SomeContext)`, React walks **up** the tree from that component to the nearest `<SomeContext>` provider and returns its `value`. No provider found? It returns the default from `createContext`.
+
+React also remembers which components read which context. When a provider's `value` changes (compared with `Object.is`), React re-renders those readers, **even if they're inside `memo` components** whose props didn't change.
+
+</HowItWorks>
+
+<GoDeeper title="Context and performance">
+
+Two things to know as apps grow:
+
+- **A new object every render re-renders every reader.** `value={{ cart, count, dispatch }}` is a new object each time the provider renders. If the provider re-renders for unrelated reasons, wrap the value in `useMemo(() => ({ cart, count, dispatch }), [cart, count])`.
+- **Split contexts by how often they change.** Put `dispatch` (which never changes) in its own context and `cart` in another, so components that only dispatch don't re-render when the cart changes.
+
+Context is for sharing values, not a full state manager. For large, frequently changing app state, libraries like Zustand subscribe components to just the slices they use (React Ecosystem course).
+
+</GoDeeper>
+
+<Practice>
+
+<OrderLines
+  id="order-context"
+  prompt="Order the lines to create a context, provide it, and read it."
+  explain="Create the context at module level, provide it high in the tree, and read it in a component below."
+>
+
+```jsx
+const UserContext = createContext(null);
+function Greeting() {
+  const user = useContext(UserContext);
+  return <p>Hi, {user.name}!</p>;
+}
+export default function App() {
+  return <UserContext value={{ name: "Ada" }}><Greeting /></UserContext>;
+}
+```
+
+</OrderLines>
+
+<Choice
+  id="choice-no-provider"
+  q={"A component calls `useContext(ThemeContext)`, but there's no `<ThemeContext>` provider above it. `ThemeContext` was created with `createContext(\"light\")`. What does it get?"}
+  options={["`undefined`", "`\"light\"`", "An error", "`null`"]}
+  answer={1}
+  explain="Without a provider, `useContext` returns the default passed to `createContext`."
+/>
+
+<TrueFalse
+  id="tf-context"
+  statements={[
+    { text: "Context removes the need to pass a prop through components that don't use it.", answer: true, explain: "That's its main job: fixing prop drilling." },
+    { text: "A component reading a context re-renders when the provider's value changes, even inside `memo`.", answer: true, explain: "Context changes skip `memo`'s props check." },
+    { text: "You should put all of an app's state into one big context.", answer: false, explain: "Every reader would re-render on every change. Split contexts, keep local state local." },
+    { text: "In React 19 you can render `<MyContext value={x}>` instead of `<MyContext.Provider value={x}>`.", answer: true, explain: "Both work; the shorter form is new in React 19." },
+  ]}
+/>
+
+<SpotTheBug
+  id="bug-context-outside"
+  bug={11}
+  prompt="`Header` always shows 0 items, even after adding to the cart. Click the buggy line."
+  explain="`Header` is rendered outside `<CartProvider>`, so `useContext(CartContext)` finds no provider and returns the default, `{ count: 0 }`. Move `<Header />` inside the provider."
+>
+
+```jsx
+const CartContext = createContext({ count: 0 });
+
+function Header() {
+  const { count } = useContext(CartContext);
+  return <header>Cart: {count}</header>;
+}
+
+export default function App() {
+  return (
+    <>
+      <Header />
+      <CartProvider>
+        <ProductList />
+      </CartProvider>
+    </>
+  );
+}
+```
+
+</SpotTheBug>
+
+</Practice>
+
+<ReactExercise
+  id="cart-context"
+  title="Share the cart with context"
+  hints={[
+    "In `CartContext.js`, create `const CartContext = createContext(null);` and render `<CartContext value={{ count, add }}>{children}</CartContext>` in `CartProvider`.",
+    "`CartProvider` holds the state: `const [count, setCount] = useState(0);` and `const add = () => setCount((c) => c + 1);`.",
+    "`useCart` returns `useContext(CartContext)`, and throws if it's `null`.",
+  ]}
+>
+
+`Header` and `AddButton` are far apart and shouldn't pass props through `Layout`. Finish `CartContext.js`: a `CartProvider` that holds a `count` and an `add` function, and a `useCart()` hook that returns them (and throws a helpful error outside the provider). `App.js` already uses them.
+
+```jsx starter file=/CartContext.js
+export function CartProvider({ children }) {
+  return children;
+}
+
+export function useCart() {
+  return { count: 0, add: () => {} };
+}
+```
+
+```jsx starter file=/App.js
+import { CartProvider, useCart } from "./CartContext";
+
+function Header() {
+  const { count } = useCart();
+  return <header>Cart: <span aria-label="Items in cart">{count}</span></header>;
+}
+
+function AddButton() {
+  const { add } = useCart();
+  return <button onClick={add}>Add coffee</button>;
+}
+
+function Layout() {
+  return (
+    <main>
+      <p>Today's special: coffee</p>
+      <AddButton />
+    </main>
+  );
+}
+
+export default function App() {
+  return (
+    <CartProvider>
+      <Header />
+      <Layout />
+    </CartProvider>
+  );
+}
+```
+
+```jsx tests file=/App.test.js
+import { fireEvent, render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import App from "./App";
+import { useCart } from "./CartContext";
+
+test("the header updates when a far-away button adds", () => {
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "Add coffee" }));
+  fireEvent.click(screen.getByRole("button", { name: "Add coffee" }));
+  expect(screen.getByLabelText("Items in cart")).toHaveTextContent("2");
+});
+
+test("useCart throws outside the provider", () => {
+  function Orphan() {
+    useCart();
+    return null;
+  }
+  const error = console.error;
+  console.error = () => {};
+  try {
+    expect(() => render(<Orphan />)).toThrow();
+  } finally {
+    console.error = error;
+  }
+});
+```
+
+```jsx solution file=/CartContext.js
+import { createContext, useContext, useState } from "react";
+
+const CartContext = createContext(null);
+
+export function CartProvider({ children }) {
+  const [count, setCount] = useState(0);
+  const add = () => setCount((c) => c + 1);
+  return <CartContext value={{ count, add }}>{children}</CartContext>;
+}
+
+export function useCart() {
+  const value = useContext(CartContext);
+  if (!value) throw new Error("useCart must be used inside <CartProvider>");
+  return value;
+}
+```
+
+</ReactExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "What problem does context solve?",
+      options: ["Slow rendering", "Passing a value through many layers that don't use it", "Fetching data", "Styling"],
+      answer: 1,
+      explain: "Any component under the provider can read the value directly.",
+    },
+    {
+      q: "Which provider does `useContext` read from?",
+      options: ["The topmost one in the app", "The nearest one above the component", "Any one with the same value", "The first one created"],
+      answer: 1,
+      explain: "Providers can be nested; the closest one wins.",
+    },
+    {
+      q: "Why wrap a context in a custom hook like `useCart()`?",
+      options: ["It's required by React", "It hides the context object, and can throw a clear error when the provider is missing", "It makes the context faster", "It stops re-renders"],
+      answer: 1,
+      explain: "Components call `useCart()` and never import the context itself.",
+    },
+    {
+      q: "A provider renders `value={{ user, logout }}`. What happens when the provider re-renders for an unrelated reason?",
+      options: ["Nothing", "Every reader re-renders, because the value is a new object", "Only `memo` components re-render", "React throws a warning"],
+      answer: 1,
+      explain: "Memoize the value with `useMemo` if that's a problem.",
+    },
+  ]}
+/>

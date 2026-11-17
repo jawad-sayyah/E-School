@@ -67,7 +67,12 @@ export function RenderCycle({
         className="my-0"
         actions={<StepperControls stepper={stepper} count={frames.length} />}
       >
-        <div className={cn('grid bg-ed-bg', code && 'lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]')}>
+        <div
+          className={cn(
+            'grid grid-cols-1 bg-ed-bg',
+            code && 'lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]',
+          )}
+        >
           {code && <CodeLines code={code} current={frame?.line} />}
           <div className="space-y-3 border-t border-ed-line p-3 lg:border-t-0 lg:border-l">
             <ol className="grid grid-cols-3 gap-1.5" aria-label="Phases">

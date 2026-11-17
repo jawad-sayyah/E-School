@@ -163,7 +163,20 @@ export const COURSES: CourseInfo[] = [
     color: 'react',
     description:
       'Every built-in hook, from useState to useSyncExternalStore, plus custom hooks and the Rules of Hooks.',
-    lessons: [],
+    lessons: [
+      'why-hooks',
+      'state-snapshot',
+      'use-reducer',
+      'use-context',
+      'use-effect',
+      'effects-in-practice',
+      'layout-effects',
+      'use-id-imperative',
+      'performance-hooks',
+      'use-sync-external-store',
+      'custom-hooks',
+      'review',
+    ],
     phase: 6,
   },
   {

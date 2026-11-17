@@ -1,0 +1,263 @@
+---
+id: use-effect
+title: useEffect
+summary: Synchronize a component with something outside React (the page title, a timer, a connection), control when it re-runs with dependencies, and clean up after it.
+minutes: 20
+tags: [useEffect, side effects, dependencies, cleanup, synchronization, timeline]
+---
+
+Rendering must be pure: no timers, no network, no touching the page outside React. But apps need those things. **Effects** are where they go: code that runs **after** React has updated the screen, to keep something outside React in sync with your component.
+
+<Concept name="The shape of an effect" id="shape">
+
+```jsx file=Effect.jsx
+useEffect(() => {
+  // setup: start syncing with the outside world
+  const connection = connect(roomId);
+  return () => {
+    // cleanup: stop syncing (optional)
+    connection.disconnect();
+  };
+}, [roomId]); // dependencies: re-sync when these change
+```
+
+- The **setup** function runs after the component appears on screen.
+- The **cleanup** function (if you return one) runs before the effect runs again, and when the component is removed.
+- The **dependency array** lists the values from the component the effect uses. React re-runs the effect only when one of them changed since the last render.
+
+</Concept>
+
+<Concept name="The timeline" id="timeline">
+
+Step through a product page that sets the browser tab's title and logs a "viewing" message. Watch exactly when the effect and its cleanup run.
+
+<EffectTimeline
+  title="An effect with a dependency, from first render to unmount"
+  frames={[
+    { stage: "render", line: 10, log: "Render #1 with productId = 1", screen: "(nothing yet)", note: "React calls ProductPage. Rendering only returns JSX; the effect is just registered, not run." },
+    { stage: "commit", log: "DOM updated: the Coffee page is inserted", screen: "Coffee · $4", note: "React commits the result to the DOM." },
+    { stage: "paint", log: "Browser paints: the user sees Coffee", screen: "Coffee · $4", note: "The browser draws the screen. useEffect waits until after this, so effects never delay what the user sees." },
+    { stage: "effect", line: 3, log: "Effect runs: title = Coffee, logs 'viewing 1'", deps: [{ name: "productId", next: "1" }], screen: "Coffee · $4", out: "viewing 1", note: "First render, so the effect always runs." },
+    { stage: "render", line: 10, log: "Render #2 with productId = 2 (user picked Tea)", deps: [{ name: "productId", prev: "1", next: "2" }], screen: "Coffee · $4", note: "The parent passes a new productId. React renders and compares the dependencies: 1 → 2 changed, so the effect must re-run after the commit." },
+    { stage: "paint", log: "DOM updated and painted: the user sees Tea", screen: "Tea · $2", note: "Commit and paint happen first, as before." },
+    { stage: "cleanup", line: 6, log: "Cleanup of render #1's effect: logs 'left 1'", screen: "Tea · $2", out: "left 1", note: "Before running the new effect, React runs the old effect's cleanup. Note it still sees productId = 1: it belongs to render #1." },
+    { stage: "effect", line: 3, log: "Effect of render #2 runs: title = Tea, logs 'viewing 2'", screen: "Tea · $2", out: "viewing 2", note: "Then the new effect runs with productId = 2." },
+    { stage: "render", line: 10, log: "Render #3: the price changed, productId still 2", deps: [{ name: "productId", prev: "2", next: "2" }], screen: "Tea · $2.50", note: "Same dependency value, so after the commit React skips both the cleanup and the effect." },
+    { stage: "unmount", line: 6, log: "Unmount: cleanup logs 'left 2'", screen: "(page closed)", out: "left 2", note: "When the component is removed, React runs the last cleanup. Every setup is paired with exactly one cleanup." },
+  ]}
+>
+
+```jsx
+function ProductPage({ productId, product }) {
+  useEffect(() => {
+    document.title = product.name;
+    console.log("viewing", productId);
+    return () => {
+      console.log("left", productId);
+    };
+  }, [productId]);
+
+  return <h1>{product.name} · ${product.price}</h1>;
+}
+```
+
+</EffectTimeline>
+
+</Concept>
+
+<Concept name="The three dependency forms" id="deps">
+
+| You write | The effect runs |
+| --- | --- |
+| `useEffect(fn, [a, b])` | after the first render, then whenever `a` or `b` changed |
+| `useEffect(fn, [])` | once, after the first render (cleanup on unmount) |
+| `useEffect(fn)` | after **every** render |
+
+The array isn't a setting you choose freely: it must list **every** value from the component that the effect reads (props, state, and functions or variables defined in the component). The `react-hooks/exhaustive-deps` lint rule tells you what's missing. If the effect re-runs too often, change the code (move things inside the effect, use an updater function), not the array.
+
+</Concept>
+
+<HowItWorks title="Think in synchronization, not lifecycles">
+
+It's tempting to read `[]` as "on mount" and the cleanup as "on unmount". A better mental model: **an effect describes how to start and stop syncing with something, for the current props and state.** React then makes sure the outside world matches the latest render: when the dependencies change, it stops the old sync (cleanup) and starts a new one (setup).
+
+That's why StrictMode runs setup → cleanup → setup in development: if your effect is a correct "start/stop" pair, doing it twice changes nothing.
+
+</HowItWorks>
+
+<GoDeeper title="Why effects run after paint">
+
+`useEffect` runs after the browser has painted, so slow effect code never makes the screen feel stuck. The cost is that if an effect changes something visible (like measuring an element and moving a tooltip), the user can see a one-frame flicker. For that rare case there's `useLayoutEffect`, which runs after the commit but **before** paint. It's covered two lessons from now.
+
+</GoDeeper>
+
+<Practice>
+
+<OrderLines
+  id="order-effect-timeline"
+  prompt="A component's dependency changes. Put the steps in the order React does them."
+  explain="Render, commit and paint come first. Then the previous effect is cleaned up, and finally the new effect runs."
+>
+
+```js
+// The component renders with the new value
+// React updates the DOM
+// The browser paints the screen
+// The previous effect's cleanup runs
+// The new effect runs
+```
+
+</OrderLines>
+
+<SortBuckets
+  id="buckets-effect-or-not"
+  prompt="Which of these belong in an effect?"
+  buckets={["Effect", "Not an effect"]}
+  items={[
+    ["Setting `document.title` from state", 0],
+    ["Subscribing to a WebSocket for live stock", 0],
+    ["Starting an interval timer", 0],
+    ["Calculating the cart total from the cart", 1],
+    ["Sending an order when the user clicks Buy", 1],
+    ["Filtering a list by the search text", 1],
+  ]}
+  explain="Effects sync with the outside world. Calculations belong in render, and things caused by a specific user action belong in that event handler."
+/>
+
+<SpotTheBug
+  id="bug-missing-cleanup"
+  bug={[3, 4, 5]}
+  prompt="After opening and closing the timer panel a few times, the seconds go up by 3 at a time. Click a line of the effect that causes it."
+  explain="The effect starts an interval but never stops it. Each time the panel mounts, another interval piles up. Return a cleanup: `return () => clearInterval(id);`."
+>
+
+```jsx
+function Timer() {
+  const [seconds, setSeconds] = useState(0);
+  useEffect(() => {
+    setInterval(() => setSeconds((s) => s + 1), 1000);
+  }, []);
+  return <p>{seconds}s</p>;
+}
+```
+
+</SpotTheBug>
+
+<MatchPairs
+  id="match-deps"
+  prompt="Match each dependency array with when the effect runs."
+  columns={["Dependencies", "Runs"]}
+  pairs={[
+    ["`[productId]`", "After the first render, and when productId changes"],
+    ["`[]`", "Only after the first render"],
+    ["no array", "After every render"],
+    ["`[a, b]`", "When either `a` or `b` changed"],
+  ]}
+/>
+
+</Practice>
+
+<ReactExercise
+  id="document-title"
+  title="Show the cart count in the tab title"
+  hints={[
+    "Import `useEffect` and add one effect that sets `document.title`.",
+    "Use a ternary on `count > 0`: one branch builds the text with a template string, the other is just `\"MiniShop\"`.",
+    "The effect reads `count`, so its dependency array is `[count]`.",
+  ]}
+>
+
+Keep the browser tab's title in sync with the cart: **MiniShop** when it's empty, and **(2) MiniShop** when it has 2 items.
+
+```jsx starter file=/App.js
+import { useState } from "react";
+
+export default function App() {
+  const [count, setCount] = useState(0);
+
+  return (
+    <>
+      <p>Items: {count}</p>
+      <button onClick={() => setCount(count + 1)}>Add</button>
+      <button onClick={() => setCount(0)}>Empty</button>
+    </>
+  );
+}
+```
+
+```jsx tests file=/App.test.js
+import { fireEvent, render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import App from "./App";
+
+test("the title is MiniShop when the cart is empty", () => {
+  document.title = "";
+  render(<App />);
+  expect(document.title).toBe("MiniShop");
+});
+
+test("the title shows the count", () => {
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "Add" }));
+  fireEvent.click(screen.getByRole("button", { name: "Add" }));
+  expect(document.title).toBe("(2) MiniShop");
+});
+
+test("emptying the cart resets the title", () => {
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "Add" }));
+  fireEvent.click(screen.getByRole("button", { name: "Empty" }));
+  expect(document.title).toBe("MiniShop");
+});
+```
+
+```jsx solution file=/App.js
+import { useEffect, useState } from "react";
+
+export default function App() {
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    document.title = count > 0 ? `(${count}) MiniShop` : "MiniShop";
+  }, [count]);
+
+  return (
+    <>
+      <p>Items: {count}</p>
+      <button onClick={() => setCount(count + 1)}>Add</button>
+      <button onClick={() => setCount(0)}>Empty</button>
+    </>
+  );
+}
+```
+
+</ReactExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "When does a `useEffect` setup run?",
+      options: ["During render", "After React commits and the browser paints", "Before render", "Only when the user clicks"],
+      answer: 1,
+      explain: "Effects run after the screen is updated, so they never block what the user sees.",
+    },
+    {
+      q: "When does the cleanup function run?",
+      options: ["Before the effect runs again", "When the component is removed", "Never in StrictMode", "Before every render"],
+      answer: [0, 1],
+      explain: "Each setup gets exactly one cleanup: before the next setup, or on unmount.",
+    },
+    {
+      q: "An effect reads `userId` and `lang`. What should its dependency array be?",
+      options: ["`[]`", "`[userId]`", "`[userId, lang]`", "No array"],
+      answer: 2,
+      explain: "List every reactive value the effect uses, or it will use stale values.",
+    },
+    {
+      q: "What is an effect for?",
+      options: ["Calculating values for render", "Synchronizing with systems outside React", "Handling clicks", "Replacing state"],
+      answer: 1,
+      explain: "Timers, subscriptions, the document title, non-React widgets, network connections.",
+    },
+  ]}
+/>

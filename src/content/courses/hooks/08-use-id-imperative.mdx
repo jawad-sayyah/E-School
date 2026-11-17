@@ -1,0 +1,238 @@
+---
+id: use-id-imperative
+title: useId and useImperativeHandle
+summary: Generate unique ids that connect labels, inputs and hints in reusable components, and expose a small, deliberate API through a ref.
+minutes: 14
+tags: [useId, accessibility, aria-describedby, htmlFor, useImperativeHandle, ref]
+---
+
+Two small hooks that solve specific problems: **`useId`** makes ids that are unique per component instance (for accessibility attributes), and **`useImperativeHandle`** controls what a parent gets when it puts a ref on your component.
+
+<Concept name="useId" id="use-id">
+
+Accessible forms connect elements by id: `<label htmlFor="email">` points at `<input id="email">`, and `aria-describedby` points at a hint. In a **reusable** component, a hard-coded id breaks as soon as there are two instances on the page. `useId` gives each instance its own.
+
+<ReactPlayground height={360}>
+
+```jsx file=/App.js
+import { useId } from "react";
+
+function Field({ label, hint, ...inputProps }) {
+  const id = useId();
+  const hintId = `${id}-hint`;
+  return (
+    <div className="field">
+      <label htmlFor={id}>{label}</label>
+      <input id={id} aria-describedby={hint ? hintId : undefined} {...inputProps} />
+      {hint && <small id={hintId}>{hint}</small>}
+    </div>
+  );
+}
+
+export default function App() {
+  return (
+    <form>
+      <Field label="Email" type="email" hint="We'll send the receipt here." />
+      <Field label="Gift message" hint="Up to 120 characters." maxLength={120} />
+      <Field label="Coupon code" />
+    </form>
+  );
+}
+```
+
+```css file=/styles.css
+body { font-family: system-ui, sans-serif; padding: 16px; }
+.field { display: grid; gap: 4px; margin-bottom: 12px; max-width: 280px; }
+input { padding: 6px 8px; border: 1px solid #ccc; border-radius: 6px; }
+small { color: #666; }
+```
+
+</ReactPlayground>
+
+Click a label: the right input gets focus. A screen reader reads each input's hint after its label.
+
+- Call `useId` once per component and derive related ids from it (`${id}-hint`).
+- **Don't** use it for list keys; keys should come from your data.
+- It's stable across renders and matches between server and client rendering, which `Math.random()` can't do.
+
+</Concept>
+
+<Concept name="useImperativeHandle" id="imperative-handle">
+
+When a parent passes a `ref` to your component, by default (if you forward it to an element) it gets the whole DOM node and can do anything with it. `useImperativeHandle` replaces that with an object **you** define, so the parent can only use the methods you choose.
+
+```jsx file=SearchBox.jsx
+import { useImperativeHandle, useRef } from "react";
+
+function SearchBox({ ref }) {
+  const inputRef = useRef(null);
+
+  useImperativeHandle(ref, () => ({
+    focus: () => inputRef.current.focus(),
+    clear: () => {
+      inputRef.current.value = "";
+      inputRef.current.focus();
+    },
+  }), []);
+
+  return <input ref={inputRef} type="search" placeholder="Search" />;
+}
+
+// parent
+const searchRef = useRef(null);
+<SearchBox ref={searchRef} />
+<button onClick={() => searchRef.current.clear()}>Clear</button>
+```
+
+The third argument is a dependency array, like `useMemo`: the handle is rebuilt when those values change.
+
+</Concept>
+
+<HowItWorks title="How useId stays unique and stable">
+
+`useId` builds the id from the component's **position in the tree** (the path of parents and sibling indexes), not from a counter or randomness. The same component at the same position gets the same id on every render, and the server and the browser compute identical ids for the same tree, so hydration matches. The exact format is an internal detail (it has changed between React versions), chosen to be valid in attributes but unlikely to clash with ids you write yourself, so never parse or hard-code it.
+
+</HowItWorks>
+
+<Practice>
+
+<SpotTheBug
+  id="bug-hardcoded-id"
+  bug={4}
+  prompt="The checkout form has two `QtyField`s. Clicking the second label focuses the first input. Click the buggy line."
+  explain="Both instances use the same hard-coded id, so the second label points at the first input (and the page has duplicate ids). Use `const id = useId();` and `htmlFor={id}` / `id={id}`."
+>
+
+```jsx
+function QtyField({ label }) {
+  return (
+    <>
+      <label htmlFor="qty">{label}</label>
+      <input id="qty" type="number" />
+    </>
+  );
+}
+```
+
+</SpotTheBug>
+
+<SortBuckets
+  id="buckets-use-id"
+  prompt="Is `useId` a good fit?"
+  buckets={["Good fit", "Wrong tool"]}
+  items={[
+    ["Connecting a label to its input in a reusable component", 0],
+    ["Linking an input to its error message with `aria-describedby`", 0],
+    ["The `key` for each item in a product list", 1],
+    ["A database id for a new order", 1],
+    ["`aria-controls` between a tab and its panel", 0],
+  ]}
+  explain="`useId` is for connecting elements within a component. Keys and data ids should come from your data."
+/>
+
+<Choice
+  id="choice-imperative"
+  q="Why use `useImperativeHandle` instead of forwarding the ref straight to the input?"
+  options={["It's faster", "It limits the parent to the methods you choose, instead of the whole DOM node", "Forwarding refs doesn't work in React 19", "It makes the input controlled"]}
+  answer={1}
+  explain="A small, deliberate API makes the component easier to change later."
+/>
+
+</Practice>
+
+<ReactExercise
+  id="accessible-field"
+  title="An accessible Field"
+  hints={[
+    "Call `const id = useId();` at the top of `Field`.",
+    "Use it for `htmlFor` on the label and `id` on the input.",
+    "Give the hint `id={id + \"-hint\"}` and the input `aria-describedby={id + \"-hint\"}`.",
+  ]}
+>
+
+Make `Field` accessible and reusable: every label must point at **its own** input, and the input must be described by its hint text. There are two fields on the page, so hard-coded ids won't work.
+
+```jsx starter file=/Field.js
+export default function Field({ label, hint }) {
+  return (
+    <div className="field">
+      <label>{label}</label>
+      <input />
+      <small>{hint}</small>
+    </div>
+  );
+}
+```
+
+```jsx starter file=/App.js
+import Field from "./Field";
+
+export default function App() {
+  return (
+    <form>
+      <Field label="Name" hint="As it should appear on the cup." />
+      <Field label="Phone" hint="We'll text you when it's ready." />
+    </form>
+  );
+}
+```
+
+```jsx tests file=/Field.test.js
+import { render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import App from "./App";
+
+test("each label points at its own input", () => {
+  render(<App />);
+  const name = screen.getByLabelText("Name");
+  const phone = screen.getByLabelText("Phone");
+  expect(name).not.toBe(phone);
+});
+
+test("each input is described by its hint", () => {
+  render(<App />);
+  expect(screen.getByLabelText("Name")).toHaveAccessibleDescription("As it should appear on the cup.");
+  expect(screen.getByLabelText("Phone")).toHaveAccessibleDescription("We'll text you when it's ready.");
+});
+```
+
+```jsx solution file=/Field.js
+import { useId } from "react";
+
+export default function Field({ label, hint }) {
+  const id = useId();
+  const hintId = id + "-hint";
+  return (
+    <div className="field">
+      <label htmlFor={id}>{label}</label>
+      <input id={id} aria-describedby={hintId} />
+      <small id={hintId}>{hint}</small>
+    </div>
+  );
+}
+```
+
+</ReactExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "What does `useId` return?",
+      options: ["A random number", "A unique, stable id string for this component instance", "The component's key", "A database id"],
+      answer: 1,
+      explain: "Same id on every render, different for each instance, and identical on server and client.",
+    },
+    {
+      q: "Which are good uses of `useId`?",
+      options: ["`htmlFor` / `id` on a label and input", "`aria-describedby` for a hint", "List keys", "Order numbers"],
+      answer: [0, 1],
+      explain: "It's for connecting elements, not for keys or data.",
+    },
+    {
+      q: "What does `useImperativeHandle(ref, () => ({ focus }))` do?",
+      options: ["Focuses the input on mount", "Makes the parent's `ref.current` the object `{ focus }`", "Creates a new ref", "Prevents the parent from using a ref"],
+      answer: 1,
+      explain: "The parent gets exactly the API you expose.",
+    },
+  ]}
+/>

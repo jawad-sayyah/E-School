@@ -1,0 +1,235 @@
+---
+id: review
+title: "Review: React Hooks"
+summary: Mixed questions across every built-in hook and custom hooks, plus an accessible accordion that combines several of them.
+minutes: 22
+kind: review
+tags: [review, hooks, useState, useEffect, useReducer, useContext, useRef, useId, custom hooks]
+---
+
+Every hook in one review. The lesson names in brackets tell you where to look.
+
+<Practice title="Pick the right hook">
+
+<MatchPairs
+  id="match-review-hooks"
+  prompt="Match each need with the hook that fits."
+  columns={["Need", "Hook"]}
+  pairs={[
+    ["Several related values changing by rules", "`useReducer`"],
+    ["The current user, read deep in the tree", "`useContext`"],
+    ["Keep a timer id without re-rendering", "`useRef`"],
+    ["Sync with a chat server for the current room", "`useEffect`"],
+    ["Measure a tooltip before it's painted", "`useLayoutEffect`"],
+    ["Link a label and its input in a reusable field", "`useId`"],
+    ["Keep typing smooth while a big list re-renders", "`useDeferredValue`"],
+    ["Read `navigator.onLine` and re-render on change", "`useSyncExternalStore`"],
+  ]}
+/>
+
+<TraceState
+  id="trace-review-queue"
+  track="`count` in the next render (it starts at 10 each time)"
+  steps={[
+    { action: "`setCount(count + 1); setCount(count + 1);`", answer: "11" },
+    { action: "`setCount((c) => c * 2); setCount((c) => c + 1);`", answer: "21" },
+    { action: "`setCount(0); setCount((c) => c + 5);`", answer: "5" },
+  ]}
+  explain="Values replace, updaters build on the queue: 10+1 twice → 11; 10×2 = 20, +1 → 21; replace with 0, +5 → 5. (useState in depth)"
+/>
+
+<SpotTheBug
+  id="bug-review-stale"
+  bug={5}
+  prompt="The clock is stuck at 1 after the first tick. Click the buggy line. (useState in depth, useEffect)"
+  explain="The effect runs once (`[]`), so its callback always sees `seconds = 0` and keeps setting 1. Use an updater: `setSeconds((s) => s + 1)`."
+>
+
+```jsx
+function Clock() {
+  const [seconds, setSeconds] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => {
+      setSeconds(seconds + 1);
+    }, 1000);
+    return () => clearInterval(id);
+  }, []);
+  return <p>{seconds}s</p>;
+}
+```
+
+</SpotTheBug>
+
+<SortBuckets
+  id="buckets-review-effects"
+  prompt="Which hook should run this code? (useEffect, Effects in practice, useLayoutEffect)"
+  buckets={["useEffect", "useLayoutEffect", "No hook: render or a handler"]}
+  items={[
+    ["Subscribe to `resize` events", 0],
+    ["Fetch reviews when `productId` changes", 0],
+    ["Read an element's height and reposition it before it shows", 1],
+    ["Compute the discount from the cart", 2],
+    ["Submit the order when Buy is clicked", 2],
+  ]}
+  explain="Sync with outside systems in effects, use the layout version only to avoid a visible jump, and keep calculations and user actions out of effects."
+/>
+
+<Choice
+  id="choice-review-rules"
+  q="Which of these breaks the Rules of Hooks? (Why hooks exist)"
+  options={["Calling `useState` twice at the top of a component", "Calling a custom hook from another custom hook", "Calling `useEffect` inside an `if (user)` block", "Calling `useContext` at the top of a custom hook"]}
+  answer={2}
+  explain="Hooks must run unconditionally and in the same order on every render."
+/>
+
+</Practice>
+
+<ReactExercise
+  id="faq-accordion"
+  title="An accessible FAQ accordion"
+  hints={[
+    "In `useToggle.js`: `const [on, setOn] = useState(initial); return [on, () => setOn((v) => !v)];`",
+    "In `FaqItem`: `const [open, toggle] = useToggle();` and `const panelId = useId();`.",
+    "The button gets `aria-expanded={open}`, `aria-controls={panelId}` and `onClick={toggle}`; render the panel `<div id={panelId}>` only when `open`.",
+  ]}
+>
+
+Build a reusable accordion item:
+
+- write a `useToggle(initial = false)` hook in `useToggle.js` that returns `[on, toggle]`,
+- in `FaqItem`, each question is a button with `aria-expanded` (true/false) and `aria-controls` pointing at its answer panel's id (use `useId`),
+- clicking a question shows or hides only **its own** answer.
+
+```jsx starter file=/useToggle.js
+export function useToggle(initial = false) {
+  return [initial, () => {}];
+}
+```
+
+```jsx starter file=/FaqItem.js
+import { useToggle } from "./useToggle";
+
+export default function FaqItem({ question, answer }) {
+  const [open, toggle] = useToggle();
+  return (
+    <div className="faq">
+      <button>{question}</button>
+      {open && <div>{answer}</div>}
+    </div>
+  );
+}
+```
+
+```jsx starter file=/App.js
+import FaqItem from "./FaqItem";
+
+export default function App() {
+  return (
+    <>
+      <FaqItem question="Do you have oat milk?" answer="Yes, at no extra cost." />
+      <FaqItem question="Can I order ahead?" answer="Yes, in the app, up to a day before." />
+    </>
+  );
+}
+```
+
+```jsx tests file=/App.test.js
+import { fireEvent, render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import App from "./App";
+
+const button = (name) => screen.getByRole("button", { name });
+
+test("answers start hidden and collapsed", () => {
+  render(<App />);
+  expect(button("Do you have oat milk?")).toHaveAttribute("aria-expanded", "false");
+  expect(screen.queryByText("Yes, at no extra cost.")).not.toBeInTheDocument();
+});
+
+test("clicking a question opens only its answer", () => {
+  render(<App />);
+  fireEvent.click(button("Do you have oat milk?"));
+  expect(button("Do you have oat milk?")).toHaveAttribute("aria-expanded", "true");
+  expect(screen.getByText("Yes, at no extra cost.")).toBeInTheDocument();
+  expect(screen.queryByText("Yes, in the app, up to a day before.")).not.toBeInTheDocument();
+});
+
+test("aria-controls points at the answer panel", () => {
+  render(<App />);
+  fireEvent.click(button("Can I order ahead?"));
+  const id = button("Can I order ahead?").getAttribute("aria-controls");
+  expect(id).toBeTruthy();
+  expect(document.getElementById(id)).toHaveTextContent("Yes, in the app, up to a day before.");
+});
+
+test("clicking again closes it", () => {
+  render(<App />);
+  fireEvent.click(button("Do you have oat milk?"));
+  fireEvent.click(button("Do you have oat milk?"));
+  expect(screen.queryByText("Yes, at no extra cost.")).not.toBeInTheDocument();
+});
+```
+
+```jsx solution file=/useToggle.js
+import { useState } from "react";
+
+export function useToggle(initial = false) {
+  const [on, setOn] = useState(initial);
+  return [on, () => setOn((v) => !v)];
+}
+```
+
+```jsx solution file=/FaqItem.js
+import { useId } from "react";
+import { useToggle } from "./useToggle";
+
+export default function FaqItem({ question, answer }) {
+  const [open, toggle] = useToggle();
+  const panelId = useId();
+  return (
+    <div className="faq">
+      <button aria-expanded={open} aria-controls={panelId} onClick={toggle}>
+        {question}
+      </button>
+      {open && <div id={panelId}>{answer}</div>}
+    </div>
+  );
+}
+```
+
+</ReactExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "Which hooks can cause a re-render when they change?",
+      options: ["`useState`", "`useReducer`", "`useContext`", "`useRef`"],
+      answer: [0, 1, 2],
+      explain: "Changing `ref.current` never re-renders. (Refs)",
+    },
+    {
+      q: "What's the difference between `useMemo` and `useCallback`?",
+      options: ["`useMemo` caches a value, `useCallback` caches a function", "They're identical", "`useCallback` is for effects only", "`useMemo` is deprecated"],
+      answer: 0,
+      explain: "`useCallback(fn, deps)` is `useMemo(() => fn, deps)`. (Performance hooks)",
+    },
+    {
+      q: "A custom hook is used by two components. What do they share?",
+      options: ["The state inside the hook", "The logic (code), each with its own state", "Nothing", "The same effects instance"],
+      answer: 1,
+      explain: "To share data, use context or an external store. (Custom hooks)",
+    },
+    {
+      q: "When does an effect's cleanup run?",
+      options: ["Before the effect runs again", "When the component unmounts", "Before every render", "Never in production"],
+      answer: [0, 1],
+      explain: "Every setup is paired with one cleanup. (useEffect)",
+    },
+    {
+      q: "Which hook lets an effect read the latest props without re-running when they change?",
+      options: ["`useEffectEvent`", "`useLayoutEffect`", "`useDeferredValue`", "`useId`"],
+      answer: 0,
+      explain: "Effect events are non-reactive. (Effects in practice)",
+    },
+  ]}
+/>

@@ -17,6 +17,8 @@ import { GoDeeper, HowItWorks } from '@/components/depth/GoDeeper';
 import { CodeTrace } from '@/components/visualizers/CodeTrace';
 import { EventLoop } from '@/components/visualizers/EventLoop';
 import { RenderCycle } from '@/components/visualizers/RenderCycle';
+import { StateTimeline } from '@/components/visualizers/StateTimeline';
+import { EffectTimeline } from '@/components/visualizers/EffectTimeline';
 import { Choice } from '@/components/questions/Choice';
 import { CodeReview } from '@/components/questions/CodeReview';
 import { FillBlanks } from '@/components/questions/FillBlanks';
@@ -136,6 +138,8 @@ export const mdxComponents: MDXComponents = {
   CodeTrace,
   EventLoop,
   RenderCycle,
+  StateTimeline,
+  EffectTimeline,
   BossChallenge,
   ReactPlayground,
   ReactExercise,
