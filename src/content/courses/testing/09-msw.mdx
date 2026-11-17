@@ -1,0 +1,310 @@
+---
+id: msw
+title: Mocking APIs with MSW
+summary: Intercept network requests at the network level with Mock Service Worker, and test the loading, success, empty and error states of a product list.
+minutes: 18
+tags: [testing, MSW, Mock Service Worker, http, HttpResponse, setupServer, loading state, error state, server.use]
+---
+
+Mocking `fetch` with `vi.fn()` works, but it couples the test to *how* the component fetches (fetch vs. axios vs. TanStack Query, the exact call signature). **MSW** (Mock Service Worker) intercepts requests at the **network level** instead: the component runs its real fetching code, and MSW answers the HTTP request.
+
+<Concept name="Handlers and a test server" id="setup">
+
+```js file=src/mocks/handlers.js
+import { http, HttpResponse } from "msw";
+
+export const handlers = [
+  http.get("/api/products", () =>
+    HttpResponse.json([
+      { id: 1, name: "Tea", price: 2 },
+      { id: 2, name: "Coffee", price: 4 },
+    ]),
+  ),
+];
+```
+
+```js file=src/test/setup.js
+import { afterAll, afterEach, beforeAll } from "vitest";
+import { setupServer } from "msw/node";
+import { handlers } from "../mocks/handlers";
+
+export const server = setupServer(...handlers);
+
+beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
+afterEach(() => server.resetHandlers());   // undo per-test overrides
+afterAll(() => server.close());
+```
+
+Register the setup file in `vitest.config` (`test.setupFiles`). `onUnhandledRequest: "error"` makes any request you forgot to mock fail loudly.
+
+</Concept>
+
+<Concept name="Testing every state" id="states">
+
+```jsx file=ProductList.test.jsx
+import { http, HttpResponse, delay } from "msw";
+import { server } from "../test/setup";
+
+test("shows the products", async () => {
+  render(<ProductList />);
+  expect(screen.getByText("Loading products…")).toBeInTheDocument();
+  expect(await screen.findByText("Tea")).toBeInTheDocument();
+});
+
+test("shows an error when the server fails", async () => {
+  server.use(http.get("/api/products", () => new HttpResponse(null, { status: 500 })));
+  render(<ProductList />);
+  expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't load products");
+});
+
+test("shows a message for an empty catalog", async () => {
+  server.use(http.get("/api/products", () => HttpResponse.json([])));
+  render(<ProductList />);
+  expect(await screen.findByText("No products yet.")).toBeInTheDocument();
+});
+```
+
+```text file=terminal
+ ✓ src/ProductList.test.jsx (3 tests) 112ms
+   ✓ shows the products
+   ✓ shows an error when the server fails
+   ✓ shows a message for an empty catalog
+```
+
+`server.use(…)` overrides a handler for one test; `resetHandlers()` restores the defaults afterwards. The same handlers can run in the browser during development (`msw/browser`), so the UI works before the real API exists.
+
+</Concept>
+
+<HowItWorks title="Why mock at the network level?">
+
+The test exercises everything the user depends on: the component, your fetching hook, TanStack Query's caching, JSON parsing, error handling. Swap fetch for axios, and the tests still pass. Mock functions are still the right tool when the component **takes** a function as a prop (dependency injection), as in the exercise below, and for non-network boundaries like timers.
+
+</HowItWorks>
+
+<Practice>
+
+<MatchPairs
+  id="match-msw"
+  prompt="Match each MSW piece with its job."
+  columns={["Piece", "Job"]}
+  pairs={[
+    ["`http.get(\"/api/products\", …)`", "Defines a handler for a request"],
+    ["`HttpResponse.json(data)`", "Answers with JSON"],
+    ["`setupServer(...handlers)`", "Intercepts requests in Node tests"],
+    ["`server.use(…)`", "Overrides a handler for one test"],
+    ["`server.resetHandlers()`", "Restores the default handlers"],
+  ]}
+/>
+
+<SortBuckets
+  id="buckets-states"
+  prompt="Which states should a data-loading component's tests cover?"
+  buckets={["Test it", "Not needed"]}
+  items={[
+    ["Loading", 0],
+    ["Success with data", 0],
+    ["Server error", 0],
+    ["Empty result", 0],
+    ["The exact fetch() call arguments, when using MSW", 1],
+    ["The component's internal state variable names", 1],
+  ]}
+  explain="Test every state the user can see. With MSW you assert on the screen, not on how the request was made."
+/>
+
+<TrueFalse
+  id="tf-msw"
+  statements={[
+    { text: "With MSW, the component's real fetching code runs in the test.", answer: true, explain: "Only the network answer is mocked." },
+    { text: "`onUnhandledRequest: \"error\"` hides requests you forgot to mock.", answer: false, explain: "It makes them fail loudly, which is what you want." },
+    { text: "MSW handlers can also be used in the browser during development.", answer: true, explain: "With msw/browser and a service worker." },
+  ]}
+/>
+
+</Practice>
+
+<ReactTestExercise
+  id="test-product-list"
+  title="Test every state of the product list"
+  hints={[
+    "Success: `fetchProducts = vi.fn().mockResolvedValue([{ id: 1, name: \"Tea\" }])`, then `await screen.findByText(\"Tea\")`. Check \"Loading products…\" right after render, too.",
+    "Error: `vi.fn().mockRejectedValue(new Error(\"down\"))`, then `await screen.findByRole(\"alert\")`.",
+    "Empty: resolve with `[]` and wait for \"No products yet.\".",
+  ]}
+>
+
+`ProductList` takes a `fetchProducts()` function (so tests can pass a mock, like an MSW handler would answer). It shows **Loading products…**, then the products, **No products yet.** for an empty list, or an alert **Couldn't load products.** if the request fails. Test every state.
+
+```jsx code file=/ProductList.js
+import { useEffect, useState } from "react";
+
+export default function ProductList({ fetchProducts }) {
+  const [state, setState] = useState({ status: "loading" });
+
+  useEffect(() => {
+    let ignore = false;
+    fetchProducts().then(
+      (products) => !ignore && setState({ status: "success", products }),
+      () => !ignore && setState({ status: "error" }),
+    );
+    return () => {
+      ignore = true;
+    };
+  }, [fetchProducts]);
+
+  if (state.status === "loading") return <p>Loading products…</p>;
+  if (state.status === "error") return <p role="alert">Couldn't load products.</p>;
+  if (state.products.length === 0) return <p>No products yet.</p>;
+  return (
+    <ul>
+      {state.products.map((p) => (
+        <li key={p.id}>{p.name}</li>
+      ))}
+    </ul>
+  );
+}
+```
+
+```jsx starter file=/ProductList.test.js
+import { render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import { expect, test, vi } from "vitest";
+import ProductList from "./ProductList";
+
+test("shows the products", async () => {
+  render(<ProductList fetchProducts={vi.fn().mockResolvedValue([{ id: 1, name: "Tea" }])} />);
+  expect(await screen.findByText("Tea")).toBeInTheDocument();
+});
+```
+
+```jsx bug file=/ProductList.js title="No error state" hint="Make fetchProducts reject and wait for an alert."
+import { useEffect, useState } from "react";
+
+export default function ProductList({ fetchProducts }) {
+  const [state, setState] = useState({ status: "loading" });
+
+  useEffect(() => {
+    let ignore = false;
+    fetchProducts().then((products) => !ignore && setState({ status: "success", products }));
+    return () => {
+      ignore = true;
+    };
+  }, [fetchProducts]);
+
+  if (state.status === "loading") return <p>Loading products…</p>;
+  if (state.products.length === 0) return <p>No products yet.</p>;
+  return (
+    <ul>
+      {state.products.map((p) => (
+        <li key={p.id}>{p.name}</li>
+      ))}
+    </ul>
+  );
+}
+```
+
+```jsx bug file=/ProductList.js title="Empty list shows nothing" hint="Resolve with an empty array and look for the message."
+import { useEffect, useState } from "react";
+
+export default function ProductList({ fetchProducts }) {
+  const [state, setState] = useState({ status: "loading" });
+
+  useEffect(() => {
+    let ignore = false;
+    fetchProducts().then(
+      (products) => !ignore && setState({ status: "success", products }),
+      () => !ignore && setState({ status: "error" }),
+    );
+    return () => {
+      ignore = true;
+    };
+  }, [fetchProducts]);
+
+  if (state.status === "loading") return <p>Loading products…</p>;
+  if (state.status === "error") return <p role="alert">Couldn't load products.</p>;
+  return (
+    <ul>
+      {state.products.map((p) => (
+        <li key={p.id}>{p.name}</li>
+      ))}
+    </ul>
+  );
+}
+```
+
+```jsx bug file=/ProductList.js title="No loading message" hint="Right after render, before the data arrives, what should the user see?"
+import { useEffect, useState } from "react";
+
+export default function ProductList({ fetchProducts }) {
+  const [state, setState] = useState({ status: "loading" });
+
+  useEffect(() => {
+    let ignore = false;
+    fetchProducts().then(
+      (products) => !ignore && setState({ status: "success", products }),
+      () => !ignore && setState({ status: "error" }),
+    );
+    return () => {
+      ignore = true;
+    };
+  }, [fetchProducts]);
+
+  if (state.status === "loading") return null;
+  if (state.status === "error") return <p role="alert">Couldn't load products.</p>;
+  if (state.products.length === 0) return <p>No products yet.</p>;
+  return (
+    <ul>
+      {state.products.map((p) => (
+        <li key={p.id}>{p.name}</li>
+      ))}
+    </ul>
+  );
+}
+```
+
+```jsx solution file=/ProductList.test.js
+import { render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import { expect, test, vi } from "vitest";
+import ProductList from "./ProductList";
+
+test("shows a loading message, then the products", async () => {
+  render(<ProductList fetchProducts={vi.fn().mockResolvedValue([{ id: 1, name: "Tea" }])} />);
+  expect(screen.getByText("Loading products…")).toBeInTheDocument();
+  expect(await screen.findByText("Tea")).toBeInTheDocument();
+});
+
+test("shows a message for an empty list", async () => {
+  render(<ProductList fetchProducts={vi.fn().mockResolvedValue([])} />);
+  expect(await screen.findByText("No products yet.")).toBeInTheDocument();
+});
+
+test("shows an alert when loading fails", async () => {
+  render(<ProductList fetchProducts={vi.fn().mockRejectedValue(new Error("down"))} />);
+  expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't load products.");
+});
+```
+
+</ReactTestExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "What does MSW mock?",
+      options: ["React components", "Network requests, at the network level", "The DOM", "Timers"],
+      answer: 1,
+      explain: "Your real fetching code runs; MSW answers the request.",
+    },
+    {
+      q: "How do you make one test get a server error?",
+      options: ["Edit handlers.js", "`server.use(http.get(url, () => new HttpResponse(null, { status: 500 })))`", "Turn off the network", "Throw in the component"],
+      answer: 1,
+      explain: "An override for that test; resetHandlers restores the default.",
+    },
+    {
+      q: "Which states should a data component's tests cover?",
+      options: ["Loading", "Success", "Error", "Empty"],
+      answer: [0, 1, 2, 3],
+      explain: "Users see all four.",
+    },
+  ]}
+/>

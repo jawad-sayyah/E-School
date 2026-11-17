@@ -32,6 +32,9 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./test/setup.ts'],
     testTimeout: 15000,
+    // A buggy component may leave a promise rejection unhandled (that IS the bug), so errors
+    // from the react-bugs project are ignored. Everywhere else they still fail the run.
+    onUnhandledError: (error) => !String(error.stack ?? '').includes('react-bugs'),
     projects: [
       {
         extends: true,
@@ -44,6 +47,16 @@ export default defineConfig({
         test: {
           name: 'react-content',
           include: ['test/react-exercises/**/*.test.jsx'],
+          globals: true,
+        },
+      },
+      {
+        // Buggy versions of write-the-tests components, each wrapped so it passes only when the
+        // example tests catch the bug.
+        extends: true,
+        test: {
+          name: 'react-bugs',
+          include: ['test/react-bugs/**/*.test.jsx'],
           globals: true,
         },
       },

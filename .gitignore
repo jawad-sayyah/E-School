@@ -7,3 +7,4 @@ playwright-report
 .vite
 .DS_Store
 test/react-exercises
+test/react-bugs

@@ -15,6 +15,8 @@ const PACKAGES = JSON.parse(fs.readFileSync('src/components/react/packages.json'
 // "vitest" is provided in Sandpack by a small hidden shim (VITEST_SHIM in LiveSandpack.tsx)
 const KNOWN = new Set([...Object.keys(PACKAGES.base), ...Object.keys(PACKAGES.optional), 'vitest']);
 const OUT = path.resolve('test/react-exercises');
+// Buggy versions of write-the-tests components: a separate Vitest project (see vite.config.ts)
+const BUGS_OUT = path.resolve('test/react-bugs');
 const parser = unified().use(remarkParse).use(remarkMdx).use(remarkFrontmatter, ['yaml']);
 
 const attr = (node, name) => {
@@ -66,6 +68,7 @@ const cleanTests = (code) =>
   );
 
 fs.rmSync(OUT, { recursive: true, force: true });
+fs.rmSync(BUGS_OUT, { recursive: true, force: true });
 let exercises = 0;
 let playgrounds = 0;
 
@@ -117,7 +120,7 @@ for (const course of fs.readdirSync(ROOT)) {
       write(path.join(OUT, base), { ...code, [testFile]: solution });
       bugs.forEach((bug, i) => {
         const title = /title="([^"]*)"/.exec(bug.meta ?? '')?.[1] ?? `bug ${i + 1}`;
-        write(path.join(OUT, `${base}--bug-${i + 1}`), {
+        write(path.join(BUGS_OUT, `${base}--bug-${i + 1}`), {
           ...code,
           [fileName(bug)]: bug.value,
           [testFile]: catchesBug(solution, title),

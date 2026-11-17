@@ -1,0 +1,316 @@
+---
+id: user-interactions
+title: User interactions and async UI
+summary: Simulate typing and clicking with user-event (and fireEvent), wait for UI that appears later with findBy queries, and use jest-dom matchers to assert on state.
+minutes: 18
+tags: [testing, user-event, fireEvent, findBy, waitFor, async UI, jest-dom, toBeDisabled, toHaveValue]
+---
+
+Components react to users: typing, clicking, tabbing. Tests should do the same, then check what changed on screen. Some changes happen **later** (after a fetch or a timer), so tests also need to **wait**.
+
+<Concept name="user-event: interact like a real user" id="user-event">
+
+In a real project, simulate interactions with **`@testing-library/user-event`**. It fires the full sequence a real user causes (focus, keydown, input, keyup, click…), so it catches bugs that a single synthetic event misses:
+
+```jsx file=Search.test.jsx
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+
+test("typing filters the menu", async () => {
+  const user = userEvent.setup();
+  render(<Menu />);
+
+  await user.type(screen.getByRole("searchbox", { name: "Search" }), "tea");
+  await user.click(screen.getByRole("button", { name: "Hot only" }));
+  await user.keyboard("{Escape}");
+
+  expect(screen.getAllByRole("listitem")).toHaveLength(2);
+});
+```
+
+```text file=terminal
+ ✓ src/Menu.test.jsx (1 test) 48ms
+   ✓ typing filters the menu
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+```
+
+Every `user.*` call is async: always `await` it. Create one `user` per test with `userEvent.setup()`.
+
+<Callout type="warn">
+The exercises on this site run inside Sandpack, whose test runner can't run user-event, so they use **`fireEvent`** from Testing Library instead: `fireEvent.click(button)`, `fireEvent.change(input, { target: { value: "tea" } })`. It dispatches a single DOM event. In your own projects, prefer user-event.
+</Callout>
+
+</Concept>
+
+<Concept name="Waiting for async UI: findBy and waitFor" id="async">
+
+After a click that starts a fetch, the result isn't there yet. **`findBy…`** queries retry until the element appears (default: up to 1 second), returning a promise:
+
+```jsx file=Products.test.jsx
+test("shows the products after loading", async () => {
+  render(<ProductList />);
+  expect(screen.getByText("Loading…")).toBeInTheDocument();
+  expect(await screen.findByRole("heading", { name: "Tea" })).toBeInTheDocument();
+  expect(screen.queryByText("Loading…")).not.toBeInTheDocument();
+});
+```
+
+`waitFor(() => expect(…))` retries any assertion until it passes; use it when there's no element to find (`await waitFor(() => expect(save).toHaveBeenCalled())`). Don't wrap `getBy` calls in `waitFor` when a `findBy` would do.
+
+</Concept>
+
+<Concept name="jest-dom matchers" id="jest-dom">
+
+| Matcher | Checks |
+| --- | --- |
+| `toBeInTheDocument()` | the element is on the page |
+| `toBeVisible()` | it's visible (not hidden by CSS or `hidden`) |
+| `toBeDisabled()` / `toBeEnabled()` | form controls |
+| `toHaveValue("tea")` / `toBeChecked()` | inputs and checkboxes |
+| `toHaveTextContent("3 items")` | text inside an element |
+| `toHaveAttribute("aria-expanded", "true")` | attributes |
+| `toHaveFocus()` | focus |
+| `toHaveAccessibleName("Close")` | the accessible name |
+
+They read like the requirement and give clear failure messages.
+
+</Concept>
+
+<HowItWorks title="Why act() warnings appear">
+
+React batches updates and runs effects asynchronously. Testing Library wraps `render`, `fireEvent`, user-event and `findBy`/`waitFor` in **`act()`**, which makes React finish its work before your assertion. If a state update happens *outside* those (a promise resolving after the test moved on), React warns: "An update was not wrapped in act(…)". The fix is almost always to **wait for the result** with `findBy` or `waitFor`, not to call `act` yourself.
+
+</HowItWorks>
+
+<Practice>
+
+<SortBuckets
+  id="buckets-get-find"
+  prompt="getBy or findBy?"
+  buckets={["`getBy…`", "`await findBy…`"]}
+  items={[
+    ["The heading rendered immediately", 0],
+    ["Products that appear after a fetch", 1],
+    ["The submit button of a form", 0],
+    ["A \"Saved!\" toast shown after an async save", 1],
+    ["An error message after a failed request", 1],
+  ]}
+  explain="Anything that appears after something async needs `findBy` (or `waitFor`)."
+/>
+
+<SpotTheBug
+  id="bug-missing-await-find"
+  bug={4}
+  prompt="This test passes even when the thank-you message never appears. Click the buggy line."
+  explain={"`findByText` returns a promise; without `await`, `expect(promise).toBeTruthy()` always passes. Write `expect(await screen.findByText(\"Thanks!\")).toBeInTheDocument()`."}
+>
+
+```jsx
+test("thanks the subscriber", () => {
+  render(<Newsletter subscribe={vi.fn().mockResolvedValue()} />);
+  fireEvent.click(screen.getByRole("button", { name: "Subscribe" }));
+  expect(screen.findByText("Thanks!")).toBeTruthy();
+});
+```
+
+</SpotTheBug>
+
+<MatchPairs
+  id="match-jest-dom"
+  prompt="Match each check with the jest-dom matcher."
+  columns={["Check", "Matcher"]}
+  pairs={[
+    ["The Subscribe button can't be clicked", "`toBeDisabled()`"],
+    ["The input contains what was typed", "`toHaveValue(\"ada@example.com\")`"],
+    ["The badge says 3", "`toHaveTextContent(\"3\")`"],
+    ["The menu button reports it's open", "`toHaveAttribute(\"aria-expanded\", \"true\")`"],
+    ["The search box has focus", "`toHaveFocus()`"],
+  ]}
+/>
+
+</Practice>
+
+<ReactTestExercise
+  id="test-newsletter"
+  title="Test the newsletter form"
+  hints={[
+    "Type with `fireEvent.change(screen.getByLabelText(\"Email\"), { target: { value: \"ada@example.com\" } })`, then click Subscribe.",
+    "Pass a mock: `const subscribe = vi.fn().mockResolvedValue();` and check `toHaveBeenCalledWith(\"ada@example.com\")`.",
+    "The thank-you appears after the promise: `expect(await screen.findByRole(\"status\")).toHaveTextContent(\"Thanks\")`. Also check the button is disabled while the field is empty.",
+  ]}
+>
+
+`Newsletter` takes a `subscribe(email)` function (async). The button is disabled while the email is empty; submitting calls `subscribe` with the email and, once it resolves, shows **Thanks for subscribing!** in a status message. Write tests that catch every buggy version.
+
+```jsx code file=/Newsletter.js
+import { useState } from "react";
+
+export default function Newsletter({ subscribe }) {
+  const [email, setEmail] = useState("");
+  const [status, setStatus] = useState("idle");
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setStatus("saving");
+    await subscribe(email);
+    setStatus("done");
+  }
+
+  if (status === "done") return <p role="status">Thanks for subscribing!</p>;
+  return (
+    <form onSubmit={handleSubmit}>
+      <label>
+        Email <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+      </label>
+      <button disabled={!email || status === "saving"}>
+        {status === "saving" ? "Subscribing…" : "Subscribe"}
+      </button>
+    </form>
+  );
+}
+```
+
+```jsx starter file=/Newsletter.test.js
+import { fireEvent, render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import { expect, test, vi } from "vitest";
+import Newsletter from "./Newsletter";
+
+test("has an email field", () => {
+  render(<Newsletter subscribe={vi.fn()} />);
+  expect(screen.getByLabelText("Email")).toBeInTheDocument();
+});
+```
+
+```jsx bug file=/Newsletter.js title="Button enabled with an empty email" hint="Check the Subscribe button before typing anything."
+import { useState } from "react";
+
+export default function Newsletter({ subscribe }) {
+  const [email, setEmail] = useState("");
+  const [status, setStatus] = useState("idle");
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setStatus("saving");
+    await subscribe(email);
+    setStatus("done");
+  }
+
+  if (status === "done") return <p role="status">Thanks for subscribing!</p>;
+  return (
+    <form onSubmit={handleSubmit}>
+      <label>
+        Email <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+      </label>
+      <button disabled={status === "saving"}>
+        {status === "saving" ? "Subscribing…" : "Subscribe"}
+      </button>
+    </form>
+  );
+}
+```
+
+```jsx bug file=/Newsletter.js title="Subscribes without the email" hint="Check what subscribe was called with."
+import { useState } from "react";
+
+export default function Newsletter({ subscribe }) {
+  const [email, setEmail] = useState("");
+  const [status, setStatus] = useState("idle");
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setStatus("saving");
+    await subscribe();
+    setStatus("done");
+  }
+
+  if (status === "done") return <p role="status">Thanks for subscribing!</p>;
+  return (
+    <form onSubmit={handleSubmit}>
+      <label>
+        Email <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+      </label>
+      <button disabled={!email || status === "saving"}>
+        {status === "saving" ? "Subscribing…" : "Subscribe"}
+      </button>
+    </form>
+  );
+}
+```
+
+```jsx bug file=/Newsletter.js title="Never says thanks" hint="Wait for the status message with findByRole after submitting."
+import { useState } from "react";
+
+export default function Newsletter({ subscribe }) {
+  const [email, setEmail] = useState("");
+  const [status, setStatus] = useState("idle");
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setStatus("saving");
+    await subscribe(email);
+  }
+
+  if (status === "done") return <p role="status">Thanks for subscribing!</p>;
+  return (
+    <form onSubmit={handleSubmit}>
+      <label>
+        Email <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+      </label>
+      <button disabled={!email || status === "saving"}>
+        {status === "saving" ? "Subscribing…" : "Subscribe"}
+      </button>
+    </form>
+  );
+}
+```
+
+```jsx solution file=/Newsletter.test.js
+import { fireEvent, render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import { expect, test, vi } from "vitest";
+import Newsletter from "./Newsletter";
+
+test("the button is disabled until an email is typed", () => {
+  render(<Newsletter subscribe={vi.fn()} />);
+  expect(screen.getByRole("button", { name: "Subscribe" })).toBeDisabled();
+  fireEvent.change(screen.getByLabelText("Email"), { target: { value: "ada@example.com" } });
+  expect(screen.getByRole("button", { name: "Subscribe" })).toBeEnabled();
+});
+
+test("subscribes with the email and says thanks", async () => {
+  const subscribe = vi.fn().mockResolvedValue();
+  render(<Newsletter subscribe={subscribe} />);
+  fireEvent.change(screen.getByLabelText("Email"), { target: { value: "ada@example.com" } });
+  fireEvent.click(screen.getByRole("button", { name: "Subscribe" }));
+  expect(subscribe).toHaveBeenCalledWith("ada@example.com");
+  expect(await screen.findByRole("status")).toHaveTextContent("Thanks for subscribing!");
+});
+```
+
+</ReactTestExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "Why prefer user-event over fireEvent in real projects?",
+      options: ["It's shorter", "It simulates the full sequence of events a real user causes", "fireEvent is deprecated", "It's synchronous"],
+      answer: 1,
+      explain: "Focus, key events and input events, like a real browser.",
+    },
+    {
+      q: "How do you wait for an element that appears after a fetch?",
+      options: ["`getByText` in a loop", "`await screen.findByText(…)`", "`setTimeout(…, 1000)`", "`queryByText`"],
+      answer: 1,
+      explain: "findBy retries until it appears or times out.",
+    },
+    {
+      q: "What usually fixes an \"update was not wrapped in act(…)\" warning?",
+      options: ["Wrapping everything in act manually", "Waiting for the async result with findBy or waitFor", "Disabling the warning", "Using fireEvent"],
+      answer: 1,
+      explain: "The update happened after the test stopped waiting.",
+    },
+  ]}
+/>

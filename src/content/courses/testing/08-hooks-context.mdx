@@ -1,0 +1,284 @@
+---
+id: hooks-context
+title: Testing hooks and context
+summary: Test custom hooks like useCart with renderHook and act, and test components that need providers with a renderWithProviders helper.
+minutes: 16
+tags: [testing, renderHook, act, custom hooks, useCart, context, providers, renderWithProviders, wrapper]
+---
+
+Custom hooks hold real logic (the cart rules, a debounce, a form's state), and components often depend on context. Both need a little setup to test.
+
+<Concept name="renderHook" id="render-hook">
+
+Hooks can only run inside a component. **`renderHook`** renders a tiny test component that calls your hook and exposes the latest return value as `result.current`. Wrap state changes in **`act`** so React applies them before you look:
+
+```jsx file=useCart.test.jsx
+import { act, renderHook } from "@testing-library/react";
+import { expect, test } from "vitest";
+import { useCart } from "./useCart";
+
+test("adding the same product twice counts 2 items", () => {
+  const { result } = renderHook(() => useCart());
+  const tea = { id: 1, name: "Tea", price: 2 };
+
+  act(() => result.current.add(tea));
+  act(() => result.current.add(tea));
+
+  expect(result.current.count).toBe(2);
+  expect(result.current.total).toBe(4);
+});
+```
+
+Always read `result.current` **after** the `act`: it's replaced on every render, so a value saved in a variable before the update is stale.
+
+</Concept>
+
+<Concept name="Components that need providers" id="providers">
+
+A `Header` that calls `useCart()` throws outside `<CartProvider>`. Pass a **wrapper**, and put it in a helper so every test file can reuse it:
+
+```jsx file=test/utils.jsx
+import { render } from "@testing-library/react";
+import { CartProvider } from "../src/CartContext";
+
+export function renderWithProviders(ui, options) {
+  return render(ui, { wrapper: ({ children }) => <CartProvider>{children}</CartProvider>, ...options });
+}
+```
+
+```jsx file=Header.test.jsx
+test("the badge counts items added anywhere in the app", () => {
+  renderWithProviders(<><Header /><AddButton product={tea} /></>);
+  fireEvent.click(screen.getByRole("button", { name: "Add Tea" }));
+  expect(screen.getByLabelText("Items in cart")).toHaveTextContent("1");
+});
+```
+
+Real apps add their router, query client and theme to the same helper. `renderHook` takes the same `wrapper` option for hooks that read context.
+
+</Concept>
+
+<HowItWorks title="Hook test or component test?">
+
+Test a hook directly with `renderHook` when it's **shared logic** with a rich API (`useCart`, `useDebounce`, `useLocalStorage`). If a hook is just a detail of one component, test the component instead: the behavior the user sees is what matters, and the hook can change freely. Context providers follow the same rule: test them through the components that use them, with `renderWithProviders`.
+
+</HowItWorks>
+
+<Practice>
+
+<OrderLines
+  id="order-render-hook"
+  prompt="Order the lines of a hook test."
+  explain="Render the hook, act to change its state, then read result.current."
+>
+
+```jsx
+test("toggles", () => {
+  const { result } = renderHook(() => useToggle());
+  act(() => result.current.toggle());
+  expect(result.current.on).toBe(true);
+});
+```
+
+</OrderLines>
+
+<SpotTheBug
+  id="bug-stale-result"
+  bug={3}
+  prompt="This test fails even though useCart works. Click the line that causes it."
+  explain="`cart` holds the value from before the update; `result.current` is replaced on every render. Read `result.current.count` after the `act`."
+>
+
+```jsx
+test("add increases the count", () => {
+  const { result } = renderHook(() => useCart());
+  const cart = result.current;
+  act(() => cart.add({ id: 1, name: "Tea", price: 2 }));
+  expect(cart.count).toBe(1);
+});
+```
+
+</SpotTheBug>
+
+<Choice
+  id="choice-wrapper"
+  q="A component calls `useCart()`, which throws outside `<CartProvider>`. How do you render it in a test?"
+  options={["Mock useCart to return any", "Render it with a wrapper (or a renderWithProviders helper) that includes CartProvider", "Delete the throw", "Test only the provider"]}
+  answer={1}
+  explain="Render it the way the app does: inside its providers."
+/>
+
+</Practice>
+
+<ReactTestExercise
+  id="test-use-cart"
+  title="Test the useCart hook"
+  hints={[
+    "`const { result } = renderHook(() => useCart());` then `act(() => result.current.add(tea));`.",
+    "Add the same product twice and check both `count` (2) and `total` (price × 2).",
+    "Add two different products, remove one, and check the other is still there.",
+  ]}
+>
+
+`useCart()` returns `{ lines, count, total, add, remove }`. Adding a product that's already in the cart increases its `qty`; `count` adds up the quantities; `total` adds price × qty; `remove(id)` removes that line. Write hook tests that catch every buggy version.
+
+```jsx code file=/useCart.js
+import { useState } from "react";
+
+export function useCart() {
+  const [lines, setLines] = useState([]);
+
+  function add(product) {
+    setLines((current) => {
+      const line = current.find((l) => l.id === product.id);
+      if (line) return current.map((l) => (l === line ? { ...l, qty: l.qty + 1 } : l));
+      return [...current, { ...product, qty: 1 }];
+    });
+  }
+
+  function remove(id) {
+    setLines((current) => current.filter((l) => l.id !== id));
+  }
+
+  const count = lines.reduce((n, l) => n + l.qty, 0);
+  const total = lines.reduce((sum, l) => sum + l.price * l.qty, 0);
+  return { lines, count, total, add, remove };
+}
+```
+
+```jsx starter file=/useCart.test.js
+import { act, renderHook } from "@testing-library/react";
+import { expect, test } from "vitest";
+import { useCart } from "./useCart";
+
+const tea = { id: 1, name: "Tea", price: 2 };
+
+test("starts empty", () => {
+  const { result } = renderHook(() => useCart());
+  expect(result.current.count).toBe(0);
+});
+```
+
+```jsx bug file=/useCart.js title="count counts lines, not items" hint="Add the same product twice: count should be 2."
+import { useState } from "react";
+
+export function useCart() {
+  const [lines, setLines] = useState([]);
+
+  function add(product) {
+    setLines((current) => {
+      const line = current.find((l) => l.id === product.id);
+      if (line) return current.map((l) => (l === line ? { ...l, qty: l.qty + 1 } : l));
+      return [...current, { ...product, qty: 1 }];
+    });
+  }
+
+  function remove(id) {
+    setLines((current) => current.filter((l) => l.id !== id));
+  }
+
+  const count = lines.length;
+  const total = lines.reduce((sum, l) => sum + l.price * l.qty, 0);
+  return { lines, count, total, add, remove };
+}
+```
+
+```jsx bug file=/useCart.js title="total ignores the quantity" hint="Check the total after adding the same product twice."
+import { useState } from "react";
+
+export function useCart() {
+  const [lines, setLines] = useState([]);
+
+  function add(product) {
+    setLines((current) => {
+      const line = current.find((l) => l.id === product.id);
+      if (line) return current.map((l) => (l === line ? { ...l, qty: l.qty + 1 } : l));
+      return [...current, { ...product, qty: 1 }];
+    });
+  }
+
+  function remove(id) {
+    setLines((current) => current.filter((l) => l.id !== id));
+  }
+
+  const count = lines.reduce((n, l) => n + l.qty, 0);
+  const total = lines.reduce((sum, l) => sum + l.price, 0);
+  return { lines, count, total, add, remove };
+}
+```
+
+```jsx bug file=/useCart.js title="remove empties the whole cart" hint="Add two different products, remove one, and check the other stays."
+import { useState } from "react";
+
+export function useCart() {
+  const [lines, setLines] = useState([]);
+
+  function add(product) {
+    setLines((current) => {
+      const line = current.find((l) => l.id === product.id);
+      if (line) return current.map((l) => (l === line ? { ...l, qty: l.qty + 1 } : l));
+      return [...current, { ...product, qty: 1 }];
+    });
+  }
+
+  function remove(id) {
+    setLines([]);
+  }
+
+  const count = lines.reduce((n, l) => n + l.qty, 0);
+  const total = lines.reduce((sum, l) => sum + l.price * l.qty, 0);
+  return { lines, count, total, add, remove };
+}
+```
+
+```jsx solution file=/useCart.test.js
+import { act, renderHook } from "@testing-library/react";
+import { expect, test } from "vitest";
+import { useCart } from "./useCart";
+
+const tea = { id: 1, name: "Tea", price: 2 };
+const cake = { id: 2, name: "Cake", price: 5 };
+
+test("adding the same product twice: 2 items, price × 2", () => {
+  const { result } = renderHook(() => useCart());
+  act(() => result.current.add(tea));
+  act(() => result.current.add(tea));
+  expect(result.current.lines).toHaveLength(1);
+  expect(result.current.count).toBe(2);
+  expect(result.current.total).toBe(4);
+});
+
+test("remove takes out only that line", () => {
+  const { result } = renderHook(() => useCart());
+  act(() => result.current.add(tea));
+  act(() => result.current.add(cake));
+  act(() => result.current.remove(1));
+  expect(result.current.lines.map((l) => l.name)).toEqual(["Cake"]);
+  expect(result.current.total).toBe(5);
+});
+```
+
+</ReactTestExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "What does `renderHook` give you?",
+      options: ["The hook's source code", "`result.current`, the hook's latest return value", "A DOM node", "A mock"],
+      answer: 1,
+      explain: "It renders a tiny component that calls the hook.",
+    },
+    {
+      q: "Why wrap `result.current.add(tea)` in `act`?",
+      options: ["To make it async", "So React applies the state update before the next assertion", "It's optional style", "To mock it"],
+      answer: 1,
+      explain: "Then result.current reflects the new state.",
+    },
+    {
+      q: "What's renderWithProviders for?",
+      options: ["Speed", "Rendering components inside the providers they need, the same way in every test", "Mocking context", "Snapshot tests"],
+      answer: 1,
+      explain: "Router, query client, cart provider… in one place.",
+    },
+  ]}
+/>
