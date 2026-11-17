@@ -46,7 +46,8 @@ export function installTestApi(
     }
   }
 
-  const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null;
+  const isObject = (v: unknown): v is Record<string, unknown> =>
+    typeof v === 'object' && v !== null;
 
   const equals = (a: unknown, b: unknown, seen: unknown[]): boolean => {
     if (Object.is(a, b)) return true;
@@ -73,7 +74,9 @@ export function installTestApi(
     const keysA = Object.keys(a).filter((k) => a[k] !== undefined);
     const keysB = Object.keys(b).filter((k) => b[k] !== undefined);
     if (keysA.length !== keysB.length) return false;
-    return keysA.every((k) => Object.prototype.hasOwnProperty.call(b, k) && equals(a[k], b[k], next));
+    return keysA.every(
+      (k) => Object.prototype.hasOwnProperty.call(b, k) && equals(a[k], b[k], next),
+    );
   };
 
   const describe = (name: unknown, fn: () => void) => {
@@ -139,11 +142,16 @@ export function installTestApi(
         check(pass, `expected ${fmt(received)}${not} to contain ${fmt(item)}`, item);
       },
       toHaveLength(length: number) {
-        const actual = isObject(received) || typeof received === 'string'
-          ? (received as { length?: unknown }).length
-          : undefined;
+        const actual =
+          isObject(received) || typeof received === 'string'
+            ? (received as { length?: unknown }).length
+            : undefined;
         if (!negate && typeof actual !== 'number') {
-          throw new AssertionError(`expected ${fmt(received)} to have a length`, fmt(length), fmt(actual));
+          throw new AssertionError(
+            `expected ${fmt(received)} to have a length`,
+            fmt(length),
+            fmt(actual),
+          );
         }
         const pass = actual === length;
         if (pass === negate) {
@@ -198,7 +206,8 @@ export function installTestApi(
           didThrow = true;
           thrown = e;
         }
-        const message = isObject(thrown) && typeof thrown.message === 'string' ? thrown.message : String(thrown);
+        const message =
+          isObject(thrown) && typeof thrown.message === 'string' ? thrown.message : String(thrown);
         let pass = didThrow;
         if (didThrow && typeof expected === 'string') pass = message.includes(expected);
         else if (didThrow && expected instanceof RegExp) pass = expected.test(message);
@@ -254,8 +263,17 @@ export function installTestApi(
             received: e.received,
           });
         } else {
-          const text = isObject(e) && typeof e.message === 'string' ? (e.name || 'Error') + ': ' + e.message : fmt(e);
-          send({ type: 'test', name: t.name, suite: t.suite, status: 'fail', message: String(text) });
+          const text =
+            isObject(e) && typeof e.message === 'string'
+              ? (e.name || 'Error') + ': ' + e.message
+              : fmt(e);
+          send({
+            type: 'test',
+            name: t.name,
+            suite: t.suite,
+            status: 'fail',
+            message: String(text),
+          });
         }
       }
     }

@@ -25,16 +25,17 @@ export interface SearchDoc {
   code: string;
 }
 
+export type CourseColor = 'js' | 'react' | 'ts' | 'testing' | 'mistakes';
+
 export interface CourseInfo {
   id: string;
   title: string;
-  short: string;
-  /** CSS variable name of the course color, e.g. "--js". */
-  color: string;
-  /** Text color to use on top of the course color. */
-  onColor: 'dark' | 'light';
+  /** Short label for the logo chip, e.g. "JS". */
   badge: string;
+  color: CourseColor;
   description: string;
-  /** Phase in which the course is built; courses without lessons show "Coming soon". */
+  /** Lesson ids in order. Must match the `id` in each lesson's frontmatter. */
   lessons: string[];
+  /** Build phase (PROMPT.md §13). Courses with no lessons yet show "Coming in phase N". */
+  phase: number;
 }

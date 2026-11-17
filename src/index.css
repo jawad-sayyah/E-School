@@ -16,6 +16,9 @@
  *   --danger → --destructive   --faint, --success, course and syntax colors keep their names.
  */
 @theme inline {
+  /* The "On this page" column appears at 1180px (PROMPT.md §3). */
+  --breakpoint-toc: 73.75rem;
+
   --font-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
   --font-heading: 'Space Grotesk Variable', 'Inter Variable', ui-sans-serif, sans-serif;
   --font-mono: 'JetBrains Mono Variable', ui-monospace, SFMono-Regular, monospace;

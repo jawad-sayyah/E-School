@@ -22,7 +22,8 @@ describe("getTotal", () => {
 });
 `;
 
-const SOLUTION = 'function getTotal(cart) {\n  return cart.reduce((sum, i) => sum + i.price * i.qty, 0);\n}';
+const SOLUTION =
+  'function getTotal(cart) {\n  return cart.reduce((sum, i) => sum + i.price * i.qty, 0);\n}';
 
 describe('checkExercise', () => {
   test('passes a correct solution', async () => {
@@ -38,7 +39,8 @@ describe('checkExercise', () => {
   });
 
   test('fails a wrong solution and shows expected vs received', async () => {
-    const wrong = 'function getTotal(cart) {\n  return cart.reduce((sum, i) => sum + i.price, 0);\n}';
+    const wrong =
+      'function getTotal(cart) {\n  return cart.reduce((sum, i) => sum + i.price, 0);\n}';
     const check = await checkExercise(wrong, TESTS, options);
     expect(check.passed).toBe(false);
     const failure = check.results.find((r) => r.name === 'one item');

@@ -97,7 +97,7 @@ export function runCode(code: string, options: RunOptions = {}): () => void {
 
   let worker: WorkerLike | null = null;
   let finished = false;
-  let hardTimer: ReturnType<typeof setTimeout> | undefined;
+  let hardTimer: ReturnType<typeof setTimeout> | undefined = undefined;
   let afterTimer: ReturnType<typeof setTimeout> | undefined;
   let lineCount = 0;
   let buffer: ConsoleLine[] = [];
@@ -180,7 +180,9 @@ export function runCode(code: string, options: RunOptions = {}): () => void {
     if (finished || !isRecord(data)) return;
     switch (data.type) {
       case 'line': {
-        const level = LEVELS.includes(data.level as ConsoleLevel) ? (data.level as ConsoleLevel) : 'log';
+        const level = LEVELS.includes(data.level as ConsoleLevel)
+          ? (data.level as ConsoleLevel)
+          : 'log';
         pushLine({ level, text: String(data.text) });
         return;
       }

@@ -1,0 +1,174 @@
+---
+id: variables
+title: Variables & types
+summary: Store values with let and const, check their type with typeof, and build text with template literals.
+minutes: 10
+tags: [variables, let, const, typeof, types, template literals, strings]
+---
+
+A program remembers things in **variables**. In this course every example is about the same thing: a small shopping cart with items like `{ name: "Coffee", price: 4, qty: 2 }`.
+
+<Callout type="tip">
+Edit any example and press **Run** (or Ctrl + Enter) to see the result. **Used in React** marks what you'll need most later.
+</Callout>
+
+<Concept name="let & const" id="let-const">
+
+Use `const` by default, and `let` only when the value will change. Avoid the old `var`.
+
+<Playground file="let-const.js" expected={["Coffee 2"]}>
+
+```js
+const name = "Coffee";
+let qty = 1;
+qty = qty + 1;
+
+console.log(name, qty);
+```
+
+</Playground>
+</Concept>
+
+<Concept name="const can't be reassigned" id="const-reassign" warn>
+
+Giving a `const` a new value is an error, so `const` protects values that should stay put.
+
+<Playground file="const-error.js" expected={["4", "Uncaught TypeError: Assignment to constant variable."]}>
+
+```js
+const price = 4;
+console.log(price);
+
+price = 5; // not allowed
+```
+
+</Playground>
+</Concept>
+
+<Concept name="typeof">
+
+JavaScript has a few basic types, and `typeof` tells you which one a value is.
+
+<Playground file="typeof.js" expected={["number", "string", "boolean", "undefined", "object", "object"]}>
+
+```js
+console.log(typeof 42);
+console.log(typeof "hi");
+console.log(typeof true);
+console.log(typeof undefined);
+console.log(typeof { a: 1 });
+console.log(typeof [1, 2]);   // arrays are objects!
+```
+
+</Playground>
+</Concept>
+
+<Concept name="undefined & null" id="undefined-null">
+
+A variable without a value is `undefined`; `null` is a value you set on purpose to mean "nothing yet".
+
+<Playground file="empty.js" expected={["undefined", "null"]}>
+
+```js
+let coupon;
+const selectedItem = null;
+
+console.log(coupon);
+console.log(selectedItem);
+```
+
+</Playground>
+</Concept>
+
+<Concept name="Template literals" id="template-literals" react>
+
+Build strings with backticks and `${}` instead of joining pieces with `+`.
+
+<Playground file="template.js" expected={["Coffee costs $4", "2 × Coffee = $8"]}>
+
+```js
+const item = "Coffee";
+const price = 4;
+const qty = 2;
+
+console.log(`${item} costs $${price}`);
+console.log(`${qty} × ${item} = $${price * qty}`);
+```
+
+</Playground>
+</Concept>
+
+<Exercise
+  id="item-label"
+  title="Build an item label"
+  hints={[
+    "Use a template literal: backticks with `${}` inside.",
+    "The result should be `${qty} × ${name}`. The × character is already in the starter code.",
+  ]}
+>
+
+Write `itemLabel(name, qty)` so that it returns text like `"2 × Coffee"`.
+
+```js starter
+function itemLabel(name, qty) {
+  // return something like "2 × Coffee"
+  return "×";
+}
+
+console.log(itemLabel("Coffee", 2));
+```
+
+```js tests
+test("2 × Coffee", () => {
+  expect(itemLabel("Coffee", 2)).toBe("2 × Coffee");
+});
+
+test("1 × Bagel", () => {
+  expect(itemLabel("Bagel", 1)).toBe("1 × Bagel");
+});
+
+test("returns a string", () => {
+  expect(typeof itemLabel("Tea", 3)).toBe("string");
+});
+```
+
+```js solution
+function itemLabel(name, qty) {
+  return `${qty} × ${name}`;
+}
+
+console.log(itemLabel("Coffee", 2));
+```
+
+</Exercise>
+
+<Quiz
+  questions={[
+    {
+      q: "Which keyword should you use for a cart total that changes every time an item is added?",
+      options: ["`const`", "`let`", "`var`", "No keyword at all"],
+      answer: 1,
+      explain: "`let` is for values that change. `const` can't be reassigned, and `var` is the old keyword with confusing rules.",
+    },
+    {
+      q: "What does this print?",
+      code: "console.log(typeof [1, 2, 3]);",
+      options: ["`array`", "`list`", "`object`", "`number`"],
+      answer: 2,
+      explain: "Arrays are a kind of object, so `typeof` says `object`. Use `Array.isArray()` to check for arrays.",
+    },
+    {
+      q: "What does this print?",
+      code: "const item = \"Tea\";\nconsole.log(`${item}!`);",
+      options: ["`${item}!`", "`Tea!`", "`item!`", "An error"],
+      answer: 1,
+      explain: "Inside backticks, `${}` inserts the value of the expression, so you get `Tea!`.",
+    },
+    {
+      q: "What happens when you run `const qty = 1; qty = 2;`?",
+      options: ["`qty` becomes 2", "Nothing changes, silently", "A TypeError: Assignment to constant variable", "`qty` becomes `undefined`"],
+      answer: 2,
+      explain: "A `const` can't be given a new value. JavaScript throws a TypeError to tell you.",
+    },
+  ]}
+/>

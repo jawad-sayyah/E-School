@@ -8,7 +8,11 @@ import { LIMITS } from './limits';
 const FAST = { MAX_MS: 1500, AFTER_MS: 400 };
 
 const run = (code: string, options: Omit<RunOptions, 'onLines' | 'onDone'> = {}) =>
-  runToEnd(code, { createWorker: createNodeWorker, ...options, limits: { ...FAST, ...options.limits } });
+  runToEnd(code, {
+    createWorker: createNodeWorker,
+    ...options,
+    limits: { ...FAST, ...options.limits },
+  });
 
 const texts = (lines: { text: string }[]) => lines.map((l) => l.text);
 

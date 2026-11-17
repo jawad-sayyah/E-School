@@ -102,6 +102,9 @@ export function formatLine(
     .join(' ');
   if (text.length <= limits.MAX_CHARS) return text;
   return (
-    text.slice(0, limits.MAX_CHARS) + ' … (' + (text.length - limits.MAX_CHARS) + ' more characters)'
+    text.slice(0, limits.MAX_CHARS) +
+    ' … (' +
+    (text.length - limits.MAX_CHARS) +
+    ' more characters)'
   );
 }

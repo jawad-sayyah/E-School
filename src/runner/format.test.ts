@@ -23,7 +23,9 @@ describe('formatLine', () => {
   });
 
   test('matches the reference outputs for entries', () => {
-    expect(fmt(Object.entries({ coffee: 5, bagel: 2 }))).toBe("[ [ 'coffee', 5 ], [ 'bagel', 2 ] ]");
+    expect(fmt(Object.entries({ coffee: 5, bagel: 2 }))).toBe(
+      "[ [ 'coffee', 5 ], [ 'bagel', 2 ] ]",
+    );
     expect(fmt([1, 2].map(() => undefined))).toBe('[ undefined, undefined ]');
   });
 

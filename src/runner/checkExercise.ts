@@ -28,10 +28,12 @@ export async function checkExercise(
 
   let problem: string | undefined;
   if (run.syntaxError) problem = `Your code has a syntax error: ${run.syntaxError}`;
-  else if (run.status === 'timeout') problem = 'The tests took too long. Is there an infinite loop?';
+  else if (run.status === 'timeout')
+    problem = 'The tests took too long. Is there an infinite loop?';
   else if (run.status === 'limit') problem = 'Too much output. Is a loop running forever?';
   else if (run.status === 'unavailable') problem = 'Tests can’t run in this browser.';
-  else if (summary?.crashed) problem = `Your code crashed before the tests ran: ${firstError ?? 'unknown error'}`;
+  else if (summary?.crashed)
+    problem = `Your code crashed before the tests ran: ${firstError ?? 'unknown error'}`;
   else if (!summary) problem = 'The tests didn’t finish.';
 
   return {
