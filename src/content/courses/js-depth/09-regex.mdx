@@ -1,0 +1,286 @@
+---
+id: regex
+title: Regular expressions
+summary: "Search, validate and clean up text with patterns: character classes, quantifiers, anchors, groups and flags."
+minutes: 16
+tags: [regex, regular expressions, test, match, matchAll, replace, groups, flags, validation]
+---
+
+A **regular expression** (regex) describes a pattern in text: "five digits", "a word followed by a number". You'll use them to validate form input, find things in text and clean it up.
+
+<Concept name="test()" id="regex-test">
+
+A regex is written between slashes, and `test()` says whether the text contains the pattern. The `i` flag ignores case.
+
+<Playground file="test.js" expected={["true", "false", "true"]}>
+
+```js
+console.log(/coffee/.test("I love coffee"));
+console.log(/coffee/.test("Iced Coffee"));
+console.log(/coffee/i.test("Iced Coffee"));
+```
+
+</Playground>
+</Concept>
+
+<Concept name="Character classes & quantifiers" id="classes-quantifiers">
+
+`\d` means any digit, `\w` a word character, `\s` whitespace; `+` means "one or more" and `{2}` "exactly two".
+
+<Playground file="match.js" expected={["[ '42', '3' ]", "[ '12', '34' ]"]}>
+
+```js
+console.log("Order 42 for 3 items".match(/\d+/g));
+console.log("1234".match(/\d{2}/g));
+```
+
+</Playground>
+</Concept>
+
+<Concept name="Anchors: ^ and $" id="anchors">
+
+`^` means "start of the text" and `$` "end of the text", so a pattern with both must match the whole input.
+
+<Playground file="anchors.js" expected={["true", "false", "false"]}>
+
+```js
+const zip = /^\d{5}$/;
+
+console.log(zip.test("12345"));
+console.log(zip.test("1234"));
+console.log(zip.test("12345-678"));
+```
+
+</Playground>
+</Concept>
+
+<Concept name="Groups" id="groups">
+
+Parentheses capture parts of the match; named groups `(?<name>…)` make them easy to read.
+
+<Playground file="groups.js" expected={["2026 11 17", "11"]}>
+
+```js
+const date = "2026-11-17";
+
+const m = date.match(/(\d{4})-(\d{2})-(\d{2})/);
+console.log(m[1], m[2], m[3]);
+
+const named = date.match(/(?<year>\d{4})-(?<month>\d{2})/);
+console.log(named.groups.month);
+```
+
+</Playground>
+</Concept>
+
+<Concept name="replace() with a regex" id="regex-replace" react>
+
+With the `g` (global) flag, `replace` changes every match; `\s+` turns any run of spaces into one dash.
+
+<Playground file="replace.js" expected={["iced-coffee-latte", "Call ***-***-1234"]}>
+
+```js
+console.log("iced  coffee   latte".replace(/\s+/g, "-"));
+console.log("Call 555-867-1234".replace(/\d{3}-\d{3}/, "***-***"));
+```
+
+</Playground>
+</Concept>
+
+<Concept name="split() with a regex" id="regex-split">
+
+`split` accepts a regex too, so you can split on several separators at once.
+
+<Playground file="split.js" expected={["[ 'tea', 'coffee', 'juice' ]"]}>
+
+```js
+console.log("tea, coffee;juice".split(/[,;]\s*/));
+```
+
+</Playground>
+</Concept>
+
+<Concept name="Escape special characters" id="escaping" warn>
+
+`.`, `$`, `+`, `?`, `(` and friends have special meanings; put a backslash in front to match them literally.
+
+<Playground file="escape.js" expected={["true", "false"]}>
+
+```js
+console.log(/1.5/.test("125"));     // . means "any character"!
+console.log(/1\.5/.test("125"));    // \. means a real dot
+```
+
+</Playground>
+</Concept>
+
+<GoDeeper title="matchAll, and why regexes have a memory">
+
+`matchAll` returns every match **with its groups**, which `match(/…/g)` doesn't:
+
+<Playground file="match-all.js" expected={["Coffee 4.50", "Tea 2"]}>
+
+```js
+const text = "Coffee: $4.50, Tea: $2";
+for (const m of text.matchAll(/(\w+): \$(\d+(?:\.\d+)?)/g)) {
+  console.log(m[1], m[2]);
+}
+```
+
+</Playground>
+
+One trap: a regex with the `g` flag remembers where its last match ended (`lastIndex`), so calling `test()` twice on the same text can give different answers:
+
+<Playground file="last-index.js" expected={["true", "false"]}>
+
+```js
+const hasDigit = /\d/g;
+console.log(hasDigit.test("a1"));
+console.log(hasDigit.test("a1"));   // starts searching after the 1!
+```
+
+</Playground>
+
+Don't use `g` with `test()`, or create the regex fresh each time.
+
+</GoDeeper>
+
+<Practice>
+
+<Predict
+  id="predict-regex"
+  answer={["true", "[ '3', '12' ]", "a-b-c"]}
+  explain="`^[A-Z]` checks the first character is a capital. `\\d+` with `g` finds every run of digits. `[^a-z]+` matches anything that isn't a lowercase letter, so each run becomes one dash."
+>
+
+```js
+console.log(/^[A-Z]/.test("Tea"));
+console.log("3 cups for $12".match(/\d+/g));
+console.log("a, b; c".replace(/[^a-z]+/g, "-"));
+```
+
+</Predict>
+
+<MatchPairs
+  id="match-regex-parts"
+  prompt="Match each piece of regex with its meaning."
+  columns={["Piece", "Means"]}
+  pairs={[
+    ["`\\d`", "Any digit"],
+    ["`\\s`", "Any whitespace"],
+    ["`+`", "One or more of the thing before"],
+    ["`^`", "The start of the text"],
+    ["`$`", "The end of the text"],
+    ["`/…/i`", "Ignore upper/lower case"],
+  ]}
+/>
+
+<SpotTheBug
+  id="bug-regex-g"
+  bug={2}
+  prompt={"This prints \"iced-coffee latte\" instead of \"iced-coffee-latte\". Click the buggy line."}
+  explain={"Without the `g` flag, `replace` only changes the first match. Use `/ /g`, or `replaceAll(\" \", \"-\")`."}
+>
+
+```js
+const name = "iced coffee latte";
+const slug = name.replace(/ /, "-");
+console.log(slug);
+```
+
+```js fixed
+const name = "iced coffee latte";
+const slug = name.replace(/ /g, "-");
+console.log(slug);
+```
+
+</SpotTheBug>
+
+<FillBlanks
+  id="blanks-regex"
+  prompt="Fill in the blanks: check that a coupon is SAVE followed by exactly two digits, and nothing else."
+  explain="`^` and `$` force the whole code to match; `\\d{2}` is exactly two digits."
+>
+
+```js
+const coupon = /__[^]__SAVE\d{__[2]__}__[$]__/;
+console.log(coupon.test("SAVE10"), coupon.test("SAVE100"));
+```
+
+</FillBlanks>
+
+</Practice>
+
+<Exercise
+  id="extract-prices"
+  title="Pull prices out of text"
+  hints={[
+    "A price is `$` followed by digits, maybe with a dot and more digits: `/\\$(\\d+(?:\\.\\d+)?)/g`.",
+    "Use `text.matchAll(regex)` and take group 1 of each match.",
+    "Convert each one with `Number()`.",
+  ]}
+>
+
+Write `extractPrices(text)` that returns every price in the text as a number. For `"Coffee $4.50, Tea $2"` it returns `[4.5, 2]`.
+
+```js starter
+function extractPrices(text) {
+  return [];
+}
+
+console.log(extractPrices("Coffee $4.50, Tea $2"));
+```
+
+```js tests
+test("finds every price", () => {
+  expect(extractPrices("Coffee $4.50, Tea $2")).toEqual([4.5, 2]);
+});
+
+test("ignores numbers without a $", () => {
+  expect(extractPrices("2 coffees for $8")).toEqual([8]);
+});
+
+test("returns an empty array when there are none", () => {
+  expect(extractPrices("Free refills")).toEqual([]);
+});
+```
+
+```js solution
+function extractPrices(text) {
+  return [...text.matchAll(/\$(\d+(?:\.\d+)?)/g)].map((m) => Number(m[1]));
+}
+
+console.log(extractPrices("Coffee $4.50, Tea $2"));
+```
+
+</Exercise>
+
+<Quiz
+  questions={[
+    {
+      q: "Which regex matches a text that is exactly 4 digits?",
+      options: ["`/\\d{4}/`", "`/^\\d{4}$/`", "`/[0-4]/`", "`/\\d+/`"],
+      answer: 1,
+      explain: "Without `^` and `$`, \"12345\" would match too, because it contains 4 digits.",
+    },
+    {
+      q: "What does this print?",
+      code: "console.log(\"a1b22\".match(/\\d+/g));",
+      options: ["`[ '1', '22' ]`", "`[ '1', '2', '2' ]`", "`'1'`", "`true`"],
+      answer: 0,
+      explain: "`\\d+` grabs each run of digits, and `g` returns all of them.",
+    },
+    {
+      q: "How do you match a literal dot?",
+      options: ["`.`", "`\\.`", "`[dot]`", "`/./i`"],
+      answer: 1,
+      explain: "`.` alone means \"any character\".",
+    },
+    {
+      q: "What does the `g` flag do?",
+      options: ["Ignores case", "Finds or replaces every match, not just the first", "Makes the regex faster", "Matches across lines"],
+      answer: 1,
+      explain: "`i` is the flag that ignores case.",
+    },
+  ]}
+/>

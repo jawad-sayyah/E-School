@@ -1,0 +1,268 @@
+---
+id: dates-intl
+title: Dates & Intl
+summary: Create and compare dates, avoid the month and time-zone traps, and format dates, prices and relative times for any locale.
+minutes: 15
+tags: [Date, time, timestamps, ISO, time zones, Intl, DateTimeFormat, NumberFormat, RelativeTimeFormat, currency]
+---
+
+Dates look simple until time zones and month numbers bite. This lesson covers the safe way to create, compare and calculate with dates, and the built-in `Intl` tools that format dates and money correctly for every country.
+
+<Callout type="tip">
+The examples use fixed dates in UTC, so they print the same everywhere. In your apps, `new Date()` gives the current moment.
+</Callout>
+
+<Concept name="Creating a date" id="creating-dates">
+
+A `Date` is a moment in time. `toISOString()` shows it in the standard, time-zone-free format.
+
+<Playground file="create.js" expected={["2026-11-17T09:30:00.000Z", "2026-11-17T09:30:00.000Z"]}>
+
+```js
+const fromParts = new Date(Date.UTC(2026, 10, 17, 9, 30));
+const fromText = new Date("2026-11-17T09:30:00Z");
+
+console.log(fromParts.toISOString());
+console.log(fromText.toISOString());
+```
+
+</Playground>
+</Concept>
+
+<Concept name="Months start at 0" id="months-zero" warn>
+
+In `Date`, January is month 0 and December is 11, a classic source of off-by-one bugs.
+
+<Playground file="months.js" expected={["2026 11 17"]}>
+
+```js
+const d = new Date(Date.UTC(2026, 10, 17));   // 10 means November!
+
+console.log(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate());
+```
+
+</Playground>
+</Concept>
+
+<Concept name="Timestamps & differences" id="timestamps">
+
+Underneath, a date is a number of milliseconds since 1 January 1970 (UTC). Subtracting two dates gives the milliseconds between them.
+
+<Playground file="diff.js" expected={["3", "2026-11-20"]}>
+
+```js
+const DAY = 24 * 60 * 60 * 1000;
+const ordered = new Date("2026-11-17");
+const shipped = new Date("2026-11-20");
+
+console.log((shipped - ordered) / DAY);
+
+const due = new Date(ordered.getTime() + 3 * DAY);
+console.log(due.toISOString().slice(0, 10));
+```
+
+</Playground>
+</Concept>
+
+<Concept name="Intl.DateTimeFormat" id="date-format" react>
+
+`Intl.DateTimeFormat` formats a date the way each country expects, with words and order handled for you.
+
+<Playground file="format-date.js" expected={["November 17, 2026", "17 November 2026", "11/17/2026"]}>
+
+```js
+const d = new Date(Date.UTC(2026, 10, 17));
+const long = { dateStyle: "long", timeZone: "UTC" };
+
+console.log(new Intl.DateTimeFormat("en-US", long).format(d));
+console.log(new Intl.DateTimeFormat("en-GB", long).format(d));
+console.log(new Intl.DateTimeFormat("en-US", { timeZone: "UTC" }).format(d));
+```
+
+</Playground>
+</Concept>
+
+<Concept name="Intl.NumberFormat for money" id="number-format" react>
+
+`Intl.NumberFormat` adds the currency symbol, thousands separators and the right number of decimals.
+
+<Playground file="money.js" expected={["$1,234.50", "£1,234.50", "1,234.5"]}>
+
+```js
+const usd = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
+const gbp = new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" });
+
+console.log(usd.format(1234.5));
+console.log(gbp.format(1234.5));
+console.log(new Intl.NumberFormat("en-US").format(1234.5));
+```
+
+</Playground>
+</Concept>
+
+<Concept name="Relative times" id="relative-time">
+
+`Intl.RelativeTimeFormat` turns numbers into phrases like "yesterday" or "in 3 days".
+
+<Playground file="relative.js" expected={["yesterday", "in 3 days", "2 hours ago"]}>
+
+```js
+const rtf = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
+
+console.log(rtf.format(-1, "day"));
+console.log(rtf.format(3, "day"));
+console.log(rtf.format(-2, "hour"));
+```
+
+</Playground>
+</Concept>
+
+<GoDeeper title="Time zones, and the rules that keep you safe">
+
+A `Date` stores one exact moment; the time zone only matters when you **show** it. `getHours()` and friends use the user's local zone, `getUTCHours()` uses UTC, and `Intl` formatting uses whatever `timeZone` you pass (or the user's zone by default).
+
+Rules that prevent most bugs:
+
+- **Store and send** dates as ISO strings (`toISOString()`) or timestamps, never as formatted text.
+- **Format only for display**, with `Intl`, at the last moment.
+- A date-only string like `"2026-11-17"` is read as **UTC midnight**, but `"2026-11-17T00:00"` (no `Z`) is read as **local** midnight.
+- `setDate()` and the other setters **change the date object**; copy it first (`new Date(d)`) if others use it.
+- For heavy date work (calendars, recurring events), use a library like date-fns, or the upcoming `Temporal` API.
+
+</GoDeeper>
+
+<Practice>
+
+<Predict
+  id="predict-month-overflow"
+  answer={["2026-01-31", "2026-03-02"]}
+  explain="Month 0 is January. There's no February 30, so JavaScript rolls over: February 2026 has 28 days, so day 30 becomes 2 March."
+  hint="Remember that months start at 0, and that dates roll over instead of failing."
+>
+
+```js
+console.log(new Date(Date.UTC(2026, 0, 31)).toISOString().slice(0, 10));
+console.log(new Date(Date.UTC(2026, 1, 30)).toISOString().slice(0, 10));
+```
+
+</Predict>
+
+<MatchPairs
+  id="match-date-tools"
+  prompt="Match each tool with what it's for."
+  columns={["Tool", "Use it to…"]}
+  pairs={[
+    ["`toISOString()`", "Store or send a date"],
+    ["`getTime()`", "Get the timestamp in milliseconds"],
+    ["`Intl.DateTimeFormat`", "Show a date the way a country writes it"],
+    ["`Intl.NumberFormat`", "Show money with symbols and separators"],
+    ["`Intl.RelativeTimeFormat`", "Say \"yesterday\" or \"in 3 days\""],
+  ]}
+/>
+
+<FillBlanks
+  id="blanks-currency"
+  prompt="Fill in the blanks to format 4.5 as $4.50."
+  explain={"`style: \"currency\"` turns on currency formatting, and the `currency` code picks the symbol."}
+>
+
+```js
+const price = new Intl.__[NumberFormat]__("en-US", {
+  style: "__[currency]__",
+  currency: "USD",
+});
+console.log(price.format(4.5));
+```
+
+</FillBlanks>
+
+<TrueFalse
+  id="tf-dates"
+  statements={[
+    { text: "`new Date(2026, 1, 1)` is the 1st of January.", answer: false, explain: "Month 1 is February; January is 0." },
+    { text: "Subtracting two dates gives the milliseconds between them.", answer: true, explain: "Dates convert to their timestamps for math." },
+    { text: "You should save dates in a database as formatted text like \"Nov 17\".", answer: false, explain: "Save ISO strings or timestamps; format only for display." },
+    { text: "`Intl.NumberFormat` can format money for different countries.", answer: true, explain: "Pass a locale and `{ style: \"currency\", currency }`." },
+  ]}
+/>
+
+</Practice>
+
+<Exercise
+  id="days-between"
+  title="Days between two dates"
+  hints={[
+    "`new Date(\"2026-11-17\")` reads a date-only string as UTC midnight.",
+    "Subtract the dates to get milliseconds, then divide by `24 * 60 * 60 * 1000`.",
+    "Use `Math.abs` so the order doesn't matter, and `Math.round` to be safe.",
+  ]}
+>
+
+Write `daysBetween(a, b)` that takes two date strings like `"2026-11-17"` and returns the number of whole days between them, whichever comes first.
+
+```js starter
+function daysBetween(a, b) {
+  return 0;
+}
+
+console.log(daysBetween("2026-11-17", "2026-11-20"));
+```
+
+```js tests
+test("counts the days", () => {
+  expect(daysBetween("2026-11-17", "2026-11-20")).toBe(3);
+});
+
+test("works in either order", () => {
+  expect(daysBetween("2026-11-20", "2026-11-17")).toBe(3);
+});
+
+test("the same day is 0", () => {
+  expect(daysBetween("2026-11-17", "2026-11-17")).toBe(0);
+});
+
+test("crosses months and years", () => {
+  expect(daysBetween("2026-12-30", "2027-01-02")).toBe(3);
+});
+```
+
+```js solution
+function daysBetween(a, b) {
+  const DAY = 24 * 60 * 60 * 1000;
+  const diff = new Date(b) - new Date(a);
+  return Math.round(Math.abs(diff) / DAY);
+}
+
+console.log(daysBetween("2026-11-17", "2026-11-20"));
+```
+
+</Exercise>
+
+<Quiz
+  questions={[
+    {
+      q: "Which month is `new Date(Date.UTC(2026, 11, 25))`?",
+      options: ["November", "December", "January 2027", "An error"],
+      answer: 1,
+      explain: "Months start at 0, so 11 is December.",
+    },
+    {
+      q: "What's the safest way to send a date to a server?",
+      options: ["`d.toString()`", "`d.toLocaleDateString()`", "`d.toISOString()`", "`String(d.getDate())`"],
+      answer: 2,
+      explain: "ISO strings are unambiguous and time-zone-safe.",
+    },
+    {
+      q: "What does `new Intl.NumberFormat(\"en-US\", { style: \"currency\", currency: \"USD\" }).format(5)` give?",
+      options: ["`5`", "`$5`", "`$5.00`", "`5.00 USD`"],
+      answer: 2,
+      explain: "USD formatting always shows two decimals.",
+    },
+    {
+      q: "Which of these change the date object they're called on?",
+      options: ["`d.setDate(1)`", "`d.toISOString()`", "`d.setHours(0)`", "`d.getTime()`"],
+      answer: [0, 2],
+      explain: "Setters mutate the date; getters and formatters don't.",
+    },
+  ]}
+/>

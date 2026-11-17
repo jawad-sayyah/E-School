@@ -1,0 +1,281 @@
+---
+id: modern-syntax
+title: Modern syntax
+summary: The newer JavaScript features you'll see in real code, from ??= and at() to toSorted(), Object.groupBy and Promise.allSettled.
+minutes: 13
+tags: [modern javascript, logical assignment, at, toSorted, with, Object.groupBy, Array.from, padStart, allSettled, numeric separators]
+---
+
+JavaScript gets new features every year. These are the ones you'll actually meet in modern React code and libraries, each replacing a clumsier older pattern.
+
+<Concept name="??=  ||=  &&=" id="logical-assignment">
+
+Logical assignment sets a value only when needed: `??=` if it's null or undefined, `||=` if it's falsy, `&&=` if it's truthy.
+
+<Playground file="logical.js" expected={["{ theme: 'dark', qty: 1, coupon: 'SAVE10' }"]}>
+
+```js
+const settings = { theme: null, qty: 0, coupon: "save10" };
+
+settings.theme ??= "dark";               // was null
+settings.qty ||= 1;                      // 0 is falsy
+settings.coupon &&= settings.coupon.toUpperCase();
+
+console.log(settings);
+```
+
+</Playground>
+</Concept>
+
+<Concept name="at()" id="at">
+
+`at()` reads by position and accepts negative numbers to count from the end.
+
+<Playground file="at.js" expected={["Muffin Muffin", "e"]}>
+
+```js
+const cart = ["Coffee", "Bagel", "Muffin"];
+
+console.log(cart.at(-1), cart[cart.length - 1]);   // same, shorter
+console.log("Coffee".at(-1));
+```
+
+</Playground>
+</Concept>
+
+<Concept name="toSorted(), toReversed(), with()" id="copying-methods" react>
+
+These are the copying versions of `sort`, `reverse` and index assignment: they return a new array and never touch the original, which is exactly what React state needs.
+
+<Playground file="copying.js" expected={["[ 1, 3, 5 ]", "[ 3, 1, 5 ]", "[ 9, 1, 3 ]", "[ 5, 1, 3 ]"]}>
+
+```js
+const prices = [5, 1, 3];
+
+console.log(prices.toSorted((a, b) => a - b));
+console.log(prices.toReversed());
+console.log(prices.with(0, 9));
+console.log(prices);   // unchanged
+```
+
+</Playground>
+</Concept>
+
+<Concept name="Object.groupBy()" id="group-by">
+
+`Object.groupBy` sorts items into groups by a key you choose, replacing a hand-written `reduce`.
+
+<Playground file="group-by.js" expected={["[ 'Tea', 'Coffee' ]", "[ 'drink', 'food' ]"]}>
+
+```js
+const items = [
+  { name: "Tea", type: "drink" },
+  { name: "Bagel", type: "food" },
+  { name: "Coffee", type: "drink" },
+];
+
+const groups = Object.groupBy(items, (item) => item.type);
+console.log(groups.drink.map((item) => item.name));
+console.log(Object.keys(groups));
+```
+
+</Playground>
+</Concept>
+
+<Concept name="Array.from()" id="array-from">
+
+`Array.from` builds an array from anything list-like, with an optional function to fill it.
+
+<Playground file="from.js" expected={["[ 0, 2, 4 ]", "[ 'T', 'e', 'a' ]"]}>
+
+```js
+console.log(Array.from({ length: 3 }, (_, i) => i * 2));
+console.log(Array.from("Tea"));
+```
+
+</Playground>
+</Concept>
+
+<Concept name="padStart() & numeric separators" id="pad-start">
+
+`padStart` pads text to a fixed width, and `_` in number literals makes big numbers readable.
+
+<Playground file="pad.js" expected={["ORDER-00042", "1000000"]}>
+
+```js
+console.log(`ORDER-${String(42).padStart(5, "0")}`);
+console.log(1_000_000);
+```
+
+</Playground>
+</Concept>
+
+<Concept name="Promise.allSettled()" id="all-settled">
+
+`Promise.allSettled` waits for every promise and tells you which worked, instead of failing as soon as one fails like `Promise.all`.
+
+<Playground file="all-settled.js" expected={["[ 'fulfilled', 'rejected' ]", "no"]}>
+
+```js
+const results = await Promise.allSettled([
+  Promise.resolve("ok"),
+  Promise.reject(new Error("no")),
+]);
+
+console.log(results.map((r) => r.status));
+console.log(results[1].reason.message);
+```
+
+</Playground>
+</Concept>
+
+<GoDeeper title="How new features reach your users">
+
+New JavaScript features go through the **TC39** committee in stages 0 to 4; stage 4 means they're in the yearly standard (ES2023, ES2024…). Browsers ship them over the following months.
+
+To use a feature in an app today, check its support on caniuse.com or MDN. Tools like Vite can **transpile** newer syntax for older browsers, and **polyfills** can add missing functions such as `Object.groupBy`. This site uses all the features in this lesson, because every current browser supports them.
+
+</GoDeeper>
+
+<Practice>
+
+<Predict
+  id="predict-modern"
+  answer={["5 [ 1, 5, 9 ]", "[ 9, 1, 5 ]", "0 2"]}
+  explain="`at(-1)` is the last item, and `toSorted` returns a sorted copy, so `nums` keeps its order. `??=` doesn't replace 0 (it's not null), but `||=` replaces it."
+>
+
+```js
+const nums = [9, 1, 5];
+console.log(nums.at(-1), nums.toSorted((a, b) => a - b));
+console.log(nums);
+
+let a = 0;
+let b = 0;
+a ??= 2;
+b ||= 2;
+console.log(a, b);
+```
+
+</Predict>
+
+<MatchPairs
+  id="match-old-new"
+  prompt="Match each older pattern with its modern replacement."
+  columns={["Older pattern", "Modern"]}
+  pairs={[
+    ["`arr[arr.length - 1]`", "`arr.at(-1)`"],
+    ["`[...arr].sort(fn)`", "`arr.toSorted(fn)`"],
+    ["`x = x ?? \"default\"`", "`x ??= \"default\"`"],
+    ["A `reduce` that builds groups", "`Object.groupBy(items, fn)`"],
+    ["`JSON.parse(JSON.stringify(obj))`", "`structuredClone(obj)`"],
+  ]}
+/>
+
+<SortBuckets
+  id="buckets-copy-methods"
+  prompt="Does each method change the original array?"
+  buckets={["Changes the original", "Returns a copy"]}
+  items={[
+    ["`sort()`", 0],
+    ["`toSorted()`", 1],
+    ["`reverse()`", 0],
+    ["`toReversed()`", 1],
+    ["`arr[0] = x`", 0],
+    ["`arr.with(0, x)`", 1],
+  ]}
+  explain="Each mutating method now has a copying twin, which is the one to use on React state."
+/>
+
+<TrueFalse
+  id="tf-modern"
+  statements={[
+    { text: "`toSorted()` changes the original array.", answer: false, explain: "It returns a sorted copy." },
+    { text: "`Promise.allSettled` rejects as soon as one promise fails.", answer: false, explain: "That's `Promise.all`; `allSettled` always waits for all of them." },
+    { text: "`[1, 2, 3].at(-1)` is 3.", answer: true, explain: "Negative positions count from the end." },
+    { text: "`x ??= 5` changes `x` when it's 0.", answer: false, explain: "`??=` only assigns when `x` is null or undefined." },
+  ]}
+/>
+
+</Practice>
+
+<Exercise
+  id="top-products"
+  title="The most expensive products"
+  hints={[
+    "Sort a copy by price, highest first: `products.toSorted((a, b) => b.price - a.price)`.",
+    "Take the first `n` with `slice(0, n)` and map them to names.",
+  ]}
+>
+
+Write `topProducts(products, n)` that returns the names of the `n` most expensive products, most expensive first, without changing the original array.
+
+```js starter
+function topProducts(products, n) {
+  products.sort((a, b) => b.price - a.price);
+  return products.slice(0, n).map((p) => p.name);
+}
+```
+
+```js tests
+const list = () => [
+  { name: "Tea", price: 2 },
+  { name: "Cake", price: 6 },
+  { name: "Coffee", price: 4 },
+];
+
+test("returns the most expensive first", () => {
+  expect(topProducts(list(), 2)).toEqual(["Cake", "Coffee"]);
+});
+
+test("does not change the original array", () => {
+  const products = list();
+  topProducts(products, 2);
+  expect(products[0].name).toBe("Tea");
+});
+
+test("n larger than the list returns everything", () => {
+  expect(topProducts(list(), 10)).toHaveLength(3);
+});
+```
+
+```js solution
+function topProducts(products, n) {
+  return products
+    .toSorted((a, b) => b.price - a.price)
+    .slice(0, n)
+    .map((p) => p.name);
+}
+```
+
+</Exercise>
+
+<Quiz
+  questions={[
+    {
+      q: "Which is the React-friendly way to sort state?",
+      options: ["`state.sort(fn)`", "`state.toSorted(fn)`", "`state.reverse()`", "`state[0] = x`"],
+      answer: 1,
+      explain: "`toSorted` returns a new array and leaves state untouched.",
+    },
+    {
+      q: "What does this print?",
+      code: "let qty = null;\nqty ??= 1;\nconsole.log(qty);",
+      options: ["`null`", "`1`", "`0`", "`undefined`"],
+      answer: 1,
+      explain: "`qty` was null, so `??=` assigns 1.",
+    },
+    {
+      q: "What does `Object.groupBy(items, fn)` return?",
+      options: ["An array of arrays", "An object whose keys are the groups", "A Map", "The items, sorted"],
+      answer: 1,
+      explain: "Each key returned by `fn` becomes a property holding an array of items.",
+    },
+    {
+      q: "Which of these return a new array?",
+      options: ["`toReversed()`", "`with(1, x)`", "`sort()`", "`Array.from(x)`"],
+      answer: [0, 1, 3],
+      explain: "`sort()` sorts in place.",
+    },
+  ]}
+/>
