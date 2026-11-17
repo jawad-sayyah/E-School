@@ -12,9 +12,11 @@ import {
 } from '@/components/ui/sheet';
 import { useSearch } from '@/components/search/SearchContext';
 import { cn } from '@/lib/utils';
+import { XpStreak } from '@/components/gamification/XpStreak';
 import { ThemeToggle } from './ThemeToggle';
 
 const NAV = [
+  { to: '/tracks', label: 'Tracks' },
   { to: '/courses', label: 'Courses' },
   { to: '/project', label: 'Project' },
   { to: '/reference', label: 'Reference' },
@@ -104,6 +106,7 @@ export function Header() {
         <div className="flex flex-1 justify-end md:justify-center">
           <SearchButton />
         </div>
+        <XpStreak />
         <ThemeToggle />
       </div>
       <Sheet open={menuOpen} onOpenChange={setMenuOpen}>

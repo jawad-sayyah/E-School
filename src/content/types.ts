@@ -43,3 +43,20 @@ export interface CourseInfo {
 /** Search docs from the JS Quick Reference use this as their course id (URL: /reference#id). */
 export const REFERENCE_COURSE = 'reference';
 export const REFERENCE_TITLE = 'JS Quick Reference';
+
+export interface TrackInfo {
+  id: string;
+  title: string;
+  badge: string;
+  color: CourseColor;
+  tagline: string;
+  description: string;
+  /** Course ids in order. */
+  courses: string[];
+  /** The boss challenge: a lesson that must be completed for the certificate. */
+  boss?: { course: string; lesson: string };
+  /** The "Build a real website" track, made of project steps instead of courses. */
+  project?: boolean;
+  /** Build phase in which the track becomes complete. */
+  phase: number;
+}

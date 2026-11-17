@@ -13,6 +13,18 @@ export const router = createBrowserRouter([
         lazy: async () => ({ Component: (await import('@/pages/HomePage')).default }),
       },
       {
+        path: 'tracks',
+        lazy: async () => ({ Component: (await import('@/pages/TracksPage')).default }),
+      },
+      {
+        path: 'tracks/:track',
+        lazy: async () => ({ Component: (await import('@/pages/TrackPage')).default }),
+      },
+      {
+        path: 'certificates/:track',
+        lazy: async () => ({ Component: (await import('@/pages/CertificatePage')).default }),
+      },
+      {
         path: 'courses',
         lazy: async () => ({ Component: (await import('@/pages/CoursesPage')).default }),
       },

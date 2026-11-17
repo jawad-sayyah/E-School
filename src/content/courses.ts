@@ -1,7 +1,12 @@
 import type { CourseInfo } from './types';
 
-/** The course manifest: order, colors and the ordered lesson ids of every course. */
+/**
+ * The course manifest: order, colors and the ordered lesson ids of every course.
+ * Courses are grouped into tracks in tracks.ts. A course's last lesson is its review quiz.
+ * Courses with no lessons yet show "Coming in phase N".
+ */
 export const COURSES: CourseInfo[] = [
+  // ── Track: JavaScript ─────────────────────────────────────────────
   {
     id: 'js-basics',
     title: 'JavaScript Basics',
@@ -42,6 +47,50 @@ export const COURSES: CourseInfo[] = [
     phase: 2,
   },
   {
+    id: 'js-depth',
+    title: 'JavaScript in Depth',
+    badge: 'JS',
+    color: 'js',
+    description:
+      'Scope and hoisting, this, classes and prototypes, the event loop, Map and Set, generators, errors, regex, dates and modern syntax.',
+    lessons: [],
+    phase: 4,
+  },
+
+  // ── Track: TypeScript ─────────────────────────────────────────────
+  {
+    id: 'ts-basics',
+    title: 'TypeScript Basics',
+    badge: 'TS',
+    color: 'ts',
+    description:
+      'Why TypeScript, types and inference, objects and interfaces, unions and narrowing, functions, tuples and enums.',
+    lessons: [],
+    phase: 8,
+  },
+  {
+    id: 'ts-depth',
+    title: 'TypeScript in Depth',
+    badge: 'TS',
+    color: 'ts',
+    description:
+      'Generics, keyof and typeof, utility types, type guards, discriminated unions, satisfies, tsconfig and declaration files.',
+    lessons: [],
+    phase: 8,
+  },
+  {
+    id: 'ts-react',
+    title: 'TypeScript with React',
+    badge: 'TS',
+    color: 'ts',
+    description:
+      'Typed props and children, state, events, refs, reducers, context, custom hooks and generic components.',
+    lessons: [],
+    phase: 8,
+  },
+
+  // ── Track: React ──────────────────────────────────────────────────
+  {
     id: 'why-react',
     title: 'Why React?',
     badge: '⚛',
@@ -49,16 +98,27 @@ export const COURSES: CourseInfo[] = [
     description:
       'Build the cart in plain JavaScript, feel the pain of keeping the page in sync, then see how React makes the UI a function of state.',
     lessons: [],
-    phase: 3,
+    phase: 5,
   },
   {
     id: 'react',
-    title: 'React',
+    title: 'React Fundamentals',
     badge: '⚛',
     color: 'react',
-    description: 'Components, JSX, props, state, events, lists, forms and lifting state up.',
+    description:
+      'Components, JSX, props, state, events, lists, conditional rendering, forms, lifting state up and composition.',
     lessons: [],
-    phase: 3,
+    phase: 5,
+  },
+  {
+    id: 'how-react-works',
+    title: 'How React Works',
+    badge: '⚛',
+    color: 'react',
+    description:
+      'Rendering and reconciliation, memo, Suspense and lazy, error boundaries, portals, refs and StrictMode.',
+    lessons: [],
+    phase: 5,
   },
   {
     id: 'hooks',
@@ -66,19 +126,28 @@ export const COURSES: CourseInfo[] = [
     badge: '⚛',
     color: 'react',
     description:
-      'useState in depth, useReducer, useEffect, useRef, useContext and your own useCart() hook.',
+      'Every built-in hook, from useState to useSyncExternalStore, plus custom hooks and the Rules of Hooks.',
     lessons: [],
-    phase: 3,
+    phase: 6,
   },
   {
-    id: 'typescript',
-    title: 'TypeScript',
-    badge: 'TS',
-    color: 'ts',
-    description:
-      'Types, unions, narrowing, generics and typing React, with real type errors in the editor.',
+    id: 'react-19',
+    title: 'React 19',
+    badge: '⚛',
+    color: 'react',
+    description: 'Actions, use, useActionState, useOptimistic, useFormStatus and form actions.',
     lessons: [],
-    phase: 4,
+    phase: 6,
+  },
+  {
+    id: 'react-ecosystem',
+    title: 'The React Ecosystem',
+    badge: '⚛',
+    color: 'react',
+    description:
+      'React Router, TanStack Query, React Hook Form with Zod, Zustand and Redux Toolkit, accessibility and performance.',
+    lessons: [],
+    phase: 7,
   },
   {
     id: 'mistakes',
@@ -86,9 +155,9 @@ export const COURSES: CourseInfo[] = [
     badge: '!',
     color: 'mistakes',
     description:
-      'Eight mistakes every React beginner makes, each with the wrong code, the fix and why.',
+      'The mistakes every React beginner makes, each with the wrong code, the fix and why.',
     lessons: [],
-    phase: 4,
+    phase: 7,
   },
   {
     id: 'testing',
@@ -96,9 +165,9 @@ export const COURSES: CourseInfo[] = [
     badge: '✓',
     color: 'testing',
     description:
-      'Test functions and React components the way real teams do: Vitest, Testing Library, mocking, MSW and Playwright.',
+      'Test functions and React components the way real teams do: Vitest, Testing Library, mocking, MSW, jest-axe and Playwright.',
     lessons: [],
-    phase: 5,
+    phase: 9,
   },
 ];
 
@@ -122,4 +191,13 @@ export const COURSE_ACCENT: Record<CourseInfo['color'], string> = {
   ts: 'bg-ts',
   testing: 'bg-testing',
   mistakes: 'bg-mistakes',
+};
+
+/** Tailwind text color for a course color. */
+export const COURSE_TEXT: Record<CourseInfo['color'], string> = {
+  js: 'text-js',
+  react: 'text-react',
+  ts: 'text-ts',
+  testing: 'text-testing',
+  mistakes: 'text-mistakes',
 };

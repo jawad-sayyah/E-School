@@ -10,6 +10,19 @@ import { Concept } from './Concept';
 import { Exercise } from './Exercise';
 import { Playground } from './Playground';
 import { Quiz } from './Quiz';
+import { GoDeeper, HowItWorks } from '@/components/depth/GoDeeper';
+import { CodeTrace } from '@/components/visualizers/CodeTrace';
+import { Choice } from '@/components/questions/Choice';
+import { CodeReview } from '@/components/questions/CodeReview';
+import { FillBlanks } from '@/components/questions/FillBlanks';
+import { MatchPairs } from '@/components/questions/MatchPairs';
+import { OrderLines } from '@/components/questions/OrderLines';
+import { Practice } from '@/components/questions/Practice';
+import { Predict } from '@/components/questions/Predict';
+import { SortBuckets } from '@/components/questions/SortBuckets';
+import { SpotTheBug } from '@/components/questions/SpotTheBug';
+import { TraceState } from '@/components/questions/TraceState';
+import { TrueFalse } from '@/components/questions/TrueFalse';
 
 function textOf(children: unknown): string {
   if (typeof children === 'string' || typeof children === 'number') return String(children);
@@ -112,4 +125,20 @@ export const mdxComponents: MDXComponents = {
   Quiz,
   Callout,
   Compare,
+  // depth layer and visualizers
+  HowItWorks,
+  GoDeeper,
+  CodeTrace,
+  // question types
+  Practice,
+  Choice,
+  Predict,
+  FillBlanks,
+  OrderLines,
+  MatchPairs,
+  SortBuckets,
+  SpotTheBug,
+  TraceState,
+  CodeReview,
+  TrueFalse,
 };

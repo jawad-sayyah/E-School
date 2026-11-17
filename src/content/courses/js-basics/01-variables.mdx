@@ -27,6 +27,57 @@ console.log(name, qty);
 ```
 
 </Playground>
+
+<HowItWorks>
+
+A variable is a **name that points at a value**. `let qty = 1` creates the name `qty` and points it at `1`. `qty = qty + 1` reads the current value (1), adds 1, and points `qty` at the new value (2). Step through it:
+
+</HowItWorks>
+
+<CodeTrace
+  file="let-const.js"
+  frames={[
+    { line: 1, vars: { name: "'Coffee'" }, note: "`const name` points at the text \"Coffee\". It will never point anywhere else." },
+    { line: 2, vars: { name: "'Coffee'", qty: "1" }, note: "`let qty` starts at 1. `let` means it may change later." },
+    { line: 3, vars: { name: "'Coffee'", qty: "2" }, note: "The right side runs first: `qty + 1` is 2. Then `qty` points at 2." },
+    { line: 5, vars: { name: "'Coffee'", qty: "2" }, out: "Coffee 2", note: "`console.log` prints both values, separated by a space." },
+  ]}
+>
+
+```js
+const name = "Coffee";
+let qty = 1;
+qty = qty + 1;
+
+console.log(name, qty);
+```
+
+</CodeTrace>
+
+<GoDeeper title="Why not var?">
+
+Before 2015, JavaScript only had `var`. It still works, but it has two surprises that `let` and `const` fixed:
+
+- **It ignores blocks.** A `var` inside an `if` or a loop is visible outside it, so names leak.
+- **It's "hoisted".** You can use a `var` before the line that declares it and get `undefined` instead of an error.
+
+<Playground file="var.js" expected={["undefined", "inside"]}>
+
+```js
+console.log(early);   // no error: undefined
+var early = "set later";
+
+if (true) {
+  var leaked = "inside";
+}
+console.log(leaked);  // visible outside the if
+```
+
+</Playground>
+
+With `let` or `const`, both lines would throw an error, which is what you want: bugs show up immediately. The JavaScript in Depth course covers scope and hoisting in full.
+
+</GoDeeper>
 </Concept>
 
 <Concept name="const can't be reassigned" id="const-reassign" warn>
@@ -97,6 +148,94 @@ console.log(`${qty} × ${item} = $${price * qty}`);
 
 </Playground>
 </Concept>
+
+<Practice>
+
+<Predict
+  id="predict-template"
+  answer={["Bagel × 3", "string"]}
+  explain="`${}` inserts each value into the text, and the result of a template literal is always a string."
+  hint="Inside backticks, `${qty}` is replaced by the value of `qty`."
+>
+
+```js
+const item = "Bagel";
+let qty = 2;
+qty = qty + 1;
+
+const label = `${item} × ${qty}`;
+console.log(label);
+console.log(typeof label);
+```
+
+</Predict>
+
+<FillBlanks
+  id="blanks-let-const"
+  prompt="Fill in the keywords: the cart name never changes, the quantity does."
+  explain="`cartName` is never reassigned, so it's a `const`. `qty` gets a new value on line 3, so it must be `let`."
+>
+
+```js
+__[const]__ cartName = "My cart";
+__[let]__ qty = 1;
+qty = qty + 1;
+console.log(__[typeof]__ qty);   // "number"
+```
+
+</FillBlanks>
+
+<MatchPairs
+  id="match-typeof"
+  prompt="Match each value with what `typeof` says about it."
+  columns={["Value", "typeof says"]}
+  pairs={[
+    ["`42`", "`\"number\"`"],
+    ["`\"42\"`", "`\"string\"`"],
+    ["`true`", "`\"boolean\"`"],
+    ["`[1, 2]`", "`\"object\"`"],
+    ["`undefined`", "`\"undefined\"`"],
+  ]}
+  explain="Watch the arrays: `typeof [1, 2]` is `'object'`. Use `Array.isArray()` to check for arrays."
+/>
+
+<SpotTheBug
+  id="bug-const"
+  bug={4}
+  prompt="This code crashes. Click the line that causes the error."
+  explain="`total` is a `const`, so line 4 throws `TypeError: Assignment to constant variable.` Declare it with `let` because it changes."
+  hint="Which variable gets a new value after it was declared?"
+>
+
+```js
+const price = 4;
+const total = 0;
+
+total = total + price * 2;
+console.log(total);
+```
+
+```js fixed
+const price = 4;
+let total = 0;
+
+total = total + price * 2;
+console.log(total);
+```
+
+</SpotTheBug>
+
+<TrueFalse
+  id="tf-variables"
+  statements={[
+    { text: "A `const` variable can never be given a new value.", answer: true, explain: "Reassigning a `const` throws a TypeError." },
+    { text: "`typeof null` is `\"null\"`.", answer: false, explain: "It's `\"object\"`, an old bug in the language that can't be fixed now." },
+    { text: "Template literals use backticks, not quotes.", answer: true, explain: "Only backticks support `${}` placeholders." },
+    { text: "You should use `var` in new code.", answer: false, explain: "Use `const` by default and `let` when the value changes; `var` has confusing scoping rules." },
+  ]}
+/>
+
+</Practice>
 
 <Exercise
   id="item-label"

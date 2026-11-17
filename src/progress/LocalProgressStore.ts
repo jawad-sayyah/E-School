@@ -1,5 +1,6 @@
 import {
   EMPTY_PROGRESS,
+  dayKey,
   computeCourseProgress,
   lessonKey,
   type LessonProgress,
@@ -33,6 +34,10 @@ function parseSnapshot(raw: string | null): ProgressSnapshot {
       lessons: isRecord(data.lessons) ? (data.lessons as ProgressSnapshot['lessons']) : {},
       quizzes: isRecord(data.quizzes) ? (data.quizzes as ProgressSnapshot['quizzes']) : {},
       exercises: isRecord(data.exercises) ? (data.exercises as ProgressSnapshot['exercises']) : {},
+      questions: isRecord(data.questions) ? (data.questions as ProgressSnapshot['questions']) : {},
+      activity: Array.isArray(data.activity)
+        ? data.activity.filter((d): d is string => typeof d === 'string')
+        : [],
       lastVisited:
         isRecord(last) && typeof last.course === 'string' && typeof last.lesson === 'string'
           ? { course: last.course, lesson: last.lesson, at: Number(last.at) || 0 }
@@ -86,6 +91,7 @@ export class LocalProgressStore implements ProgressStore {
         ...this.snapshot.lessons,
         [key]: { ...current, completed, completedAt: completed ? this.now() : undefined },
       },
+      ...(completed ? this.activityToday() : {}),
     });
   }
 
@@ -106,6 +112,7 @@ export class LocalProgressStore implements ProgressStore {
     if (previous && previous.best >= score) return;
     this.update({
       quizzes: { ...this.snapshot.quizzes, [quizId]: { best: score, total, at: this.now() } },
+      ...this.activityToday(),
     });
   }
 
@@ -114,6 +121,28 @@ export class LocalProgressStore implements ProgressStore {
     if (this.snapshot.exercises[exerciseId]?.passed) return;
     this.update({
       exercises: { ...this.snapshot.exercises, [exerciseId]: { passed, at: this.now() } },
+      ...(passed ? this.activityToday() : {}),
+    });
+  }
+
+  async saveQuestionResult(
+    questionId: string,
+    result: { correct: boolean; attempts: number; revealed?: boolean; kind?: string },
+  ) {
+    // A correct answer is never replaced: retrying later shouldn't lose XP.
+    if (this.snapshot.questions[questionId]?.correct) return;
+    this.update({
+      questions: {
+        ...this.snapshot.questions,
+        [questionId]: {
+          correct: result.correct,
+          attempts: Math.max(1, result.attempts),
+          revealed: Boolean(result.revealed) && !result.correct,
+          ...(result.kind ? { kind: result.kind } : {}),
+          at: this.now(),
+        },
+      },
+      ...this.activityToday(),
     });
   }
 
@@ -125,6 +154,14 @@ export class LocalProgressStore implements ProgressStore {
       /* storage unavailable: memory is already reset */
     }
     this.emit();
+  }
+
+  /** Adds today to the activity days (kept to the last 400 days). */
+  private activityToday(): Pick<ProgressSnapshot, 'activity'> | Record<string, never> {
+    const today = dayKey(this.now());
+    const days = this.snapshot.activity;
+    if (days[days.length - 1] === today) return {};
+    return { activity: [...days.filter((d) => d !== today), today].slice(-400) };
   }
 
   private readRaw(): string | null {

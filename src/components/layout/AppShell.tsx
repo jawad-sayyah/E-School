@@ -1,6 +1,7 @@
 import { Outlet, ScrollRestoration } from 'react-router';
 import { SearchProvider } from '@/components/search/SearchContext';
 import { scrollKey } from '@/lib/scrollKey';
+import { GamificationNotifier } from '@/components/gamification/GamificationNotifier';
 import { Header } from './Header';
 
 export function AppShell() {
@@ -16,6 +17,7 @@ export function AppShell() {
         <Header />
         <Outlet />
         <ScrollRestoration getKey={scrollKey} />
+        <GamificationNotifier />
       </div>
     </SearchProvider>
   );

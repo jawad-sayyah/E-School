@@ -1,5 +1,5 @@
 import { Link } from 'react-router';
-import { CheckIcon, RotateCcwIcon } from 'lucide-react';
+import { AwardIcon, CheckIcon, LockIcon, RotateCcwIcon } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,6 +21,11 @@ import { getCourseLessons, getLessonMeta } from '@/content/lessons';
 import { useProgress, useProgressStore } from '@/progress/ProgressContext';
 import { computeCourseProgress, lessonKey } from '@/progress/ProgressStore';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
+import { BadgeGrid, StatsRow } from '@/components/gamification/Stats';
+import { TRACKS } from '@/content/tracks';
+import { trackStatus } from '@/gamification/rules';
+import { COURSE_REFS } from '@/gamification/useGamification';
+import { cn } from '@/lib/utils';
 
 export default function ProgressPage() {
   useDocumentTitle('Your progress');
@@ -37,6 +42,51 @@ export default function ProgressPage() {
         Saved in this browser. {exercisesPassed} exercise{exercisesPassed === 1 ? '' : 's'} passed
         so far.
       </p>
+
+      <StatsRow />
+
+      <h2 className="mt-12 mb-4 font-heading text-2xl font-bold">Badges</h2>
+      <BadgeGrid />
+
+      <h2 className="mt-12 mb-4 font-heading text-2xl font-bold">Certificates</h2>
+      <ul className="mb-12 grid gap-3 sm:grid-cols-2">
+        {TRACKS.filter((t) => !t.project).map((track) => {
+          const status = trackStatus(track, COURSE_REFS, snapshot);
+          return (
+            <li key={track.id}>
+              <Link
+                to={`/certificates/${track.id}`}
+                className="flex items-center gap-3 rounded-xl border border-border p-3 transition-colors hover:bg-accent/50"
+              >
+                <span
+                  className={cn(
+                    'grid size-10 shrink-0 place-items-center rounded-full',
+                    status.certified ? 'bg-js text-on-light' : 'bg-muted text-faint',
+                  )}
+                >
+                  {status.certified ? (
+                    <AwardIcon aria-hidden className="size-5" />
+                  ) : (
+                    <LockIcon aria-hidden className="size-4" />
+                  )}
+                </span>
+                <span>
+                  <span className="block text-sm font-semibold">{track.title}</span>
+                  <span className="block text-xs text-muted-foreground">
+                    {status.certified
+                      ? 'Earned: view and print'
+                      : status.totalLessons
+                        ? `${status.percent}% of the track done`
+                        : 'Not started'}
+                  </span>
+                </span>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+
+      <h2 className="mb-4 font-heading text-2xl font-bold">Courses</h2>
 
       <div className="space-y-4">
         {COURSES.map((course) => {

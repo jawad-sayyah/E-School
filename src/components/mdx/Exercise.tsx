@@ -38,6 +38,8 @@ interface ExerciseProps {
   title: string;
   /** Up to 3 hints, revealed one at a time. */
   hints?: string[];
+  /** "write": write the code from (almost) scratch. "fix": the starter is broken; fix it. */
+  variant?: 'write' | 'fix';
   /** The task (prose) plus ```js starter, ```js tests and ```js solution blocks. */
   children?: ReactNode;
 }
@@ -81,7 +83,8 @@ function TestRow({ result }: { result: TestResultMessage }) {
 }
 
 /** "Your turn": the student edits starter code and hidden tests check it in the worker. */
-export function Exercise({ id, title, hints = [], children }: ExerciseProps) {
+export function Exercise({ id, title, hints = [], variant = 'write', children }: ExerciseProps) {
+  const label = variant === 'fix' ? 'Fix the bug' : 'Your turn';
   const lesson = useLessonRef();
   const key = `${lesson.course}/${lesson.lesson}/${id}`;
   const store = useProgressStore();
@@ -134,7 +137,14 @@ export function Exercise({ id, title, hints = [], children }: ExerciseProps) {
     >
       <CardHeader className="gap-2 border-b border-border py-4">
         <div className="flex flex-wrap items-center gap-2">
-          <Badge className="border-transparent bg-js font-sans text-on-light">Your turn</Badge>
+          <Badge
+            className={cn(
+              'border-transparent font-sans text-on-light',
+              variant === 'fix' ? 'bg-mistakes' : 'bg-js',
+            )}
+          >
+            {label}
+          </Badge>
           {(alreadyPassed || passedNow) && (
             <Badge variant="outline" className="border-success/60 text-success">
               <CheckIcon aria-hidden />
@@ -144,7 +154,7 @@ export function Exercise({ id, title, hints = [], children }: ExerciseProps) {
         </div>
         <h2
           id={headingId}
-          data-toc={`Your turn: ${title}`}
+          data-toc={`${label}: ${title}`}
           className="scroll-mt-24 font-heading text-lg font-semibold"
         >
           {title}

@@ -142,3 +142,53 @@ describe('LocalProgressStore', () => {
     expect(store.getLesson('c', 'l').completed).toBe(true);
   });
 });
+
+describe('question results and activity', () => {
+  test('saves a question result and keeps a correct answer', async () => {
+    const store = new LocalProgressStore(storage, PROGRESS_STORAGE_KEY, () => 1000);
+    await store.saveQuestionResult('c/l/q1', { correct: true, attempts: 2, kind: 'predict' });
+    await store.saveQuestionResult('c/l/q1', { correct: false, attempts: 1, revealed: true });
+    expect(store.getSnapshot().questions['c/l/q1']).toEqual({
+      correct: true,
+      attempts: 2,
+      revealed: false,
+      kind: 'predict',
+      at: 1000,
+    });
+  });
+
+  test('a revealed answer is recorded as not correct', async () => {
+    const store = new LocalProgressStore(storage);
+    await store.saveQuestionResult('q', { correct: false, attempts: 3, revealed: true });
+    expect(store.getSnapshot().questions.q).toMatchObject({ correct: false, revealed: true });
+  });
+
+  test('learning actions record the day once, visits do not', async () => {
+    let now = new Date(2026, 10, 16, 10).getTime();
+    const store = new LocalProgressStore(storage, PROGRESS_STORAGE_KEY, () => now);
+    await store.markVisited('c', 'l');
+    expect(store.getSnapshot().activity).toEqual([]);
+    await store.markComplete('c', 'l');
+    await store.saveQuestionResult('q', { correct: true, attempts: 1 });
+    expect(store.getSnapshot().activity).toEqual(['2026-11-16']);
+    now = new Date(2026, 10, 17, 9).getTime();
+    await store.saveExerciseResult('e', true);
+    expect(store.getSnapshot().activity).toEqual(['2026-11-16', '2026-11-17']);
+  });
+
+  test('old snapshots without the new fields still load', () => {
+    storage.setItem(
+      PROGRESS_STORAGE_KEY,
+      JSON.stringify({
+        version: 1,
+        lessons: { 'c/l': { completed: true } },
+        quizzes: {},
+        exercises: {},
+      }),
+    );
+    const s = new LocalProgressStore(storage).getSnapshot();
+    expect(s.questions).toEqual({});
+    expect(s.activity).toEqual([]);
+    expect(s.lessons['c/l'].completed).toBe(true);
+  });
+});
