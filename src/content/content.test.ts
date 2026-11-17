@@ -90,9 +90,14 @@ test('every course with lessons has at least one exercise (PROMPT.md §10)', () 
       .filter((l) => l.course === course)
       .flatMap((l) => {
         const tree = parser.parse(fs.readFileSync(l.abs, 'utf8')) as Node;
-        return ['Exercise', 'ReactExercise', 'BuildUI', 'TSExercise', 'TestExercise'].flatMap((n) =>
-          findAll(tree, n),
-        );
+        return [
+          'Exercise',
+          'ReactExercise',
+          'BuildUI',
+          'TSExercise',
+          'TestExercise',
+          'ReactTestExercise',
+        ].flatMap((n) => findAll(tree, n));
       });
     expect(exercises.length, course).toBeGreaterThanOrEqual(1);
   }

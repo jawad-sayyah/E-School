@@ -8,6 +8,7 @@ import { Exercise } from './Exercise';
 import { BuildUI, ReactExercise } from './ReactExercise';
 import { TSExercise } from './TSExercise';
 import { TestExercise } from './TestExercise';
+import { ReactTestExercise } from './ReactTestExercise';
 import { useLessonRef } from './LessonContext';
 
 /**
@@ -31,7 +32,8 @@ export function BossChallenge({ children }: { children?: ReactNode }) {
         el.type === ReactExercise ||
         el.type === BuildUI ||
         el.type === TSExercise ||
-        el.type === TestExercise
+        el.type === TestExercise ||
+        el.type === ReactTestExercise
           ? Boolean(snapshot.exercises[key]?.passed)
           : Boolean(snapshot.questions[key]?.correct);
       return { id, done };

@@ -1,6 +1,13 @@
 // @vitest-environment node
 import { describe, expect, test } from 'vitest';
-import { fileName, filesFrom, summarizeSpecs, type SpecResult } from './specs';
+import {
+  fileName,
+  filesFrom,
+  retarget,
+  summarizeByFile,
+  summarizeSpecs,
+  type SpecResult,
+} from './specs';
 
 const t = (name: string, status: 'pass' | 'fail', blocks: string[] = [], message?: string) => ({
   name,
@@ -68,5 +75,26 @@ describe('files from fences', () => {
     ];
     expect(filesFrom(blocks, 'starter')).toEqual({ '/App.js': 'start' });
     expect(filesFrom(blocks, 'tests')).toEqual({ '/App.test.js': 'tests' });
+  });
+});
+
+describe('write-the-tests helpers', () => {
+  test('retarget points imports of the code under test at a buggy copy', () => {
+    const tests =
+      'import Cart from "./Cart";\nimport { total } from \'./cartUtils.js\';\nimport x from "./Other";';
+    expect(retarget(tests, ['/Cart.js', '/cartUtils.js'], 0)).toBe(
+      'import Cart from "./__bugs__/bug-1/Cart";\nimport { total } from \'./__bugs__/bug-1/cartUtils\';\nimport x from "./Other";',
+    );
+  });
+
+  test('summarizeByFile keeps files apart', () => {
+    const pass = { name: 'a', blocks: [], status: 'pass' as const, errors: [] };
+    const fail = { name: 'b', blocks: [], status: 'fail' as const, errors: [] };
+    const byFile = summarizeByFile({
+      '/Cart.test.js': { name: '/Cart.test.js', tests: { a: pass }, describes: {} },
+      '/check-1.test.js': { name: '/check-1.test.js', tests: { b: fail }, describes: {} },
+    });
+    expect(byFile['/Cart.test.js'].allPassed).toBe(true);
+    expect(byFile['/check-1.test.js'].failed).toBe(1);
   });
 });

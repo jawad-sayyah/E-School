@@ -1,0 +1,259 @@
+---
+id: react-testing-library
+title: React Testing Library
+summary: Render components in a test DOM, find elements the way users do with getByRole and getByLabelText, and assert on what's on screen rather than on implementation details.
+minutes: 20
+tags: [React Testing Library, render, screen, getByRole, getByLabelText, getByText, queries, jest-dom, behavior]
+---
+
+**React Testing Library** (RTL) renders components into a simulated browser page (jsdom) and gives you queries to find elements **the way a user would**: by their role and accessible name, their label, their text. The guiding idea: *the more your tests resemble the way your software is used, the more confidence they give you.*
+
+<Concept name="render and screen" id="render">
+
+```jsx file=ProductCard.test.jsx
+import { render, screen } from "@testing-library/react";
+import { expect, test } from "vitest";
+import ProductCard from "./ProductCard";
+
+test("shows the product name and price", () => {
+  render(<ProductCard product={{ id: 1, name: "Tea", price: 2 }} />);
+
+  expect(screen.getByRole("heading", { name: "Tea" })).toBeInTheDocument();
+  expect(screen.getByText("$2.00")).toBeInTheDocument();
+});
+```
+
+- **`render(<Component />)`** mounts the component into a fresh DOM. (RTL cleans up after each test.)
+- **`screen`** queries the whole rendered page.
+- **`toBeInTheDocument()`** and friends come from `@testing-library/jest-dom`, which adds DOM matchers like `toHaveTextContent`, `toBeDisabled`, `toHaveValue`, `toBeChecked`, `toHaveAttribute`.
+
+</Concept>
+
+<Concept name="Query priority" id="priority">
+
+Pick the query a user (or a screen reader) would use. In order of preference:
+
+| Query | Finds | Example |
+| --- | --- | --- |
+| `getByRole` | elements by role and accessible name | `getByRole("button", { name: "Add to cart" })` |
+| `getByLabelText` | form fields by their label | `getByLabelText("Quantity")` |
+| `getByPlaceholderText` | fields by placeholder (when there's no label) | `getByPlaceholderText("Search")` |
+| `getByText` | non-interactive text | `getByText("Your cart is empty")` |
+| `getByDisplayValue` | inputs by their current value | `getByDisplayValue("3")` |
+| `getByAltText` / `getByTitle` | images, titled elements | `getByAltText("A cup of coffee")` |
+| `getByTestId` | `data-testid` | the last resort, when nothing else works |
+
+`getByRole` is first because it also checks **accessibility**: if a test can't find your button by role and name, neither can a screen reader user.
+
+</Concept>
+
+<Concept name="get, query and find" id="variants">
+
+| Prefix | When nothing matches | Use it for |
+| --- | --- | --- |
+| `getBy…` | throws | elements that should be there |
+| `queryBy…` | returns `null` | asserting something is **not** there: `expect(screen.queryByText("Sold out")).not.toBeInTheDocument()` |
+| `findBy…` | a promise that rejects after a timeout | elements that appear **later** (after a fetch): `await screen.findByText("Tea")` |
+
+Each has an `…AllBy…` version returning an array (`getAllByRole("listitem")`).
+
+</Concept>
+
+<HowItWorks title="Test behavior, not implementation">
+
+A test that reads a component's state, calls its internal functions or checks CSS class names breaks whenever you refactor, even when the user sees no difference. RTL deliberately doesn't give you access to state or instances. You render, you look at the DOM like a user, you interact like a user, and you assert on what changed on screen. Then you can rewrite the component (a reducer instead of `useState`, a different library) and the tests still pass, as long as it behaves the same.
+
+</HowItWorks>
+
+<Practice>
+
+<MatchPairs
+  id="match-queries"
+  prompt="Match each element with the best query."
+  columns={["Element", "Query"]}
+  pairs={[
+    ["The \"Checkout\" button", "`getByRole(\"button\", { name: \"Checkout\" })`"],
+    ["The email input with a label", "`getByLabelText(\"Email\")`"],
+    ["A paragraph saying \"Your cart is empty\"", "`getByText(\"Your cart is empty\")`"],
+    ["The product photo", "`getByAltText(\"A cup of coffee\")`"],
+    ["A message that appears after loading", "`await findByText(\"Loaded\")`"],
+  ]}
+/>
+
+<SortBuckets
+  id="buckets-behavior"
+  prompt="Does this test check behavior (good) or implementation details (brittle)?"
+  buckets={["Behavior", "Implementation detail"]}
+  items={[
+    ["The heading shows the product name", 0],
+    ["Clicking Add shows \"Added to cart\"", 0],
+    ["The component's `qty` state is 2", 1],
+    ["The button has the CSS class `btn-primary`", 1],
+    ["The Add button is disabled when out of stock", 0],
+    ["`handleClick` was called (by spying on the component's own method)", 1],
+  ]}
+  explain="Assert on what the user sees and can do. State, internal functions and styling classes can change without the behavior changing."
+/>
+
+<SpotTheBug
+  id="bug-get-not-there"
+  bug={3}
+  prompt="This test is meant to check that there's no sale badge, but it crashes instead of passing. Click the buggy line."
+  explain={"`getByText` throws when nothing matches, so the test errors before the assertion. Use `queryByText`, which returns null: `expect(screen.queryByText(\"Sale\")).not.toBeInTheDocument()`."}
+>
+
+```jsx
+test("no sale badge for full-price items", () => {
+  render(<ProductCard product={{ id: 1, name: "Tea", price: 2 }} />);
+  expect(screen.getByText("Sale")).not.toBeInTheDocument();
+});
+```
+
+</SpotTheBug>
+
+</Practice>
+
+<ReactTestExercise
+  id="test-product-card"
+  title="Test the ProductCard"
+  hints={[
+    "Render it twice in different tests: once on sale, once at full price. Use `queryByText(\"Sale\")` to check the badge is absent.",
+    "Find the button by role: `screen.getByRole(\"button\", { name: \"Add to cart\" })`, click it with `fireEvent.click`, and check the mock: `expect(onAdd).toHaveBeenCalledWith(product)`.",
+    "Check the price text exactly, with two decimals: `screen.getByText(\"$2.50\")`.",
+  ]}
+>
+
+Write tests for `ProductCard`: it shows the name as a heading, the price with two decimals, a **Sale** badge only when `product.onSale` is true, and an **Add to cart** button that calls `onAdd(product)`. Your tests must pass on this component and catch the hidden buggy versions.
+
+```jsx code file=/ProductCard.js
+export default function ProductCard({ product, onAdd }) {
+  return (
+    <article className="card">
+      <h2>{product.name}</h2>
+      {product.onSale && <span className="badge">Sale</span>}
+      <p>${product.price.toFixed(2)}</p>
+      <button onClick={() => onAdd(product)}>Add to cart</button>
+    </article>
+  );
+}
+```
+
+```jsx starter file=/ProductCard.test.js
+import { fireEvent, render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import { expect, test, vi } from "vitest";
+import ProductCard from "./ProductCard";
+
+const tea = { id: 1, name: "Tea", price: 2.5, onSale: false };
+
+test("shows the name", () => {
+  render(<ProductCard product={tea} onAdd={vi.fn()} />);
+  expect(screen.getByRole("heading", { name: "Tea" })).toBeInTheDocument();
+});
+```
+
+```jsx bug file=/ProductCard.js title="Price without two decimals" hint="Check the exact price text, like $2.50."
+export default function ProductCard({ product, onAdd }) {
+  return (
+    <article className="card">
+      <h2>{product.name}</h2>
+      {product.onSale && <span className="badge">Sale</span>}
+      <p>${product.price}</p>
+      <button onClick={() => onAdd(product)}>Add to cart</button>
+    </article>
+  );
+}
+```
+
+```jsx bug file=/ProductCard.js title="Sale badge always shown" hint="Render a product that is NOT on sale and check the badge is absent (queryByText)."
+export default function ProductCard({ product, onAdd }) {
+  return (
+    <article className="card">
+      <h2>{product.name}</h2>
+      <span className="badge">Sale</span>
+      <p>${product.price.toFixed(2)}</p>
+      <button onClick={() => onAdd(product)}>Add to cart</button>
+    </article>
+  );
+}
+```
+
+```jsx bug file=/ProductCard.js title="Add doesn't pass the product" hint="Check what onAdd was called with, not just that it was called."
+export default function ProductCard({ product, onAdd }) {
+  return (
+    <article className="card">
+      <h2>{product.name}</h2>
+      {product.onSale && <span className="badge">Sale</span>}
+      <p>${product.price.toFixed(2)}</p>
+      <button onClick={() => onAdd()}>Add to cart</button>
+    </article>
+  );
+}
+```
+
+```jsx bug file=/ProductCard.js title="Never shows the sale badge" hint="Render a product that IS on sale."
+export default function ProductCard({ product, onAdd }) {
+  return (
+    <article className="card">
+      <h2>{product.name}</h2>
+      <p>${product.price.toFixed(2)}</p>
+      <button onClick={() => onAdd(product)}>Add to cart</button>
+    </article>
+  );
+}
+```
+
+```jsx solution file=/ProductCard.test.js
+import { fireEvent, render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import { expect, test, vi } from "vitest";
+import ProductCard from "./ProductCard";
+
+const tea = { id: 1, name: "Tea", price: 2.5, onSale: false };
+
+test("shows the name and the price with two decimals", () => {
+  render(<ProductCard product={tea} onAdd={vi.fn()} />);
+  expect(screen.getByRole("heading", { name: "Tea" })).toBeInTheDocument();
+  expect(screen.getByText("$2.50")).toBeInTheDocument();
+});
+
+test("shows the Sale badge only for products on sale", () => {
+  const { unmount } = render(<ProductCard product={tea} onAdd={vi.fn()} />);
+  expect(screen.queryByText("Sale")).not.toBeInTheDocument();
+  unmount();
+  render(<ProductCard product={{ ...tea, onSale: true }} onAdd={vi.fn()} />);
+  expect(screen.getByText("Sale")).toBeInTheDocument();
+});
+
+test("Add to cart calls onAdd with the product", () => {
+  const onAdd = vi.fn();
+  render(<ProductCard product={tea} onAdd={onAdd} />);
+  fireEvent.click(screen.getByRole("button", { name: "Add to cart" }));
+  expect(onAdd).toHaveBeenCalledWith(tea);
+});
+```
+
+</ReactTestExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "Which query should you try first?",
+      options: ["`getByTestId`", "`getByRole`", "`container.querySelector`", "`getByClassName`"],
+      answer: 1,
+      explain: "It finds elements like assistive technology does.",
+    },
+    {
+      q: "How do you assert that an element is NOT on the page?",
+      options: ["`expect(screen.getByText(\"x\")).toBeNull()`", "`expect(screen.queryByText(\"x\")).not.toBeInTheDocument()`", "`screen.findByText(\"x\")`", "`expect(\"x\").toBeFalsy()`"],
+      answer: 1,
+      explain: "`queryBy…` returns null instead of throwing.",
+    },
+    {
+      q: "Why doesn't RTL let you read a component's state?",
+      options: ["It's a missing feature", "To push you to test behavior the user can see, so refactors don't break tests", "State is private in JavaScript", "It does, with getState()"],
+      answer: 1,
+      explain: "Implementation details make brittle tests.",
+    },
+  ]}
+/>

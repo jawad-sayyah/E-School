@@ -8,10 +8,12 @@ import { unified } from 'unified';
 import remarkParse from 'remark-parse';
 import remarkMdx from 'remark-mdx';
 import remarkFrontmatter from 'remark-frontmatter';
+import { catchesBug } from './catches-bug.mjs';
 
 const ROOT = path.resolve('src/content/courses');
 const PACKAGES = JSON.parse(fs.readFileSync('src/components/react/packages.json', 'utf8'));
-const KNOWN = new Set([...Object.keys(PACKAGES.base), ...Object.keys(PACKAGES.optional)]);
+// "vitest" is provided in Sandpack by a small hidden shim (VITEST_SHIM in LiveSandpack.tsx)
+const KNOWN = new Set([...Object.keys(PACKAGES.base), ...Object.keys(PACKAGES.optional), 'vitest']);
 const OUT = path.resolve('test/react-exercises');
 const parser = unified().use(remarkParse).use(remarkMdx).use(remarkFrontmatter, ['yaml']);
 
@@ -92,6 +94,35 @@ for (const course of fs.readdirSync(ROOT)) {
       }
       const dir = path.join(OUT, `${course}--${lesson}--${attr(ex, 'id')}`);
       write(dir, { ...pick('starter'), ...pick('solution'), ...tests });
+      exercises++;
+    }
+
+    // Write-the-tests: the example tests must pass on the real component, and every buggy
+    // version must make at least one of them fail (checked by a wrapper test).
+    for (const ex of findAll(tree, ['ReactTestExercise'])) {
+      const blocks = (ex.children ?? []).filter((c) => c.type === 'code');
+      const has = (b, word) => (b.meta ?? '').split(/\s+/).includes(word);
+      const code = Object.fromEntries(
+        blocks.filter((b) => has(b, 'code')).map((b) => [fileName(b), b.value]),
+      );
+      const solutionBlock = blocks.find((b) => has(b, 'solution'));
+      const testFile = fileName(solutionBlock, '/App.test.js');
+      const solution = cleanTests(solutionBlock.value);
+      if (solution.includes('@testing-library/user-event')) {
+        throw new Error(`${course}/${file} (${attr(ex, 'id')}): use fireEvent, not user-event`);
+      }
+      const bugs = blocks.filter((b) => has(b, 'bug'));
+      if (bugs.length < 3) throw new Error(`${course}/${file} (${attr(ex, 'id')}): needs 3+ bugs`);
+      const base = `${course}--${lesson}--${attr(ex, 'id')}`;
+      write(path.join(OUT, base), { ...code, [testFile]: solution });
+      bugs.forEach((bug, i) => {
+        const title = /title="([^"]*)"/.exec(bug.meta ?? '')?.[1] ?? `bug ${i + 1}`;
+        write(path.join(OUT, `${base}--bug-${i + 1}`), {
+          ...code,
+          [fileName(bug)]: bug.value,
+          [testFile]: catchesBug(solution, title),
+        });
+      });
       exercises++;
     }
 

@@ -7,6 +7,7 @@ import { BuildUI, ReactExercise } from './ReactExercise';
 import { ReactPlayground } from './ReactPlayground';
 import { TSExercise } from './TSExercise';
 import { TestExercise } from './TestExercise';
+import { ReactTestExercise } from './ReactTestExercise';
 import { TSPlayground } from './TSPlayground';
 import { Callout } from './Callout';
 import { MdxLink } from './MdxLink';
@@ -150,6 +151,7 @@ export const mdxComponents: MDXComponents = {
   TSPlayground,
   TSExercise,
   TestExercise,
+  ReactTestExercise,
   // question types
   Practice,
   Choice,

@@ -75,3 +75,32 @@ export function filesFrom(blocks: FileBlock[], word?: string): Record<string, st
   }
   return files;
 }
+
+/* ── Write-the-tests exercises in Sandpack ───────────────────────────────── */
+
+/** Hidden test files: a copy of the student's tests per buggy version. */
+export const checkFile = (index: number) => `/check-${index + 1}.test.js`;
+/** Where buggy version N of a file lives. */
+export const bugPath = (index: number, file: string) => `/__bugs__/bug-${index + 1}${file}`;
+
+/**
+ * Points the student's imports of the code under test at a buggy copy:
+ * `from "./Cart"` → `from "./__bugs__/bug-1/Cart"` (for every file under test).
+ */
+export function retarget(testCode: string, files: string[], index: number): string {
+  let out = testCode;
+  for (const file of files) {
+    const base = file.replace(/^\//, '').replace(/\.(jsx?|tsx?)$/, '');
+    const escaped = base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const rx = new RegExp(`(["'])\\./${escaped}(\\.(?:jsx?|tsx?))?\\1`, 'g');
+    out = out.replace(rx, (_m, quote: string) => `${quote}.${bugPath(index, '/' + base)}${quote}`);
+  }
+  return out;
+}
+
+/** Sandpack's results, one summary per test file. */
+export function summarizeByFile(specs: Record<string, SpecResult>): Record<string, SpecSummary> {
+  const out: Record<string, SpecSummary> = {};
+  for (const [path, spec] of Object.entries(specs)) out[path] = summarizeSpecs({ [path]: spec });
+  return out;
+}
