@@ -1,0 +1,241 @@
+---
+id: portals
+title: Portals
+summary: Render modals, toasts and tooltips into another part of the DOM with createPortal, so overflow and stacking never clip them, while events and context still follow the React tree.
+minutes: 13
+tags: [createPortal, portal, modal, dialog, z-index, overflow, event bubbling]
+---
+
+Some UI has to **escape** its parent visually: a modal must cover the whole page, a tooltip must poke out of a scrolling list. If they're rendered deep inside a box with `overflow: hidden` or its own stacking context, CSS clips them. A **portal** renders a component's output into a different DOM node, usually `document.body`, while it stays in the same place in the **React** tree.
+
+<Concept name="createPortal" id="create-portal">
+
+The product card below has `overflow: hidden` (for its rounded image corners). The first dialog is rendered inside the card and gets cut off; the second goes through a portal.
+
+<ReactPlayground height={420}>
+
+```jsx file=/App.js
+import { useState } from "react";
+import { createPortal } from "react-dom";
+
+function Dialog({ title, onClose, children }) {
+  return (
+    <div className="backdrop" onClick={onClose}>
+      <div role="dialog" aria-modal="true" aria-label={title} className="dialog" onClick={(e) => e.stopPropagation()}>
+        <h3>{title}</h3>
+        {children}
+        <button onClick={onClose}>Close</button>
+      </div>
+    </div>
+  );
+}
+
+export default function App() {
+  const [open, setOpen] = useState(null);
+  const close = () => setOpen(null);
+  return (
+    <article className="card">
+      <h2>Coffee</h2>
+      <button onClick={() => setOpen("inside")}>Details (no portal)</button>{" "}
+      <button onClick={() => setOpen("portal")}>Details (portal)</button>
+
+      {open === "inside" && (
+        <Dialog title="Coffee" onClose={close}>
+          <p>I'm clipped by the card.</p>
+        </Dialog>
+      )}
+      {open === "portal" &&
+        createPortal(
+          <Dialog title="Coffee" onClose={close}>
+            <p>I cover the whole page.</p>
+          </Dialog>,
+          document.body,
+        )}
+    </article>
+  );
+}
+```
+
+```css file=/styles.css
+body { font-family: system-ui, sans-serif; padding: 16px; }
+.card { position: relative; overflow: hidden; border: 1px solid #ddd; border-radius: 12px; padding: 4px 16px 12px; max-width: 260px; height: 150px; }
+.backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: grid; place-items: center; }
+.card .backdrop { position: absolute; }
+.dialog { background: white; border-radius: 12px; padding: 8px 18px 14px; min-width: 220px; }
+```
+
+</ReactPlayground>
+
+`createPortal(children, domNode)` returns something you render like any element. React mounts `children` inside `domNode` instead of inside the parent's DOM.
+
+</Concept>
+
+<Concept name="Still part of the React tree" id="react-tree">
+
+A portal only moves the **DOM**. In React's eyes the dialog is still a child of the card, so:
+
+- it receives **props and context** from its React parents as usual,
+- **events bubble through the React tree**, not the DOM tree: a click inside the portal reaches the card's `onClick` handlers, even though in the DOM the dialog isn't inside the card,
+- it's unmounted when its React parent unmounts.
+
+That event behavior surprises people: if the card is clickable, stop propagation inside the dialog (as `Dialog` does above for its backdrop).
+
+</Concept>
+
+<HowItWorks title="Accessible modals">
+
+Moving the DOM node is half of a good modal. The other half is accessibility:
+
+- `role="dialog"`, `aria-modal="true"` and a label (`aria-label` or `aria-labelledby` pointing at the title),
+- move **focus** into the dialog when it opens, keep it there while it's open, and return it to the button that opened it when it closes,
+- close on **Escape**.
+
+The native `<dialog>` element with `showModal()` does most of this for you (it uses the browser's own top layer, so it doesn't even need a portal). UI libraries like Radix (which shadcn/ui is built on, and which this site uses) handle all of it.
+
+</HowItWorks>
+
+<Practice>
+
+<TrueFalse
+  id="tf-portals"
+  statements={[
+    { text: "A component rendered through a portal can still read context from its React parents.", answer: true, explain: "Portals only change where the DOM goes, not the React tree." },
+    { text: "A click inside a portal can trigger an `onClick` on its React parent.", answer: true, explain: "Events bubble through the React tree, even across a portal." },
+    { text: "`createPortal` moves the component to a different place in the React tree.", answer: false, explain: "It stays in the same React position; only its DOM nodes are placed elsewhere." },
+  ]}
+/>
+
+<MatchPairs
+  id="match-portal-uses"
+  prompt="Match each problem with the fix."
+  columns={["Problem", "Fix"]}
+  pairs={[
+    ["A modal is cut off by a parent with `overflow: hidden`", "Render it through a portal into `document.body`"],
+    ["Clicks inside a portaled dialog trigger the card's click handler", "`e.stopPropagation()` inside the dialog"],
+    ["Screen readers don't know the dialog is modal", "`role=\"dialog\"` and `aria-modal=\"true\"`"],
+    ["Focus stays on the page behind the modal", "Move focus into the dialog when it opens"],
+  ]}
+/>
+
+<FillBlanks
+  id="blanks-portal"
+  prompt="Fill in the blanks to render a toast into `document.body`."
+  explain="`createPortal` comes from react-dom and takes the JSX and the target DOM node."
+>
+
+```jsx
+import { __[createPortal]__ } from "react-dom";
+
+function Toast({ message }) {
+  return createPortal(<div role="status">{message}</div>, document.__[body]__);
+}
+```
+
+</FillBlanks>
+
+</Practice>
+
+<ReactExercise
+  id="portal-modal"
+  title="A Modal that renders into the body"
+  hints={[
+    "Import `createPortal` from \"react-dom\".",
+    "When `open` is false, `return null;`.",
+    "Otherwise `return createPortal(<div role=\"dialog\" aria-modal=\"true\" aria-label={title}>…</div>, document.body);`",
+  ]}
+>
+
+Write `Modal` in `Modal.js`. When `open` is false it renders nothing. When it's true it renders, **directly inside `document.body`**, a `div` with `role="dialog"`, `aria-modal="true"` and `aria-label={title}`, containing the `children` and a **Close** button that calls `onClose`.
+
+```jsx starter file=/Modal.js
+export default function Modal({ open, title, onClose, children }) {
+  return null;
+}
+```
+
+```jsx starter file=/App.js
+import { useState } from "react";
+import Modal from "./Modal";
+
+export default function App() {
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{ overflow: "hidden", height: 80, border: "1px solid #ddd", padding: 8 }}>
+      <button onClick={() => setOpen(true)}>Remove item</button>
+      <Modal open={open} title="Remove item?" onClose={() => setOpen(false)}>
+        <p>Coffee will be removed from your cart.</p>
+      </Modal>
+    </div>
+  );
+}
+```
+
+```jsx tests file=/Modal.test.js
+import { fireEvent, render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import Modal from "./Modal";
+
+test("renders nothing when closed", () => {
+  render(<Modal open={false} title="Hi" onClose={() => {}}>Body</Modal>);
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+});
+
+test("renders a labelled modal dialog when open", () => {
+  render(<Modal open title="Remove item?" onClose={() => {}}>Body</Modal>);
+  const dialog = screen.getByRole("dialog", { name: "Remove item?" });
+  expect(dialog).toHaveAttribute("aria-modal", "true");
+  expect(dialog).toHaveTextContent("Body");
+});
+
+test("is rendered directly into document.body", () => {
+  render(<Modal open title="Hi" onClose={() => {}}>Body</Modal>);
+  expect(screen.getByRole("dialog").parentElement).toBe(document.body);
+});
+
+test("Close calls onClose", () => {
+  let closed = false;
+  render(<Modal open title="Hi" onClose={() => (closed = true)}>Body</Modal>);
+  fireEvent.click(screen.getByRole("button", { name: "Close" }));
+  expect(closed).toBe(true);
+});
+```
+
+```jsx solution file=/Modal.js
+import { createPortal } from "react-dom";
+
+export default function Modal({ open, title, onClose, children }) {
+  if (!open) return null;
+  return createPortal(
+    <div role="dialog" aria-modal="true" aria-label={title} className="modal">
+      {children}
+      <button onClick={onClose}>Close</button>
+    </div>,
+    document.body,
+  );
+}
+```
+
+</ReactExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "What does `createPortal(<Toast />, document.body)` change?",
+      options: ["Where Toast's DOM nodes are placed", "Toast's position in the React tree", "Which props Toast receives", "Toast's state"],
+      answer: 0,
+      explain: "Only the DOM location changes. Props, state, context and events follow the React tree.",
+    },
+    {
+      q: "Which are good uses for a portal?",
+      options: ["Modals", "Tooltips inside a scrolling list", "Toast notifications", "A regular paragraph of text"],
+      answer: [0, 1, 2],
+      explain: "Anything that must visually escape its container's overflow or stacking.",
+    },
+    {
+      q: "A clickable card contains a portaled dialog. Clicking inside the dialog also triggers the card's `onClick`. Why?",
+      options: ["A React bug", "Events bubble through the React tree, and the dialog is the card's React child", "The dialog is inside the card in the DOM", "`createPortal` copies event handlers"],
+      answer: 1,
+      explain: "Stop propagation in the dialog if the parent shouldn't hear its clicks.",
+    },
+  ]}
+/>

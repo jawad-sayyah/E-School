@@ -144,7 +144,16 @@ export const COURSES: CourseInfo[] = [
     color: 'react',
     description:
       'Rendering and reconciliation, memo, Suspense and lazy, error boundaries, portals, refs and StrictMode.',
-    lessons: [],
+    lessons: [
+      'rendering',
+      'memo',
+      'suspense-lazy',
+      'error-boundaries',
+      'portals',
+      'refs',
+      'strict-mode',
+      'review',
+    ],
     phase: 5,
   },
   {

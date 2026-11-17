@@ -1,0 +1,186 @@
+---
+id: strict-mode
+title: StrictMode
+summary: Understand why your components render and run effects twice in development, which bugs that exposes, and why production is unaffected.
+minutes: 12
+tags: [StrictMode, double render, impure render, effect cleanup, development mode]
+---
+
+Sooner or later you'll add a `console.log` to a component and see it **twice**. That's not a bug: it's `<StrictMode>`, a development-only helper that most React projects (including Vite's starter and these sandboxes) turn on in `main.jsx`:
+
+```jsx file=main.jsx
+createRoot(document.getElementById("root")).render(
+  <StrictMode>
+    <App />
+  </StrictMode>,
+);
+```
+
+<Concept name="What StrictMode does" id="what-it-does">
+
+In **development only**, StrictMode:
+
+1. **Renders every component twice** (and calls `useState`/`useMemo` initializers and updater functions twice), throwing away one result.
+2. **Runs every effect twice on mount**: setup, then cleanup, then setup again, as if the component was mounted, unmounted and mounted again.
+3. **Warns about deprecated APIs** in the console.
+
+None of this happens in a production build. Open the console and watch:
+
+<ReactPlayground height={300} console>
+
+```jsx file=/App.js
+import { useEffect, useState } from "react";
+
+let renders = 0;
+
+export default function App() {
+  const [qty, setQty] = useState(1);
+  renders++; // impure on purpose: counts calls to App
+  console.log("render, call #" + renders);
+
+  useEffect(() => {
+    console.log("effect: connect to the stock feed");
+    return () => console.log("cleanup: disconnect");
+  }, []);
+
+  return <button onClick={() => setQty(qty + 1)}>Quantity: {qty}</button>;
+}
+```
+
+</ReactPlayground>
+
+On load you'll see two renders, then *connect → disconnect → connect*. Each click logs two more renders.
+
+</Concept>
+
+<Concept name="Why: catching impure renders" id="impure">
+
+A component's render must be **pure**: same props and state in, same JSX out, and nothing outside changed. If rendering twice changes the result, your render isn't pure, and in real apps React may render more than once (for transitions, Suspense, or rendering in the background) and show inconsistent UI.
+
+<Compare
+  wrong="Pushes into an array that lives outside the component: each render adds more"
+  right="Builds a new array during render: rendering twice gives the same result"
+  wrongFile="Receipt.jsx"
+  rightFile="Receipt.jsx"
+>
+
+```jsx
+const lines = [];
+function Receipt({ items }) {
+  items.forEach((i) => lines.push(<li key={i.id}>{i.name}</li>));
+  return <ul>{lines}</ul>;
+}
+```
+
+```jsx
+function Receipt({ items }) {
+  const lines = items.map((i) => <li key={i.id}>{i.name}</li>);
+  return <ul>{lines}</ul>;
+}
+```
+
+</Compare>
+
+With StrictMode, the wrong version shows every item twice right away in development, so you find the bug at your desk instead of in production.
+
+</Concept>
+
+<Concept name="Why: catching missing cleanup" id="cleanup">
+
+Running effects twice simulates a component being **mounted, removed and mounted again** (which really happens: navigating away and back, or React restoring hidden UI). If an effect starts something, it must stop it in its cleanup, or you get duplicate subscriptions, timers and listeners.
+
+```jsx file=StockTicker.jsx
+useEffect(() => {
+  const id = setInterval(refreshStock, 5000);
+  return () => clearInterval(id);   // without this, StrictMode reveals two intervals
+}, []);
+```
+
+If your app behaves correctly with StrictMode's setup → cleanup → setup, it will behave correctly when components really unmount and remount. The Hooks course goes deep on effects and cleanup.
+
+</Concept>
+
+<HowItWorks title="Should I turn it off to get rid of the double logs?">
+
+No. The double calls are the point: they make bugs that would show up rarely and randomly show up **every time**, in development, where they're cheap to fix. The cost is a few extra logs. If a log is confusing, React DevTools greys out the second one, and remember that production runs everything once.
+
+</HowItWorks>
+
+<Practice>
+
+<TrueFalse
+  id="tf-strict"
+  statements={[
+    { text: "StrictMode renders components twice in production.", answer: false, explain: "Only in development. Production builds render once." },
+    { text: "If a component works correctly when rendered twice, its render is probably pure.", answer: true, explain: "Double rendering exposes renders that change things outside themselves." },
+    { text: "StrictMode runs an effect's setup, then its cleanup, then setup again when a component mounts.", answer: true, explain: "It simulates an unmount and remount to check the cleanup." },
+    { text: "Seeing two `console.log`s per render means you should remove `<StrictMode>`.", answer: false, explain: "It's working as intended. Keep it; fix what it reveals." },
+  ]}
+/>
+
+<SpotTheBug
+  id="bug-strict-push"
+  bug={4}
+  prompt="In development, every product shows up twice in the 'Recently viewed' list. Click the line that makes the render impure."
+  explain="`viewed.push(...)` changes an array that lives outside the component during render. StrictMode's second render pushes again. Keep the list in state (or a store) and update it in an event handler or effect."
+>
+
+```jsx
+const viewed = [];
+
+function RecentlyViewed({ product }) {
+  viewed.push(product.name);
+  return <p>Recently viewed: {viewed.join(", ")}</p>;
+}
+```
+
+</SpotTheBug>
+
+<OrderLines
+  id="order-strict-effects"
+  prompt="With StrictMode on, a component with one effect mounts. Order what's logged."
+  explain="Two renders, then the effect runs, is cleaned up, and runs again."
+>
+
+```js
+console.log("render (first call)");
+console.log("render (second call, result discarded)");
+console.log("effect setup");
+console.log("effect cleanup");
+console.log("effect setup again");
+```
+
+</OrderLines>
+
+<Choice
+  id="choice-strict-why"
+  q="Why does StrictMode run effects twice on mount?"
+  options={["To make the app slower so you notice performance problems", "To check that each effect's cleanup undoes its setup", "Because React has a bug", "To fetch data twice for reliability"]}
+  answer={1}
+  explain="Components really do unmount and remount; StrictMode makes sure that works before it happens to users."
+/>
+
+</Practice>
+
+<Quiz
+  questions={[
+    {
+      q: "Where does StrictMode's double rendering happen?",
+      options: ["In development only", "In production only", "Everywhere", "Only in tests"],
+      answer: 0,
+      explain: "It's a development check with no production cost.",
+    },
+    {
+      q: "What does a pure render mean?",
+      options: ["It uses no hooks", "Same props and state in, same JSX out, and nothing outside changed", "It renders only once", "It has no children"],
+      answer: 1,
+      explain: "Side effects go in event handlers and effects, not in render.",
+    },
+    {
+      q: "Which bugs does StrictMode help you find?",
+      options: ["Changing variables outside the component during render", "Effects without cleanup", "Using deprecated APIs", "Typos in text"],
+      answer: [0, 1, 2],
+      explain: "It double-renders, double-runs effects and warns about deprecated APIs.",
+    },
+  ]}
+/>

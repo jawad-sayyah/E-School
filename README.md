@@ -8,7 +8,7 @@ The spec lives in [PROMPT.md](PROMPT.md).
 
 React 19 · TypeScript (strict) · Vite · Tailwind CSS v4 · shadcn/ui (Radix) · React Router · MDX · MiniSearch · Vitest · Playwright.
 
-Plain JavaScript runs in a sandboxed Web Worker (`src/runner/`) with hard limits on output lines, run time and value size, so student code can never freeze the page.
+Plain JavaScript runs in a sandboxed Web Worker (`src/runner/`) with hard limits on output lines, run time and value size, so student code can never freeze the page. React code runs in [Sandpack](https://sandpack.codesandbox.io/) (CodeSandbox's in-browser bundler, loaded lazily on lessons that use it), so live React previews and React exercises need a network connection.
 
 ## Run it
 
@@ -24,8 +24,8 @@ npm run dev          # http://localhost:5173
 | `npm run dev` | Dev server with hot reload |
 | `npm run build` | Type-check and build to `dist/` |
 | `npm run preview` | Serve the production build |
-| `npm test` | Unit tests (runner, checker, progress, search, and every lesson's examples) |
-| `npm run test:e2e` | Playwright smoke tests against the production build |
+| `npm test` | Unit tests (runner, checker, progress, search, every lesson's examples, and every React exercise solution and playground) |
+| `npm run test:e2e` | Playwright smoke tests against the production build (set `OFFLINE=1` to skip the Sandpack ones, which need the network) |
 | `npm run lint` | ESLint |
 | `npm run format` | Prettier |
 
@@ -147,6 +147,25 @@ function getTotal(cart) {
 - `tests` and `solution` blocks are never added to the search index.
 - Passing marks the exercise as completed in the student's progress.
 
+## React lessons (Sandpack)
+
+React code can't run in the worker, so React lessons use Sandpack components. Every fenced block inside them is a file; name it with `file=` (React files are `.js` with JSX inside, as in Sandpack's templates).
+
+| Component | Use |
+| --- | --- |
+| `<ReactPlayground height? console?>` | A live editor + preview. Blocks: ````jsx file=/App.js```` (default-export `App`), optional extra components and ````css file=/styles.css````. `console` adds the browser console. |
+| `<ReactPlayground template="vanilla">` | Plain HTML + JS: `/index.js` (main, `import "./styles.css"` for styles), `/index.html` (body markup and `<script src="index.js">`), `/styles.css`. |
+| `<ReactExercise id title hints? variant?>` | A React exercise. Blocks marked `starter`, `tests` and `solution`, each with `file=`. Hidden Testing Library tests run in Sandpack; passing saves progress. `variant="fix"` labels it "Fix the bug". |
+| `<BuildUI id title hints?>` | "Build the UI": a ReactExercise that also shows the finished solution as a live target preview. |
+| `<RenderCycle frames title? file?>` | Steps through trigger → render → commit over a component tree. Frames: `{ phase, tree: [{ name, depth, state?, status? }], screen?, line?, note? }`, with `status` one of `rendering`, `rendered`, `skipped`, `updated`. An optional fenced block shows the code, with `line` highlighted. |
+
+Rules for React exercise tests:
+
+- Import from `@testing-library/react` and `@testing-library/jest-dom`, use `test` and `expect` as globals, and simulate users with **`fireEvent`**. `@testing-library/user-event` v14 crashes Sandpack's test runner, so the generator rejects it.
+- Prefer queries by role, label and text (`getByRole`, `getByLabelText`); give elements an `aria-label` when the task needs a stable handle.
+- `npm test` first runs `scripts/gen-react-tests.mjs`, which turns every React exercise (solution + tests) and every playground (a "renders without crashing" smoke test, or a "runs" test for vanilla ones) into Vitest + Testing Library tests under `test/react-exercises/` (git-ignored). So a solution that fails its own tests fails the build.
+- Question components (`SpotTheBug`, `FillBlanks`, `Choice`, `TraceState`, `CodeReview`, `Compare`) show a ````jsx```` block as JSX. JSX blanks and `fixed` blocks aren't run in the worker; `Predict` must stay plain JavaScript, because its answer is checked by running it.
+
 ## Questions, depth and visualizers
 
 Every lesson mixes **at least 3 question types** (the content test enforces it). Put questions anywhere, or group them in `<Practice title="…">`, which shows a "3 of 5 done" bar. Each question needs an `id` that is unique in the lesson; progress, XP and badges are keyed by it.
@@ -164,6 +183,7 @@ Every lesson mixes **at least 3 question types** (the content test enforces it).
 | `<CodeReview>` | `answer`, `reasons` (one per option) | 2+ fenced blocks, one per implementation |
 | `<TrueFalse>` | `statements={[{ text, answer, explain }]}` | — |
 | `<Exercise variant="fix">` | as `<Exercise>`, labeled "Fix the bug" | starter / tests / solution |
+| `<BuildUI>` | see React lessons | starter / tests / solution |
 
 Depth: `<HowItWorks>` (always visible) and `<GoDeeper title="…">` (expandable). Visualizer: `<CodeTrace frames={[{ line, vars, heap, out, note }]}>` around a fenced block steps through the code; a variable value like `"#a"` points at a `heap` object, so shared references are visible.
 

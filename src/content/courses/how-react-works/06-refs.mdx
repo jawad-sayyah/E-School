@@ -1,0 +1,329 @@
+---
+id: refs
+title: Refs, forwardRef and ref as a prop
+summary: Reach real DOM nodes to focus and scroll, keep values that don't need a re-render, and pass refs to your own components with React 19's ref prop.
+minutes: 16
+tags: [useRef, ref, DOM, focus, forwardRef, ref as a prop, React 19, useImperativeHandle]
+---
+
+React manages the DOM for you, but sometimes you need the **real element**: to focus an input, scroll to a message, measure a box or play a video. A **ref** gives you that, and it's also a box for values you want to keep between renders **without** re-rendering.
+
+<Concept name="Refs to DOM elements" id="dom-refs">
+
+`useRef(null)` creates an object `{ current: null }` that stays the same for the component's whole life. Pass it as the `ref` attribute of an element, and after the commit React puts the DOM node in `ref.current`.
+
+<ReactPlayground height={300}>
+
+```jsx file=/App.js
+import { useRef } from "react";
+
+export default function App() {
+  const searchRef = useRef(null);
+  const listEndRef = useRef(null);
+
+  return (
+    <>
+      <input ref={searchRef} placeholder="Search products" />
+      <button onClick={() => searchRef.current.focus()}>Focus search</button>
+      <button onClick={() => listEndRef.current.scrollIntoView({ behavior: "smooth" })}>
+        Jump to the end
+      </button>
+      <ul>
+        {Array.from({ length: 30 }, (_, i) => (
+          <li key={i}>Product {i + 1}</li>
+        ))}
+      </ul>
+      <p ref={listEndRef}>That's everything!</p>
+    </>
+  );
+}
+```
+
+</ReactPlayground>
+
+Only read or use `ref.current` in **event handlers and effects**, not while rendering: during the first render the DOM node doesn't exist yet.
+
+</Concept>
+
+<Concept name="Refs for values that don't affect the screen" id="value-refs">
+
+A ref is also a place to remember something that **shouldn't** trigger a render when it changes: a timer id, the previous value of a prop, whether a request is still in flight.
+
+| | `useState` | `useRef` |
+| --- | --- | --- |
+| Changing it… | re-renders the component | does **not** re-render |
+| Read it with… | `value` | `ref.current` |
+| Use it for… | anything shown on screen | timer ids, DOM nodes, "instance variables" |
+
+<ReactPlayground height={280}>
+
+```jsx file=/App.js
+import { useRef, useState } from "react";
+
+export default function App() {
+  const [seconds, setSeconds] = useState(0);
+  const timerRef = useRef(null);
+
+  function start() {
+    if (timerRef.current) return; // already running
+    timerRef.current = setInterval(() => setSeconds((s) => s + 1), 1000);
+  }
+
+  function stop() {
+    clearInterval(timerRef.current);
+    timerRef.current = null;
+  }
+
+  return (
+    <p>
+      Your order is being prepared: {seconds}s{" "}
+      <button onClick={start}>Start</button> <button onClick={stop}>Stop</button>
+    </p>
+  );
+}
+```
+
+</ReactPlayground>
+
+The interval id is needed by `stop`, but showing it would be pointless, so it lives in a ref.
+
+</Concept>
+
+<Concept name="Refs to your own components: ref as a prop" id="ref-prop">
+
+A `ref` on an HTML element gives you the DOM node. On **your own** component, you decide what it points at. In **React 19**, `ref` is a normal prop for function components: take it and pass it on.
+
+```jsx file=TextInput.jsx
+// React 19: ref is just a prop
+function TextInput({ label, ref, ...rest }) {
+  return (
+    <label>
+      {label} <input ref={ref} {...rest} />
+    </label>
+  );
+}
+
+function Checkout() {
+  const emailRef = useRef(null);
+  return (
+    <>
+      <TextInput label="Email" ref={emailRef} />
+      <button onClick={() => emailRef.current.focus()}>Fix email</button>
+    </>
+  );
+}
+```
+
+Before React 19 you had to wrap the component in **`forwardRef`** to receive a ref. You'll still see it in lots of existing code and libraries:
+
+```jsx file=TextInput.jsx
+// React 18 and earlier
+const TextInput = forwardRef(function TextInput({ label, ...rest }, ref) {
+  return (
+    <label>
+      {label} <input ref={ref} {...rest} />
+    </label>
+  );
+});
+```
+
+</Concept>
+
+<HowItWorks title="When React sets ref.current">
+
+During the commit, after the DOM is updated, React sets `ref.current` to the new node; when the element is removed, it sets it back to `null`. That's why refs are ready inside event handlers (which run later) and effects (which run after the commit), but not during render.
+
+Changing `ref.current` yourself is just mutating a plain object: React doesn't know or care, which is exactly why it doesn't re-render.
+
+</HowItWorks>
+
+<GoDeeper title="useImperativeHandle: exposing a small API">
+
+Sometimes you don't want to give the parent the whole DOM node, only a couple of methods. `useImperativeHandle` lets the child decide what the ref holds:
+
+```jsx file=VideoPlayer.jsx
+function VideoPlayer({ src, ref }) {
+  const videoRef = useRef(null);
+  useImperativeHandle(ref, () => ({
+    play: () => videoRef.current.play(),
+    pause: () => videoRef.current.pause(),
+  }));
+  return <video ref={videoRef} src={src} />;
+}
+
+// parent: playerRef.current.play()  (but not playerRef.current.remove())
+```
+
+Use refs sparingly: most things (showing, hiding, changing text) should be done with state and props. Refs are for the imperative leftovers like focus, scroll, measuring and media.
+
+</GoDeeper>
+
+<Practice>
+
+<SortBuckets
+  id="buckets-ref-or-state"
+  prompt="Should each value be in a ref or in state?"
+  buckets={["useRef", "useState"]}
+  items={[
+    ["The id returned by `setInterval`", 0],
+    ["The input element you want to focus", 0],
+    ["The number of items in the cart, shown in the badge", 1],
+    ["Whether the menu is open", 1],
+    ["The previous scroll position, used only inside a handler", 0],
+    ["The text typed in a controlled input", 1],
+  ]}
+  explain="If changing it should update the screen, it's state. If it's only needed by handlers and effects, a ref avoids pointless renders."
+/>
+
+<SpotTheBug
+  id="bug-ref-render"
+  bug={3}
+  prompt="The page crashes on first load with `Cannot read properties of null (reading 'offsetWidth')`. Click the buggy line."
+  explain="`boxRef.current` is `null` during the first render: React sets it only after the commit. Read refs in event handlers or effects, never while rendering."
+>
+
+```jsx
+function Banner() {
+  const boxRef = useRef(null);
+  const width = boxRef.current.offsetWidth;
+  return <div ref={boxRef}>Free shipping over $50 ({width}px wide)</div>;
+}
+```
+
+</SpotTheBug>
+
+<Predict
+  id="predict-ref-object"
+  answer={["0 1", "true"]}
+  explain="A ref is a plain object with a `current` property. Changing `current` mutates the same object, so it's still the same box. React would not re-render for this change."
+>
+
+```js
+const ref = { current: 0 };
+const before = ref;
+const start = ref.current;
+ref.current = ref.current + 1;
+
+console.log(start, ref.current);
+console.log(before === ref);
+```
+
+</Predict>
+
+<Choice
+  id="choice-react19-ref"
+  q="In React 19, how does a function component receive a `ref` passed by its parent?"
+  options={["As a normal prop: `function Input({ ref })`", "Only through `forwardRef`", "Through `this.ref`", "It can't"]}
+  answer={0}
+  explain="React 19 made `ref` a regular prop for function components. `forwardRef` still works but is no longer needed."
+/>
+
+</Practice>
+
+<ReactExercise
+  id="focus-input"
+  title="Focus the search box"
+  hints={[
+    "In `SearchBox`, take `ref` from the props and put it on the `<input>`.",
+    "In `App`, create `const searchRef = useRef(null);` and pass `ref={searchRef}` to `SearchBox`.",
+    "The button's handler is `() => searchRef.current.focus()`.",
+  ]}
+>
+
+Clicking **Search** should put the cursor in the search box. `SearchBox` is your own component, so let it accept a `ref` (React 19 style: as a prop) and pass it to the input. Then use a ref in `App` to focus it.
+
+```jsx starter file=/SearchBox.js
+export default function SearchBox({ label }) {
+  return (
+    <label>
+      {label} <input type="search" />
+    </label>
+  );
+}
+```
+
+```jsx starter file=/App.js
+import SearchBox from "./SearchBox";
+
+export default function App() {
+  return (
+    <header>
+      <SearchBox label="Find a drink" />
+      <button>Search</button>
+    </header>
+  );
+}
+```
+
+```jsx tests file=/App.test.js
+import { fireEvent, render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import App from "./App";
+
+test("the input isn't focused at first", () => {
+  render(<App />);
+  expect(screen.getByLabelText("Find a drink")).not.toHaveFocus();
+});
+
+test("clicking Search focuses the input", () => {
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "Search" }));
+  expect(screen.getByLabelText("Find a drink")).toHaveFocus();
+});
+```
+
+```jsx solution file=/SearchBox.js
+export default function SearchBox({ label, ref }) {
+  return (
+    <label>
+      {label} <input type="search" ref={ref} />
+    </label>
+  );
+}
+```
+
+```jsx solution file=/App.js
+import { useRef } from "react";
+import SearchBox from "./SearchBox";
+
+export default function App() {
+  const searchRef = useRef(null);
+  return (
+    <header>
+      <SearchBox label="Find a drink" ref={searchRef} />
+      <button onClick={() => searchRef.current.focus()}>Search</button>
+    </header>
+  );
+}
+```
+
+</ReactExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "What does changing `ref.current` do?",
+      options: ["Re-renders the component", "Nothing visible: it just stores the value", "Throws an error", "Resets the component's state"],
+      answer: 1,
+      explain: "Refs are mutable boxes React ignores. Use state for anything that should update the screen.",
+    },
+    {
+      q: "When is a DOM ref's `current` set?",
+      options: ["Before the first render", "During render", "After React commits the element to the DOM", "Only after a click"],
+      answer: 2,
+      explain: "So use it in event handlers and effects.",
+    },
+    {
+      q: "Which are good uses for refs?",
+      options: ["Focusing an input", "Storing a timer id", "Storing the cart shown on screen", "Scrolling to an element"],
+      answer: [0, 1, 3],
+      explain: "Data you show belongs in state.",
+    },
+    {
+      q: "What did `forwardRef` do before React 19?",
+      options: ["Made refs faster", "Let a function component receive a `ref` from its parent", "Created a ref", "Forwarded props to children"],
+      answer: 1,
+      explain: "In React 19 `ref` is a normal prop, so `forwardRef` is no longer needed for new code.",
+    },
+  ]}
+/>

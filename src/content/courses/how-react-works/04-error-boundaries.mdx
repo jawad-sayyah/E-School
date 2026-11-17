@@ -1,0 +1,302 @@
+---
+id: error-boundaries
+title: Error boundaries
+summary: Stop one broken component from blanking the whole page, show a fallback instead, log the error, and let the user try again.
+minutes: 15
+tags: [error boundary, getDerivedStateFromError, componentDidCatch, class component, fallback, react-error-boundary]
+---
+
+If a component throws while rendering, React can't trust the UI anymore, so by default it **removes the whole app** from the page. One bad product review would blank the entire shop. An **error boundary** contains the damage: it catches errors from the components below it and shows a fallback instead.
+
+<Concept name="Writing an error boundary" id="writing">
+
+Error boundaries are the one thing that still needs a **class component**: there's no hook for catching render errors. You write it once and reuse it everywhere. Click **Break the reviews**.
+
+<ReactPlayground height={420} console>
+
+```jsx file=/App.js
+import { Component, useState } from "react";
+
+class ErrorBoundary extends Component {
+  state = { error: null };
+
+  // 1. Render phase: switch to the fallback
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+
+  // 2. Commit phase: report it (to the console here, to Sentry in real apps)
+  componentDidCatch(error, info) {
+    console.log("Logged:", error.message);
+  }
+
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="oops">
+          <p>Reviews couldn't load.</p>
+          <button onClick={() => this.setState({ error: null })}>Try again</button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+function Reviews({ broken }) {
+  if (broken) throw new Error("Reviews API returned garbage");
+  return <p>★★★★★ Best coffee in town</p>;
+}
+
+export default function App() {
+  const [broken, setBroken] = useState(false);
+  return (
+    <>
+      <h2>Coffee · $4</h2>
+      <button onClick={() => setBroken(!broken)}>{broken ? "Fix" : "Break"} the reviews</button>
+      <ErrorBoundary>
+        <Reviews broken={broken} />
+      </ErrorBoundary>
+      <p>The rest of the page keeps working.</p>
+    </>
+  );
+}
+```
+
+```css file=/styles.css
+body { font-family: system-ui, sans-serif; padding: 16px; }
+.oops { border: 1px solid #f07178; background: #fff1f1; border-radius: 10px; padding: 4px 12px 10px; }
+```
+
+</ReactPlayground>
+
+To recover: click **Fix the reviews**, then **Try again**, which clears the boundary's error state so it renders its children again.
+
+</Concept>
+
+<Concept name="What boundaries catch, and what they don't" id="what-caught">
+
+Boundaries catch errors thrown **while React is rendering** the components below them: in render, in lifecycle methods and in effects of those components.
+
+They do **not** catch:
+
+- errors in **event handlers** (they happen outside rendering; use `try`/`catch` and put the error in state),
+- **async** code (`setTimeout`, a `fetch` callback) for the same reason,
+- errors in the **boundary itself** (only boundaries above it can catch those).
+
+A common pattern for async errors is to store them in state and throw during render, so the nearest boundary handles them like any other error.
+
+</Concept>
+
+<HowItWorks title="The two methods">
+
+- **`static getDerivedStateFromError(error)`** runs during the render phase. It returns new state for the boundary (here `{ error }`), so the next render shows the fallback. It must be pure.
+- **`componentDidCatch(error, info)`** runs during the commit phase, after the fallback is on screen. It's the place for side effects like logging. `info.componentStack` tells you which components the error passed through.
+
+A boundary only needs the first to show a fallback; add the second to report errors.
+
+</HowItWorks>
+
+<GoDeeper title="react-error-boundary and resetting with keys">
+
+Most teams use the small `react-error-boundary` package instead of writing the class:
+
+```jsx file=ProductPage.jsx
+import { ErrorBoundary } from "react-error-boundary";
+
+<ErrorBoundary
+  fallbackRender={({ error, resetErrorBoundary }) => (
+    <div role="alert">
+      <p>Something went wrong: {error.message}</p>
+      <button onClick={resetErrorBoundary}>Try again</button>
+    </div>
+  )}
+  resetKeys={[productId]}      // reset automatically when the product changes
+>
+  <Reviews productId={productId} />
+</ErrorBoundary>
+```
+
+Without the library, you can reset a boundary by changing its `key`: `<ErrorBoundary key={productId}>` starts fresh for every product.
+
+</GoDeeper>
+
+<Practice>
+
+<SortBuckets
+  id="buckets-caught"
+  prompt="Will an error boundary around `<Reviews />` catch the error?"
+  buckets={["Caught", "Not caught"]}
+  items={[
+    ["`Reviews` throws while rendering", 0],
+    ["A child of `Reviews` throws while rendering", 0],
+    ["A `useEffect` in `Reviews` throws", 0],
+    ["A button's `onClick` in `Reviews` throws", 1],
+    ["A `setTimeout` callback in `Reviews` throws", 1],
+    ["The boundary's own `render` throws", 1],
+  ]}
+  explain="Boundaries catch errors during rendering, lifecycles and effects of the tree below them. Event handlers and async callbacks run outside React's rendering, and a boundary can't catch its own errors."
+/>
+
+<FillBlanks
+  id="blanks-boundary"
+  prompt="Fill in the blanks to complete the error boundary."
+  explain="`getDerivedStateFromError` is static and returns new state; `render` shows the fallback or the children."
+>
+
+```jsx
+class ErrorBoundary extends Component {
+  state = { hasError: false };
+
+  __[static]__ getDerivedStateFromError() {
+    return { hasError: __[true]__ };
+  }
+
+  render() {
+    if (this.state.hasError) return <p>Something went wrong.</p>;
+    return this.props.__[children]__;
+  }
+}
+```
+
+</FillBlanks>
+
+<Choice
+  id="choice-placement"
+  q="Where should error boundaries go in a shop?"
+  options={["One around the whole app only", "Around independent sections (reviews, recommendations, the cart), plus one at the top as a last resort", "Around every single component", "Nowhere; errors should crash the page so you notice them"]}
+  answer={1}
+  explain="Granular boundaries keep the rest of the page usable; a top-level one shows a friendly page instead of a blank screen."
+/>
+
+</Practice>
+
+<ReactExercise
+  id="error-boundary"
+  title="Write an ErrorBoundary"
+  hints={[
+    "Start with `state = { hasError: false };` in the class.",
+    "Add `static getDerivedStateFromError() { return { hasError: true }; }`.",
+    "In `render`, return `this.props.fallback` when `this.state.hasError`, otherwise `this.props.children`.",
+  ]}
+>
+
+Complete `ErrorBoundary` in `ErrorBoundary.js`. It renders its `children` normally, and its `fallback` prop when anything below it throws while rendering. (The console shows React's error logs during the tests; that's expected.)
+
+```jsx starter file=/ErrorBoundary.js
+import { Component } from "react";
+
+export default class ErrorBoundary extends Component {
+  render() {
+    return this.props.children;
+  }
+}
+```
+
+```jsx starter file=/App.js
+import ErrorBoundary from "./ErrorBoundary";
+
+function Recommendations() {
+  throw new Error("Recommendations service is down");
+}
+
+export default function App() {
+  return (
+    <>
+      <h2>Your cart</h2>
+      <ErrorBoundary fallback={<p>No recommendations right now.</p>}>
+        <Recommendations />
+      </ErrorBoundary>
+    </>
+  );
+}
+```
+
+```jsx tests file=/ErrorBoundary.test.js
+import { render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import ErrorBoundary from "./ErrorBoundary";
+
+function Bomb() {
+  throw new Error("boom");
+}
+
+test("renders children when nothing throws", () => {
+  render(
+    <ErrorBoundary fallback={<p>Oops</p>}>
+      <p>All good</p>
+    </ErrorBoundary>,
+  );
+  expect(screen.getByText("All good")).toBeInTheDocument();
+  expect(screen.queryByText("Oops")).not.toBeInTheDocument();
+});
+
+test("renders the fallback when a child throws", () => {
+  render(
+    <ErrorBoundary fallback={<p>Oops</p>}>
+      <Bomb />
+    </ErrorBoundary>,
+  );
+  expect(screen.getByText("Oops")).toBeInTheDocument();
+});
+
+test("only the broken part is replaced", () => {
+  render(
+    <>
+      <p>Header</p>
+      <ErrorBoundary fallback={<p>Oops</p>}>
+        <Bomb />
+      </ErrorBoundary>
+    </>,
+  );
+  expect(screen.getByText("Header")).toBeInTheDocument();
+});
+```
+
+```jsx solution file=/ErrorBoundary.js
+import { Component } from "react";
+
+export default class ErrorBoundary extends Component {
+  state = { hasError: false };
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  render() {
+    if (this.state.hasError) return this.props.fallback;
+    return this.props.children;
+  }
+}
+```
+
+</ReactExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "Without any error boundary, what happens when a component throws during render?",
+      options: ["Only that component disappears", "React unmounts the whole app", "The error is ignored", "The page reloads"],
+      answer: 1,
+      explain: "React can't trust a half-rendered UI, so it removes everything. Boundaries limit the damage.",
+    },
+    {
+      q: "Why are error boundaries class components?",
+      options: ["Classes are faster", "There's no hook equivalent of `getDerivedStateFromError` and `componentDidCatch`", "Function components can't have children", "They aren't; any function works"],
+      answer: 1,
+      explain: "It's the one feature that still needs a class (or a library that wraps one).",
+    },
+    {
+      q: "An `onClick` handler throws. What catches it?",
+      options: ["The nearest error boundary", "Nothing, unless you use try/catch in the handler", "React shows the fallback automatically", "The browser shows a dialog"],
+      answer: 1,
+      explain: "Event handlers run outside rendering. Catch the error and put it in state.",
+    },
+    {
+      q: "Which method is the right place to send the error to a logging service?",
+      options: ["`render`", "`getDerivedStateFromError`", "`componentDidCatch`", "`constructor`"],
+      answer: 2,
+      explain: "`componentDidCatch` runs in the commit phase, where side effects are allowed.",
+    },
+  ]}
+/>

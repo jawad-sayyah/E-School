@@ -1,0 +1,345 @@
+---
+id: memo
+title: memo, useMemo and useCallback
+summary: Skip renders a component doesn't need with memo, keep props stable with useMemo and useCallback, and know when none of it is worth it.
+minutes: 18
+tags: [memo, useMemo, useCallback, performance, referential equality, React Compiler]
+---
+
+Children render whenever their parent does. That's fine almost always, but when a child is **slow** to render (a big list, a chart), you can tell React to skip it when its props haven't changed.
+
+<Concept name="memo: skip a render when props are the same" id="memo">
+
+`memo(Component)` returns a version of the component that React only renders when **at least one prop changed** (compared with `Object.is`, one prop at a time). Type in the note: `ProductList` no longer logs.
+
+<ReactPlayground height={360} console>
+
+```jsx file=/App.js
+import { memo, useState } from "react";
+
+const ProductList = memo(function ProductList({ products }) {
+  console.log("render ProductList");
+  return (
+    <ul>
+      {products.map((p) => (
+        <li key={p}>{p}</li>
+      ))}
+    </ul>
+  );
+});
+
+const products = ["Coffee", "Tea", "Bagel"];
+
+export default function App() {
+  const [note, setNote] = useState("");
+  return (
+    <>
+      <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Order note" />
+      <ProductList products={products} />
+    </>
+  );
+}
+```
+
+</ReactPlayground>
+
+<RenderCycle
+  title="Typing in the note, with ProductList memoized"
+  frames={[
+    { phase: "trigger", tree: [{ name: "App", depth: 0, state: "note = \"\" → \"h\"" }, { name: "ProductList", depth: 1, state: "products = (same array)" }], note: "setNote(\"h\") queues a render of App." },
+    { phase: "render", tree: [{ name: "App", depth: 0, state: "note = \"h\"", status: "rendering" }, { name: "ProductList", depth: 1, state: "products = (same array)" }], note: "React calls App. ProductList is in its output again, with props { products }." },
+    { phase: "render", tree: [{ name: "App", depth: 0, state: "note = \"h\"", status: "rendered" }, { name: "ProductList", depth: 1, state: "products = (same array)", status: "skipped" }], note: "ProductList is memoized. React compares each prop with Object.is: products is the same array as last time, so React reuses the previous result and doesn't call ProductList at all." },
+    { phase: "commit", tree: [{ name: "App", depth: 0, state: "note = \"h\"", status: "updated" }, { name: "ProductList", depth: 1, state: "products = (same array)", status: "skipped" }], note: "Only the input's value changes in the DOM." },
+  ]}
+/>
+
+</Concept>
+
+<Concept name="The catch: new objects and functions every render" id="identity">
+
+`products` above is defined **outside** the component, so it's the same array every time. But objects, arrays and functions created **inside** a component are **new on every render**, and a new value is never `Object.is`-equal to the old one, even with the same contents. That silently breaks `memo`:
+
+<Compare
+  wrong="A new array and a new function every render: memo compares, sees changes, renders anyway"
+  right="useMemo and useCallback keep the same values between renders"
+  wrongFile="App.jsx"
+  rightFile="App.jsx"
+>
+
+```jsx
+function App() {
+  const [note, setNote] = useState("");
+  const hot = products.filter((p) => p.hot);
+  return (
+    <ProductList
+      products={hot}
+      onAdd={(p) => addToCart(p)}
+    />
+  );
+}
+```
+
+```jsx
+function App() {
+  const [note, setNote] = useState("");
+  const hot = useMemo(() => products.filter((p) => p.hot), []);
+  const handleAdd = useCallback((p) => addToCart(p), []);
+  return (
+    <ProductList
+      products={hot}
+      onAdd={handleAdd}
+    />
+  );
+}
+```
+
+</Compare>
+
+- **`useMemo(fn, deps)`** runs `fn` and caches the **result**; it only runs `fn` again when something in `deps` changes. Use it for expensive calculations and for objects or arrays passed to memoized children.
+- **`useCallback(fn, deps)`** caches the **function itself**: `useCallback(fn, deps)` is the same as `useMemo(() => fn, deps)`.
+- The **dependency array** lists every value from the component that `fn` uses. Leave one out and you get stale values; the ESLint rule `react-hooks/exhaustive-deps` checks it for you.
+
+</Concept>
+
+<Concept name="When to bother" id="when">
+
+Memoization has a cost: extra code, extra comparisons and memory, and bugs from wrong dependency arrays. Reach for it when you've **measured** a slow render (the React DevTools Profiler shows which components render and how long they take), typically:
+
+- a big list or table that re-renders on every keystroke elsewhere,
+- an expensive calculation (sorting or filtering thousands of items),
+- a value passed to a memoized child or used as an effect dependency.
+
+Often a better fix is **structural**: move the fast-changing state down into a smaller component (here, an `OrderNote` component that owns `note`), so the slow part isn't below it at all.
+
+</Concept>
+
+<HowItWorks title="Object.is and why {} !== {}">
+
+React compares props, state and dependencies with `Object.is(a, b)`, which is like `===`. For numbers and strings that compares values, but for objects, arrays and functions it compares **identity**: are they the very same thing in memory?
+
+`{ a: 1 } === { a: 1 }` is `false`: two separate objects that happen to look alike. Every render runs your component function from the top, so every `{}`, `[]` and `() => {}` written inside it is brand new. `useMemo`, `useCallback` and `useState` are the ways to keep the **same** one across renders.
+
+</HowItWorks>
+
+<GoDeeper title="The React Compiler">
+
+The **React Compiler** (a build-time plugin, stable since React 19) analyzes your components and inserts the memoization for you: it caches JSX, objects and callbacks automatically, as if you'd written `memo`, `useMemo` and `useCallback` everywhere they help. In projects that use it, you rarely write these by hand.
+
+It relies on your components following the rules of React (pure render, no mutating props or state), which is one more reason those rules matter. You still need to understand identity and memoization to read existing code and debug performance.
+
+</GoDeeper>
+
+<Practice>
+
+<Predict
+  id="predict-identity"
+  answer={["true", "false", "false", "true"]}
+  explain="Strings compare by value. Two separate arrays or functions are different, even when they look identical. A variable pointing at the same array is the same."
+>
+
+```js
+const a = ["Tea"];
+const b = a;
+
+console.log(Object.is("tea", "tea"));
+console.log(Object.is(["Tea"], ["Tea"]));
+console.log(Object.is(() => {}, () => {}));
+console.log(Object.is(a, b));
+```
+
+</Predict>
+
+<MatchPairs
+  id="match-memo-apis"
+  prompt="Match each API with what it caches."
+  columns={["API", "Caches"]}
+  pairs={[
+    ["`memo(Component)`", "A component's rendered output, while its props are the same"],
+    ["`useMemo(() => calc(), [deps])`", "The result of a calculation"],
+    ["`useCallback(fn, [deps])`", "A function, so it keeps the same identity"],
+    ["`useState(initial)`", "A value React keeps between renders until you set it"],
+  ]}
+/>
+
+<SpotTheBug
+  id="bug-memo-broken"
+  bug={6}
+  prompt="`Chart` is wrapped in `memo`, but it still re-renders on every keystroke in the search box. Click the line that defeats `memo`."
+  explain={"`options={{ color: \"teal\" }}` creates a new object on every render, so `memo` always sees a changed prop. Move the object outside the component, or wrap it in `useMemo`."}
+>
+
+```jsx
+function Dashboard({ sales }) {
+  const [search, setSearch] = useState("");
+  return (
+    <>
+      <input value={search} onChange={(e) => setSearch(e.target.value)} />
+      <Chart data={sales} options={{ color: "teal" }} />
+    </>
+  );
+}
+```
+
+</SpotTheBug>
+
+<SortBuckets
+  id="buckets-memo-worth-it"
+  prompt="Is memoization likely worth it here?"
+  buckets={["Worth it", "Not worth it"]}
+  items={[
+    ["Sorting 20,000 orders on every keystroke in an unrelated input", 0],
+    ["A memoized `DataTable` receives a callback prop", 0],
+    ["`const total = a + b` in a small component", 1],
+    ["Wrapping every tiny button in `memo` just in case", 1],
+    ["A `memo` child whose props are new objects on every render anyway", 1],
+  ]}
+  explain="Memoize slow things and the props of memoized children. Cheap calculations and blanket `memo` add cost and complexity for nothing."
+/>
+
+</Practice>
+
+<ReactExercise
+  id="stop-rerenders"
+  title="Stop the list from re-rendering"
+  hints={[
+    "Wrap the export in `memo`: `export default memo(ProductList);` (import `memo` from \"react\").",
+    "`memo` alone isn't enough: `onAdd` is a new function on every render of `App`. Wrap it in `useCallback`.",
+    "Use the updater form so the callback needs no dependencies: `useCallback((name) => setCart((c) => [...c, name]), [])`.",
+  ]}
+>
+
+Typing in the note re-renders `ProductList` on every keystroke. Make it render **only** when its props really change: memoize the component, and give it a stable `onAdd`. Leave the `renders` counter in place; the tests use it to count renders.
+
+```jsx starter file=/ProductList.js
+export const renders = { count: 0 };
+
+function ProductList({ products, onAdd }) {
+  renders.count++;
+  return (
+    <ul>
+      {products.map((p) => (
+        <li key={p}>
+          {p} <button onClick={() => onAdd(p)}>Add {p}</button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+export default ProductList;
+```
+
+```jsx starter file=/App.js
+import { useState } from "react";
+import ProductList from "./ProductList";
+
+const products = ["Coffee", "Tea"];
+
+export default function App() {
+  const [note, setNote] = useState("");
+  const [cart, setCart] = useState([]);
+
+  return (
+    <>
+      <input aria-label="Order note" value={note} onChange={(e) => setNote(e.target.value)} />
+      <p>Cart: {cart.length}</p>
+      <ProductList products={products} onAdd={(name) => setCart([...cart, name])} />
+    </>
+  );
+}
+```
+
+```jsx tests file=/App.test.js
+import { fireEvent, render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import App from "./App";
+import { renders } from "./ProductList";
+
+test("typing in the note doesn't re-render ProductList", () => {
+  render(<App />);
+  const before = renders.count;
+  fireEvent.change(screen.getByLabelText("Order note"), { target: { value: "h" } });
+  fireEvent.change(screen.getByLabelText("Order note"), { target: { value: "hi" } });
+  expect(renders.count).toBe(before);
+});
+
+test("adding still works, every time", () => {
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "Add Coffee" }));
+  fireEvent.click(screen.getByRole("button", { name: "Add Tea" }));
+  expect(screen.getByText("Cart: 2")).toBeInTheDocument();
+});
+```
+
+```jsx solution file=/ProductList.js
+import { memo } from "react";
+
+export const renders = { count: 0 };
+
+function ProductList({ products, onAdd }) {
+  renders.count++;
+  return (
+    <ul>
+      {products.map((p) => (
+        <li key={p}>
+          {p} <button onClick={() => onAdd(p)}>Add {p}</button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+export default memo(ProductList);
+```
+
+```jsx solution file=/App.js
+import { useCallback, useState } from "react";
+import ProductList from "./ProductList";
+
+const products = ["Coffee", "Tea"];
+
+export default function App() {
+  const [note, setNote] = useState("");
+  const [cart, setCart] = useState([]);
+  const handleAdd = useCallback((name) => setCart((c) => [...c, name]), []);
+
+  return (
+    <>
+      <input aria-label="Order note" value={note} onChange={(e) => setNote(e.target.value)} />
+      <p>Cart: {cart.length}</p>
+      <ProductList products={products} onAdd={handleAdd} />
+    </>
+  );
+}
+```
+
+</ReactExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "When does a `memo` component skip rendering?",
+      options: ["Always", "When its parent renders but every prop is the same (by `Object.is`)", "When it has no state", "When it's off screen"],
+      answer: 1,
+      explain: "It still renders when its own state or a context it reads changes.",
+    },
+    {
+      q: "Why does `<Row style={{ color: \"red\" }} />` defeat `memo(Row)`?",
+      options: ["Inline styles are slow", "The object is new on every render, so the prop always looks changed", "`memo` ignores style", "It doesn't"],
+      answer: 1,
+      explain: "Two objects with the same contents are still different objects.",
+    },
+    {
+      q: "What's the difference between `useMemo` and `useCallback`?",
+      options: ["None", "`useMemo` caches a function's result; `useCallback` caches the function itself", "`useCallback` is for classes", "`useMemo` runs on every render"],
+      answer: 1,
+      explain: "`useCallback(fn, deps)` equals `useMemo(() => fn, deps)`.",
+    },
+    {
+      q: "What should you do before adding `memo` and `useMemo` everywhere?",
+      options: ["Nothing; always add them", "Measure with the Profiler, and consider moving state down instead", "Convert to class components", "Remove all keys"],
+      answer: 1,
+      explain: "Optimize where it's measured to matter. Structural fixes are often simpler.",
+    },
+  ]}
+/>

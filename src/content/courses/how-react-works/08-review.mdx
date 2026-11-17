@@ -1,0 +1,118 @@
+---
+id: review
+title: "Review: How React Works"
+summary: Mixed questions on rendering, reconciliation, memoization, Suspense, error boundaries, portals, refs and StrictMode.
+minutes: 18
+kind: review
+tags: [review, rendering, reconciliation, memo, Suspense, error boundaries, portals, refs, StrictMode]
+---
+
+One last check before the Hooks course. The lesson names in brackets tell you where to look.
+
+<Practice title="Under the hood">
+
+<MatchPairs
+  id="match-review-hrw"
+  prompt="Match each tool with the problem it solves."
+  columns={["Tool", "Solves"]}
+  pairs={[
+    ["`key` that changes", "Resetting a component's state on purpose"],
+    ["`memo`", "Skipping a slow child's render when its props are the same"],
+    ["`lazy` + `<Suspense>`", "Loading code only when it's needed"],
+    ["Error boundary", "One broken component blanking the whole page"],
+    ["`createPortal`", "A modal clipped by its parent's overflow"],
+    ["`useRef`", "Focusing an input, or keeping a timer id"],
+    ["`<StrictMode>`", "Finding impure renders and missing cleanups"],
+  ]}
+/>
+
+<RenderCycle
+  title="Quick check: which children render?"
+  frames={[
+    { phase: "trigger", tree: [{ name: "App", depth: 0, state: "filter = \"all\" → \"hot\"" }, { name: "Header", depth: 1 }, { name: "ProductGrid", depth: 1, state: "memo, products = (new array)" }, { name: "Footer", depth: 1, state: "memo, no props" }], note: "App's filter changes. App computes products with filter() during render, so it's a new array every time." },
+    { phase: "render", tree: [{ name: "App", depth: 0, state: "filter = \"hot\"", status: "rendered" }, { name: "Header", depth: 1, status: "rendered" }, { name: "ProductGrid", depth: 1, state: "memo, products = (new array)", status: "rendered" }, { name: "Footer", depth: 1, state: "memo, no props", status: "skipped" }], note: "Header isn't memoized, so it renders with its parent. ProductGrid is memoized, but its products prop is a new array, so it renders. Footer is memoized and its props are the same (none), so it's skipped." },
+  ]}
+/>
+
+<SortBuckets
+  id="buckets-review-state-kept"
+  prompt="Is the component's state kept or reset? (Rendering and reconciliation)"
+  buckets={["Kept", "Reset"]}
+  items={[
+    ["Its parent re-renders", 0],
+    ["It receives new props", 0],
+    ["Its `key` changes", 1],
+    ["Its wrapper changes from `<div>` to `<section>`", 1],
+    ["It moves within a list, with a stable key", 0],
+    ["It's rendered conditionally and the condition becomes false, then true again", 1],
+  ]}
+  explain="Same type at the same position (or the same key in a list) keeps state. A new key, a new type, or unmounting resets it."
+/>
+
+<SpotTheBug
+  id="bug-review-hrw"
+  bug={[2, 7]}
+  prompt="This page has two problems. Click either buggy line. (Suspense and lazy, Refs)"
+  explain="Line 2 calls `lazy` inside the component, so the chart reloads on every render: move it to the top level. Line 7 reads a ref during render, when it's still `null`: read it in a handler or effect."
+>
+
+```jsx
+function SalesPage() {
+  const Chart = lazy(() => import("./Chart"));
+  const tableRef = useRef(null);
+
+  return (
+    <>
+      <p>Table width: {tableRef.current.offsetWidth}px</p>
+      <table ref={tableRef}>…</table>
+      <Suspense fallback={<p>Loading chart…</p>}>
+        <Chart />
+      </Suspense>
+    </>
+  );
+}
+```
+
+</SpotTheBug>
+
+<TrueFalse
+  id="tf-review-hrw"
+  statements={[
+    { text: "Rendering a component always changes the DOM.", answer: false, explain: "React commits only the differences. (Rendering and reconciliation)" },
+    { text: "`useCallback(fn, [])` returns the same function on every render.", answer: true, explain: "With no dependencies it never changes, which keeps memoized children from re-rendering. (memo)" },
+    { text: "Error boundaries catch errors thrown in `onClick` handlers.", answer: false, explain: "Only errors during rendering, lifecycles and effects. (Error boundaries)" },
+    { text: "Clicks inside a portal bubble to the portal's React parents.", answer: true, explain: "Events follow the React tree. (Portals)" },
+    { text: "StrictMode's double render happens in production too.", answer: false, explain: "Development only. (StrictMode)" },
+  ]}
+/>
+
+</Practice>
+
+<Quiz
+  questions={[
+    {
+      q: "In which phase does React change the DOM?",
+      options: ["Trigger", "Render", "Commit", "Reconciliation"],
+      answer: 2,
+      explain: "Render calls components; reconciliation compares; commit applies the changes.",
+    },
+    {
+      q: "A `memo` child still re-renders on every parent render. Likely causes?",
+      options: ["A prop is an object or function created during the parent's render", "The child reads a context that changes", "The child has its own state that changes", "`memo` only works with class components"],
+      answer: [0, 1, 2],
+      explain: "New identities, context changes and the child's own state all cause renders. `memo` works with function components.",
+    },
+    {
+      q: "Which needs a class component (or a library wrapping one)?",
+      options: ["Refs", "Portals", "Error boundaries", "Suspense"],
+      answer: 2,
+      explain: "`getDerivedStateFromError` and `componentDidCatch` have no hook equivalent.",
+    },
+    {
+      q: "You want a `TextInput` component to accept a `ref` in React 19. What do you do?",
+      options: ["Wrap it in `forwardRef`, it's required", "Read `ref` from its props and pass it to the input", "Use `this.ref`", "Refs can't be passed to components"],
+      answer: 1,
+      explain: "In React 19, `ref` is a regular prop for function components. (Refs)",
+    },
+  ]}
+/>

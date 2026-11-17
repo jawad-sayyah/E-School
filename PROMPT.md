@@ -256,7 +256,7 @@ An `<Exercise>` has: a title, a one-sentence task, starter code, **hidden tests*
   - `vi.fn()` with `toHaveBeenCalled` / `toHaveBeenCalledWith`
   - basic fake timers: `vi.useFakeTimers()`, `vi.advanceTimersByTime()`, `vi.useRealTimers()`
   - Results look like a test runner: ✓/✗ per test, grouped by `describe`, with test names, expected vs. received on failures, and a summary such as **"3 passed, 1 failed"**.
-- **React tests:** Sandpack's test runner (`SandpackTests`) with React Testing Library, `@testing-library/user-event` and `@testing-library/jest-dom`.
+- **React tests:** Sandpack's test runner (`SandpackTests`) with React Testing Library and `@testing-library/jest-dom`. Hidden exercise tests simulate users with `fireEvent`: `@testing-library/user-event` v14 crashes Sandpack's runner ("The provided value is not of type 'Element'"), so the Testing course must either find a version that runs there or show `user-event` in read-only code with recorded output.
 - The same safety limits apply to every test run (timeouts, output caps).
 
 ### `<TestExercise>`: the student writes the tests
@@ -423,7 +423,7 @@ It ends with a "What's next" page: a real backend, authentication and payments.
 
 ---
 
-## 13. Phases — stop for my review after each one
+## 13. Phases — summarize each one, then go straight on to the next
 
 **Phase 1 — Platform + JavaScript Basics** ✅
 - Scaffold, design system, layout, routing, theme, worker runner, core lesson components, progress, search, Course 1.
@@ -431,17 +431,17 @@ It ends with a "What's next" page: a real backend, authentication and payments.
 **Phase 2 — Modern JS + the JS Quick Reference** ✅
 - Course 2 and the `/reference` page.
 
-**Phase 3 — The learning engine**
+**Phase 3 — The learning engine** ✅
 - Tracks (`/tracks`, `/tracks/:track`) and the track manifest.
 - Every question type that runs in the worker or the page (all of 0.3 except Build the UI and React test exercises, which need Sandpack), with instant feedback, hints and XP.
 - The depth layer (`<HowItWorks>`, `<GoDeeper>`) and the visualizer foundation, with the first visualizers.
 - Gamification: XP, streaks, badges, certificates; progress page and header updates.
 - Courses 1 and 2 upgraded: at least 3 question types per lesson, "Go deeper" sections, and a review quiz per course.
 
-**Phase 4 — The JavaScript track, complete**
+**Phase 4 — The JavaScript track, complete** ✅
 - Course 3 (JavaScript in Depth) with the event loop visualizer, new reference entries, the JS boss challenge and certificate.
 
-**Phase 5 — React foundations**
+**Phase 5 — React foundations** ✅
 - `ReactPlayground` (Sandpack), React exercises with Sandpack tests, Build the UI questions, the render cycle visualizer.
 - Why React?, React Fundamentals, How React Works.
 

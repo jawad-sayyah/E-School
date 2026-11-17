@@ -1,0 +1,346 @@
+---
+id: rendering
+title: Rendering and reconciliation
+summary: What triggers a render, why children re-render with their parent, how React decides what to keep, and how keys and element types reset state.
+minutes: 18
+tags: [render, commit, reconciliation, re-render, state preservation, key reset, virtual DOM]
+---
+
+You've seen the render cycle: **trigger → render → commit**. This lesson looks closely at each step, because almost every "why did that happen?" question in React comes down to it.
+
+<Concept name="What triggers a render" id="triggers">
+
+A component renders when:
+
+1. **The app starts** (the initial render, from `root.render(<App />)`).
+2. **Its state changes** (a `set` function is called with a new value).
+3. **Its parent renders.** By default, when a component renders, React renders **all of its children** too, whether their props changed or not.
+4. **A context it reads changes** (Hooks course).
+
+Props changing is *not* a separate trigger: props only change because the parent rendered.
+
+</Concept>
+
+<Concept name="Children render with their parent" id="children-render">
+
+Watch the console while you type in the box. `App` holds the text, so every keystroke renders `App`, and with it `Header` and `ProductList`, even though their props never change.
+
+<ReactPlayground height={360} console>
+
+```jsx file=/App.js
+import { useState } from "react";
+
+function Header() {
+  console.log("render Header");
+  return <h1>MiniShop</h1>;
+}
+
+function ProductList({ products }) {
+  console.log("render ProductList");
+  return (
+    <ul>
+      {products.map((p) => (
+        <li key={p}>{p}</li>
+      ))}
+    </ul>
+  );
+}
+
+const products = ["Coffee", "Tea", "Bagel"];
+
+export default function App() {
+  const [note, setNote] = useState("");
+  console.log("render App");
+  return (
+    <>
+      <Header />
+      <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Order note" />
+      <ProductList products={products} />
+    </>
+  );
+}
+```
+
+</ReactPlayground>
+
+<Callout type="tip">
+You'll see each log twice at first: the sandbox runs in StrictMode, which renders twice in development to catch bugs. The StrictMode lesson explains it.
+</Callout>
+
+Is that wasteful? Usually not. **Rendering is not the same as updating the DOM.** Calling these functions is cheap; React then compares the results and, here, changes only the input's value in the DOM. You'll learn to skip renders when they *are* expensive in the next lesson.
+
+<RenderCycle
+  title="Typing one letter in the note"
+  frames={[
+    { phase: "idle", tree: [{ name: "App", depth: 0, state: "note = \"\"" }, { name: "Header", depth: 1 }, { name: "ProductList", depth: 1, state: "3 products" }], screen: "MiniShop · [ Order note ] · Coffee, Tea, Bagel", note: "The page is showing. Nothing is rendering." },
+    { phase: "trigger", tree: [{ name: "App", depth: 0, state: "note = \"\" → \"h\"" }, { name: "Header", depth: 1 }, { name: "ProductList", depth: 1, state: "3 products" }], screen: "MiniShop · [ Order note ] · Coffee, Tea, Bagel", note: "You type h. The input's onChange calls setNote(\"h\"): App is queued for a render." },
+    { phase: "render", tree: [{ name: "App", depth: 0, state: "note = \"h\"", status: "rendering" }, { name: "Header", depth: 1 }, { name: "ProductList", depth: 1, state: "3 products" }], screen: "MiniShop · [ Order note ] · Coffee, Tea, Bagel", note: "React calls App. It returns the same tree as before, except the input's value is now \"h\"." },
+    { phase: "render", tree: [{ name: "App", depth: 0, state: "note = \"h\"", status: "rendered" }, { name: "Header", depth: 1, status: "rendering" }, { name: "ProductList", depth: 1, state: "3 products", status: "rendering" }], screen: "MiniShop · [ Order note ] · Coffee, Tea, Bagel", note: "Header and ProductList are in App's output, so React calls them too, even though their props are the same." },
+    { phase: "commit", tree: [{ name: "App", depth: 0, state: "note = \"h\"", status: "updated" }, { name: "Header", depth: 1, status: "rendered" }, { name: "ProductList", depth: 1, state: "3 products", status: "rendered" }], screen: "MiniShop · [ h ] · Coffee, Tea, Bagel", note: "React compares the new output with the old. Only the input's value differs, so that's the only DOM change. Header's h1 and the list items are untouched." },
+  ]}
+/>
+
+</Concept>
+
+<Concept name="Reconciliation: same type, same position, same state" id="reconciliation">
+
+After rendering, React compares the new element tree with the previous one, node by node. This is **reconciliation**. The rules are simple:
+
+- **Same type at the same position** (`<Counter />` where there was a `<Counter />`): React keeps the existing component, its DOM and its **state**, and updates the props.
+- **Different type** (a `<Counter />` where there was a `<p>`, or `<div>` → `<section>`): React destroys the old subtree, **state included**, and builds the new one from scratch.
+- **Different key**: treated as a different component, so it's rebuilt with fresh state.
+
+Click + a few times on each counter, then tick the box.
+
+<ReactPlayground height={360}>
+
+```jsx file=/App.js
+import { useState } from "react";
+
+function Counter({ label }) {
+  const [count, setCount] = useState(0);
+  return (
+    <p>
+      {label}: {count} <button onClick={() => setCount(count + 1)}>+</button>
+    </p>
+  );
+}
+
+export default function App() {
+  const [vip, setVip] = useState(false);
+  return (
+    <>
+      <label>
+        <input type="checkbox" checked={vip} onChange={(e) => setVip(e.target.checked)} /> VIP customer
+      </label>
+
+      {/* Same type, same position: state survives, only the label changes */}
+      {vip ? <Counter label="VIP coffees" /> : <Counter label="Coffees" />}
+
+      {/* Different type at this position: the counter is destroyed and rebuilt */}
+      {vip ? <section><Counter label="Teas" /></section> : <div><Counter label="Teas" /></div>}
+    </>
+  );
+}
+```
+
+</ReactPlayground>
+
+The coffee counter keeps its number: React sees a `Counter` at the same spot both times, even though the JSX is written twice. The tea counter resets, because its parent switched from `<div>` to `<section>`.
+
+</Concept>
+
+<Concept name="Resetting state on purpose with a key" id="key-reset">
+
+Sometimes you **want** fresh state, like a form that should clear when you switch to another customer. Give the component a `key` that changes:
+
+```jsx file=App.jsx
+<OrderForm key={customer.id} customer={customer} />
+```
+
+When `customer.id` changes, React sees a different key, throws away the old form (and everything typed in it) and mounts a new one.
+
+</Concept>
+
+<HowItWorks title="Is this the virtual DOM?">
+
+"Virtual DOM" is the popular name for the element tree your components return: plain objects describing the UI. React keeps the previous tree, compares it with the new one (reconciliation), and applies the smallest set of DOM changes during the commit.
+
+A full comparison of two trees would be slow, so React uses two shortcuts that make it fast enough for real apps:
+
+1. **Different types produce different trees**: React doesn't try to match a `<div>` with a `<section>`; it rebuilds.
+2. **Keys** tell React which children in a list match up, so it can move items instead of rebuilding them.
+
+That's why the rules above exist, and why keys and stable component types matter so much.
+
+</HowItWorks>
+
+<GoDeeper title="Render phase vs. commit phase">
+
+- **Render phase:** React calls your components. This must be **pure**: same props and state in, same JSX out, no side effects (no changing variables outside, no fetching, no DOM changes). React may call your component several times, pause, or throw the result away.
+- **Commit phase:** React applies the DOM changes, updates refs, then runs effects (`useLayoutEffect` before the browser paints, `useEffect` after). This is where side effects belong.
+
+React 18+ can also **interrupt** a render that's in progress to handle something more urgent (like typing), thanks to concurrent rendering. Pure components are what make that safe.
+
+</GoDeeper>
+
+<Practice>
+
+<SortBuckets
+  id="buckets-what-renders"
+  prompt="`App` holds some state and renders `Header`, `Sidebar` and `Footer` (no memo). The state in `App` changes. Which components render?"
+  buckets={["Renders", "Doesn't render"]}
+  items={[
+    ["`App`", 0],
+    ["`Header`, whose props didn't change", 0],
+    ["`Footer`, which gets no props at all", 0],
+    ["A `Logo` inside `Header`", 0],
+    ["`App`'s parent", 1],
+    ["A sibling of `App` in the parent", 1],
+  ]}
+  explain="A state change renders the component and everything below it. Nothing above or beside it renders."
+/>
+
+<Choice
+  id="choice-state-survives"
+  q={"`{isEditing ? <Input label=\"Edit\" /> : <Input label=\"View\" />}`. You type in the input, then toggle `isEditing`. What happens to the typed text (kept in Input's state)?"}
+  options={["It's kept: same type at the same position", "It's lost: the JSX is different", "It's lost: the label changed", "It throws an error"]}
+  answer={0}
+  explain="React only sees an `Input` at the same spot in both cases. Add different keys if you want it reset."
+  hint="Does React look at your JSX source, or at the types in the tree?"
+/>
+
+<TrueFalse
+  id="tf-rendering"
+  statements={[
+    { text: "When a component renders, its children render too by default.", answer: true, explain: "Unless a child is memoized and its props are unchanged." },
+    { text: "Every render changes the DOM.", answer: false, explain: "React only commits the differences. Often a render changes nothing in the DOM." },
+    { text: "Changing a component's `key` resets its state.", answer: true, explain: "A new key means a new component instance." },
+    { text: "Swapping `<div>` for `<section>` around a component keeps the component's state.", answer: false, explain: "A different type at that position means React rebuilds the subtree." },
+  ]}
+/>
+
+<OrderLines
+  id="order-render-steps"
+  prompt="Put the steps of an update in order."
+  explain="State change, then rendering (calling components), then reconciliation (comparing), then the commit (DOM changes), then effects."
+>
+
+```js
+// setCart(next) is called in a click handler
+// React calls App and its children with the new state
+// React compares the new element tree with the old one
+// React applies the differences to the DOM
+// React runs the effects
+```
+
+</OrderLines>
+
+</Practice>
+
+<ReactExercise
+  id="reset-with-key"
+  title="Clear the note when switching customers"
+  hints={[
+    "The note lives in `NoteForm`'s state, and `NoteForm` stays at the same position, so it keeps its state.",
+    "Give it a key that changes with the customer: `<NoteForm key={customer.id} customer={customer} />`.",
+  ]}
+>
+
+Type a note for Ada, then switch to Grace: Ada's note is still there. Make the note start empty whenever the selected customer changes, **without** adding any new state or effects.
+
+```jsx starter file=/App.js
+import { useState } from "react";
+
+const customers = [
+  { id: "c1", name: "Ada" },
+  { id: "c2", name: "Grace" },
+];
+
+function NoteForm({ customer }) {
+  const [note, setNote] = useState("");
+  return (
+    <label>
+      Note for {customer.name}{" "}
+      <input value={note} onChange={(e) => setNote(e.target.value)} />
+    </label>
+  );
+}
+
+export default function App() {
+  const [selected, setSelected] = useState(customers[0]);
+  return (
+    <>
+      {customers.map((c) => (
+        <button key={c.id} onClick={() => setSelected(c)}>
+          {c.name}
+        </button>
+      ))}
+      <NoteForm customer={selected} />
+    </>
+  );
+}
+```
+
+```jsx tests file=/App.test.js
+import { fireEvent, render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import App from "./App";
+
+test("the note can be typed", () => {
+  render(<App />);
+  fireEvent.change(screen.getByLabelText(/Note for Ada/), { target: { value: "Oat milk" } });
+  expect(screen.getByLabelText(/Note for Ada/)).toHaveValue("Oat milk");
+});
+
+test("switching customers starts with an empty note", () => {
+  render(<App />);
+  fireEvent.change(screen.getByLabelText(/Note for Ada/), { target: { value: "Oat milk" } });
+  fireEvent.click(screen.getByRole("button", { name: "Grace" }));
+  expect(screen.getByLabelText(/Note for Grace/)).toHaveValue("");
+});
+```
+
+```jsx solution file=/App.js
+import { useState } from "react";
+
+const customers = [
+  { id: "c1", name: "Ada" },
+  { id: "c2", name: "Grace" },
+];
+
+function NoteForm({ customer }) {
+  const [note, setNote] = useState("");
+  return (
+    <label>
+      Note for {customer.name}{" "}
+      <input value={note} onChange={(e) => setNote(e.target.value)} />
+    </label>
+  );
+}
+
+export default function App() {
+  const [selected, setSelected] = useState(customers[0]);
+  return (
+    <>
+      {customers.map((c) => (
+        <button key={c.id} onClick={() => setSelected(c)}>
+          {c.name}
+        </button>
+      ))}
+      <NoteForm key={selected.id} customer={selected} />
+    </>
+  );
+}
+```
+
+</ReactExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "Which of these trigger a component to render?",
+      options: ["Its state changes", "Its parent renders", "A context it reads changes", "A sibling's state changes"],
+      answer: [0, 1, 2],
+      explain: "Siblings don't affect each other unless they share a parent that re-renders.",
+    },
+    {
+      q: "What is reconciliation?",
+      options: ["Fetching data from the server", "Comparing the new element tree with the previous one to work out the DOM changes", "Merging two Git branches", "Running effects"],
+      answer: 1,
+      explain: "It happens after rendering and decides what the commit will change.",
+    },
+    {
+      q: "When does React throw away a component's state?",
+      options: ["When its props change", "When it's replaced by a different type at the same position", "When its key changes", "When it renders again"],
+      answer: [1, 2],
+      explain: "New props or a re-render keep the state. A different type or key means a new instance.",
+    },
+    {
+      q: "What must the render phase be?",
+      options: ["Fast and asynchronous", "Pure: no side effects, same inputs give the same output", "Wrapped in try/catch", "Called once per component"],
+      answer: 1,
+      explain: "React may render more than once or discard a render, so side effects belong in event handlers and effects.",
+    },
+  ]}
+/>

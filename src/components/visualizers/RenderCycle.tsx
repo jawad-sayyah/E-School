@@ -106,7 +106,9 @@ export function RenderCycle({
                         status?.cls ?? 'border-ed-line text-ed-text',
                       )}
                     >
-                      <span className="text-syn-tag">&lt;{node.name} /&gt;</span>
+                      <span className="shrink-0 whitespace-nowrap text-syn-tag">
+                        &lt;{node.name} /&gt;
+                      </span>
                       {node.state && <span className="text-syn-num">{node.state}</span>}
                       {status && (
                         <span className="ml-auto font-sans text-[10px] opacity-90">

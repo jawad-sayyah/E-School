@@ -1,0 +1,199 @@
+---
+id: suspense-lazy
+title: Suspense and lazy loading
+summary: Split rarely used parts of your app into separate files with lazy, show a fallback with Suspense while they load, and place boundaries where they help the user.
+minutes: 14
+tags: [Suspense, lazy, code splitting, dynamic import, fallback, loading states]
+---
+
+Your whole app doesn't need to download before the first screen appears. A checkout page, a rich text editor or a chart library can load **when the user first needs it**. That's **code splitting**, and React does it with `lazy` and `<Suspense>`.
+
+<Concept name="lazy + Suspense" id="lazy-suspense">
+
+`lazy(() => import("./Reviews"))` returns a component that loads its code the first time it renders. While it loads, the component **suspends**, and the nearest `<Suspense>` above it shows its `fallback` instead. Click the button: the reviews take a second to "download".
+
+<ReactPlayground height={360}>
+
+```jsx file=/App.js
+import { lazy, Suspense, useState } from "react";
+
+// A fake slow network, so you can see the fallback
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const Reviews = lazy(() => delay(1200).then(() => import("./Reviews")));
+
+export default function App() {
+  const [show, setShow] = useState(false);
+  return (
+    <>
+      <h2>Coffee</h2>
+      <button onClick={() => setShow(true)}>Show reviews</button>
+      {show && (
+        <Suspense fallback={<p className="loading">Loading reviews…</p>}>
+          <Reviews />
+        </Suspense>
+      )}
+    </>
+  );
+}
+```
+
+```jsx file=/Reviews.js
+export default function Reviews() {
+  return (
+    <ul>
+      <li>★★★★★ Best coffee in town</li>
+      <li>★★★★☆ Great, but the line is long</li>
+    </ul>
+  );
+}
+```
+
+```css file=/styles.css
+body { font-family: system-ui, sans-serif; padding: 16px; }
+.loading { color: #888; font-style: italic; }
+```
+
+</ReactPlayground>
+
+- `lazy` takes a function that returns a **promise of a module** with a `default` export. `import("./Reviews")` (a **dynamic import**) is exactly that; build tools like Vite turn it into a separate file.
+- Declare lazy components at the **top level** of a module, never inside a component (it would restart the download on every render).
+- Once loaded, the code is cached: showing the reviews again is instant.
+
+</Concept>
+
+<Concept name="Where to put boundaries" id="boundaries">
+
+A `<Suspense>` boundary catches **every** suspending component below it, however deep. Where you put it decides what the user sees while waiting:
+
+```jsx file=App.jsx
+<Layout>
+  <Suspense fallback={<PageSpinner />}>        {/* one boundary for the whole page */}
+    <ProductPage />
+  </Suspense>
+</Layout>
+
+<ProductPage>
+  <ProductInfo />                              {/* shows right away */}
+  <Suspense fallback={<ReviewsSkeleton />}>    {/* only the reviews wait */}
+    <Reviews />
+  </Suspense>
+</ProductPage>
+```
+
+- Keep the **frame** of the page (header, navigation) outside boundaries, so it never disappears.
+- Prefer **skeletons** shaped like the content over a spinner covering everything.
+- Route-level splitting (one lazy component per page) is the most common use: each page is its own file.
+
+</Concept>
+
+<HowItWorks title="How suspending works">
+
+When a lazy component renders before its code is ready, React doesn't get JSX back. Instead, the component signals "I'm waiting for this promise". React stops rendering that part of the tree, finds the nearest `<Suspense>` boundary above it, and commits the boundary's `fallback` instead. When the promise resolves, React tries rendering the component again, and this time it works.
+
+The same mechanism also handles **data**: in React 19, `use(promise)` suspends until data arrives, so one `<Suspense>` can show a fallback while both code and data load. The React 19 course covers `use`.
+
+</HowItWorks>
+
+<GoDeeper title="Avoiding a flash of the fallback">
+
+If an update (like switching tabs) makes an already visible part of the page suspend, replacing it with a spinner feels jumpy. Wrap that update in `startTransition` and React keeps showing the **old** content until the new content is ready:
+
+```jsx file=Tabs.jsx
+import { startTransition, useState } from "react";
+
+function Tabs() {
+  const [tab, setTab] = useState("info");
+  function selectTab(next) {
+    startTransition(() => setTab(next));   // keep the old tab visible while the new one loads
+  }
+  // …
+}
+```
+
+Transitions and `useTransition` are covered in the Hooks course.
+
+</GoDeeper>
+
+<Practice>
+
+<OrderLines
+  id="order-lazy-setup"
+  prompt="Order the lines to lazy-load a Chart component with a fallback."
+  explain="Import the tools first, declare the lazy component at the top level, then render it inside a Suspense boundary."
+>
+
+```jsx
+import { lazy, Suspense } from "react";
+const Chart = lazy(() => import("./Chart"));
+export default function Dashboard() {
+  return (
+    <Suspense fallback={<p>Loading chart…</p>}>
+      <Chart />
+    </Suspense>
+  );
+}
+```
+
+</OrderLines>
+
+<SpotTheBug
+  id="bug-lazy-inside"
+  bug={2}
+  prompt="Every time the page re-renders, the editor shows Loading… again and loses what was typed. Click the buggy line."
+  explain="`lazy` is called inside the component, so every render creates a new lazy component type. React sees a different type, throws away the old editor and starts loading again. Move the `lazy(...)` call to the top level of the module."
+>
+
+```jsx
+function NotesPage() {
+  const Editor = lazy(() => import("./Editor"));
+  return (
+    <Suspense fallback={<p>Loading…</p>}>
+      <Editor />
+    </Suspense>
+  );
+}
+```
+
+</SpotTheBug>
+
+<TrueFalse
+  id="tf-suspense"
+  statements={[
+    { text: "`<Suspense>` shows its fallback while any component below it is suspended.", answer: true, explain: "It catches suspending components at any depth." },
+    { text: "`lazy` works with named exports out of the box: `lazy(() => import(\"./Chart\"))` finds `export function Chart`.", answer: false, explain: "`lazy` needs a `default` export. For named ones: `lazy(() => import(\"./Chart\").then((m) => ({ default: m.Chart })))`." },
+    { text: "Code splitting makes the first page load faster by downloading less code up front.", answer: true, explain: "Rarely used parts download only when needed." },
+  ]}
+/>
+
+<Choice
+  id="choice-boundary-place"
+  q="A product page has a big image gallery that loads lazily. Where should the `<Suspense>` boundary go so the product name and price show right away?"
+  options={["Around the whole app", "Around the gallery only", "Around the price", "Inside the gallery component"]}
+  answer={1}
+  explain="A boundary right around the gallery lets everything else render immediately, with a skeleton where the gallery will appear."
+/>
+
+</Practice>
+
+<Quiz
+  questions={[
+    {
+      q: "What does `lazy(() => import(\"./Checkout\"))` do?",
+      options: ["Loads Checkout immediately", "Creates a component whose code loads the first time it renders", "Makes Checkout render slower", "Imports Checkout on the server"],
+      answer: 1,
+      explain: "The dynamic import runs on first render; build tools put Checkout in its own file.",
+    },
+    {
+      q: "What does a `<Suspense>` boundary need?",
+      options: ["A `fallback` to show while children are suspended", "A `key`", "A `loading` state variable", "An error handler"],
+      answer: 0,
+      explain: "`<Suspense fallback={<Spinner />}>` shows the fallback until everything inside is ready.",
+    },
+    {
+      q: "Which are good practices?",
+      options: ["Declare lazy components at the top level of a module", "Keep the page's header outside the boundary", "Wrap every single component in its own Suspense", "Use skeletons shaped like the content"],
+      answer: [0, 1, 3],
+      explain: "Boundaries belong where a loading state makes sense to the user, not around everything.",
+    },
+  ]}
+/>
