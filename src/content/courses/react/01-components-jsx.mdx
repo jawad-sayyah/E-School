@@ -1,0 +1,307 @@
+---
+id: components-jsx
+title: Components and JSX
+summary: Write components as functions that return JSX, learn JSX's few rules, and build a page out of small pieces.
+minutes: 15
+tags: [component, JSX, className, fragment, expressions, curly braces, capital letters]
+---
+
+A React app is a tree of **components**: functions that return a description of some UI. You write that description in **JSX**, which looks like HTML but lives inside JavaScript.
+
+<Concept name="A component is a function" id="component-function">
+
+This file has three components. `App` uses the other two like HTML tags, and `ProductCard` is used three times. Change the text in `Header` and watch the preview.
+
+<ReactPlayground height={380}>
+
+```jsx file=/App.js
+function Header() {
+  return (
+    <header className="header">
+      <h1>MiniShop</h1>
+    </header>
+  );
+}
+
+function ProductCard() {
+  return (
+    <article className="card">
+      <h2>Coffee</h2>
+      <p>$4</p>
+    </article>
+  );
+}
+
+export default function App() {
+  return (
+    <main>
+      <Header />
+      <div className="grid">
+        <ProductCard />
+        <ProductCard />
+        <ProductCard />
+      </div>
+    </main>
+  );
+}
+```
+
+```css file=/styles.css
+body { font-family: system-ui, sans-serif; margin: 0; padding: 16px; }
+.header h1 { margin: 0 0 12px; }
+.grid { display: flex; gap: 12px; flex-wrap: wrap; }
+.card { border: 1px solid #ddd; border-radius: 12px; padding: 12px 16px; }
+.card h2 { margin: 0; font-size: 18px; }
+.card p { margin: 4px 0 0; color: #555; }
+```
+
+</ReactPlayground>
+
+- A component's name **starts with a capital letter**: `ProductCard`, not `productCard`.
+- It **returns JSX** (or `null` to show nothing).
+- You use it like a tag: `<ProductCard />`. Each use is a separate **instance**.
+- `export default` makes `App` the component the page shows.
+
+All three cards say "Coffee" for now. In the next lesson, **props** let each card show a different product.
+
+</Concept>
+
+<Concept name="JSX's rules" id="jsx-rules">
+
+JSX is strict in a few ways HTML isn't:
+
+1. **One parent.** A component returns one element. Wrap siblings in a `<div>`, or in a **fragment** `<>...</>` when you don't want an extra element.
+2. **Close every tag.** `<img />`, `<br />`, `<input />`.
+3. **camelCase attributes.** `className` instead of `class`, `htmlFor` instead of `for`, `onClick` instead of `onclick`, `tabIndex` instead of `tabindex`.
+4. **Curly braces for JavaScript.** Anything inside `{ }` is a JavaScript expression: a variable, a calculation, a function call.
+
+<ReactPlayground height={320}>
+
+```jsx file=/App.js
+const product = { name: "Iced Coffee", price: 4.5, qty: 2 };
+
+export default function App() {
+  const total = product.price * product.qty;
+  return (
+    <>
+      <h2>{product.name.toUpperCase()}</h2>
+      <p>
+        {product.qty} × ${product.price.toFixed(2)} = <strong>${total.toFixed(2)}</strong>
+      </p>
+      <label htmlFor="note">Note for the barista</label>
+      <input id="note" placeholder="Extra hot?" />
+      {/* A comment in JSX goes inside braces */}
+      <p style={{ color: "teal", fontWeight: 600 }}>Free refills today</p>
+    </>
+  );
+}
+```
+
+</ReactPlayground>
+
+<Callout type="warn">
+Braces hold **expressions** (things that produce a value), not statements. `{if (x) ...}` and `{for (...)}` don't work inside JSX; use a ternary, `&&` or `.map()` instead. You'll see all three soon.
+</Callout>
+
+The `style` attribute takes an **object**, so it has two pairs of braces: the outer ones mean "JavaScript here", the inner ones are the object. CSS property names are camelCase there too: `fontWeight`, `backgroundColor`.
+
+</Concept>
+
+<HowItWorks title="Why one parent, and why capital letters?">
+
+JSX is turned into function calls before the code runs. `<h2>Hi</h2>` becomes `jsx("h2", { children: "Hi" })`, which returns a plain object describing the element.
+
+- **One parent:** a function can only return one value. Two sibling tags would be two values, so you wrap them in one parent. A fragment `<>...</>` is a parent that adds nothing to the page.
+- **Capital letters:** the compiler looks at the first letter. `<header>` becomes `jsx("header")`, a string, so React makes a real HTML element. `<Header>` becomes `jsx(Header)`, a reference to your function, so React calls it. A lowercase `<productCard />` would look for an HTML tag called `productcard`, which doesn't exist.
+
+</HowItWorks>
+
+<GoDeeper title="Where should components live?">
+
+Small apps can keep several components in one file, as above. As an app grows, the usual convention is **one component per file**, named after it: `ProductCard.jsx` exports `ProductCard`. Then `App.jsx` imports what it needs:
+
+```jsx file=App.jsx
+import Header from "./Header";
+import ProductCard from "./ProductCard";
+```
+
+Never define a component *inside* another component's function. It would be a brand-new function on every render, so React would throw away its elements (and any state inside them) every time the parent renders.
+
+</GoDeeper>
+
+<Practice>
+
+<MatchPairs
+  id="match-html-jsx"
+  prompt="Match each HTML attribute with how you write it in JSX."
+  columns={["HTML", "JSX"]}
+  pairs={[
+    ["`class=\"card\"`", "`className=\"card\"`"],
+    ["`for=\"email\"`", "`htmlFor=\"email\"`"],
+    ["`onclick=\"buy()\"`", "`onClick={buy}`"],
+    ["`style=\"color: red\"`", "`style={{ color: \"red\" }}`"],
+    ["`tabindex=\"0\"`", "`tabIndex={0}`"],
+  ]}
+/>
+
+<SpotTheBug
+  id="bug-lowercase-component"
+  bug={1}
+  prompt="Nothing shows up where the card should be, and the console warns about an unknown tag. Click the buggy line."
+  explain="Component names must start with a capital letter. `<productCard />` is treated as an HTML tag called `productcard`. Rename it to `ProductCard` (and use `<ProductCard />`)."
+  hint="How does JSX tell your components apart from HTML tags?"
+>
+
+```jsx
+function productCard() {
+  return <article>Coffee</article>;
+}
+
+export default function App() {
+  return <main><productCard /></main>;
+}
+```
+
+</SpotTheBug>
+
+<SortBuckets
+  id="buckets-valid-jsx"
+  prompt="Is each snippet valid JSX?"
+  buckets={["Valid", "Not valid"]}
+  items={[
+    ["`<img src={url} />`", 0],
+    ["`<img src={url}>`", 1],
+    ["`<p>{qty * price}</p>`", 0],
+    ["`<p>{if (qty) qty}</p>`", 1],
+    ["`<><h1>A</h1><p>B</p></>`", 0],
+    ["`return <h1>A</h1><p>B</p>;`", 1],
+    ["`<div className=\"card\">`...`</div>`", 0],
+  ]}
+  explain="Every tag must be closed (`<img />`), braces hold expressions (not `if`), and a component returns one parent: wrap siblings in a fragment."
+/>
+
+<Choice
+  id="choice-braces"
+  q="What does this render?"
+  options={["`Total: price * qty`", "`Total: 8`", "`Total: {price * qty}`", "An error"]}
+  answer={1}
+  explain="Inside braces, `price * qty` is evaluated as JavaScript: 4 × 2 = 8."
+>
+
+```jsx
+const price = 4;
+const qty = 2;
+const el = <p>Total: {price * qty}</p>;
+```
+
+</Choice>
+
+</Practice>
+
+<BuildUI
+  id="build-site-header"
+  title="The MiniShop header"
+  hints={[
+    "Return a `<header>` with an `<h1>` and a `<nav>` inside.",
+    "Each link is an `<a href=\"/\">Home</a>`; there are three: Home, Products and Cart.",
+  ]}
+>
+
+Build the `Header` component in `Header.js`: a header with the heading **MiniShop** and a navigation with three links, **Home**, **Products** and **Cart**. `App` already uses it.
+
+```jsx starter file=/Header.js
+export default function Header() {
+  return null; // replace this with your JSX
+}
+```
+
+```jsx starter file=/App.js
+import Header from "./Header";
+
+export default function App() {
+  return (
+    <>
+      <Header />
+      <p>Welcome to MiniShop!</p>
+    </>
+  );
+}
+```
+
+```css starter file=/styles.css
+body { font-family: system-ui, sans-serif; margin: 0; }
+header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; background: #1a1d2e; color: white; }
+header h1 { margin: 0; font-size: 20px; }
+nav { display: flex; gap: 14px; }
+nav a { color: #61dafb; text-decoration: none; }
+p { padding: 0 16px; }
+```
+
+```jsx tests file=/Header.test.js
+import { render, screen, within } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import Header from "./Header";
+
+test("has the MiniShop heading", () => {
+  render(<Header />);
+  expect(screen.getByRole("heading", { name: "MiniShop" })).toBeInTheDocument();
+});
+
+test("is a header landmark", () => {
+  render(<Header />);
+  expect(screen.getByRole("banner")).toBeInTheDocument();
+});
+
+test("has a navigation with Home, Products and Cart links", () => {
+  render(<Header />);
+  const nav = screen.getByRole("navigation");
+  const links = within(nav).getAllByRole("link");
+  expect(links.map((a) => a.textContent)).toEqual(["Home", "Products", "Cart"]);
+});
+```
+
+```jsx solution file=/Header.js
+export default function Header() {
+  return (
+    <header>
+      <h1>MiniShop</h1>
+      <nav>
+        <a href="/">Home</a>
+        <a href="/products">Products</a>
+        <a href="/cart">Cart</a>
+      </nav>
+    </header>
+  );
+}
+```
+
+</BuildUI>
+
+<Quiz
+  questions={[
+    {
+      q: "What is a React component?",
+      options: ["An HTML file", "A function that returns JSX", "A CSS class", "A browser extension"],
+      answer: 1,
+      explain: "A component is a JavaScript function (with a capitalized name) that returns a description of UI.",
+    },
+    {
+      q: "Why must a component return a single parent element?",
+      options: ["React is slow with many elements", "JSX becomes a function call, and a function returns one value", "Browsers require it", "It doesn't; any number is fine"],
+      answer: 1,
+      explain: "Wrap siblings in a `<div>` or a fragment `<>...</>`.",
+    },
+    {
+      q: "Which are correct JSX?",
+      options: ["`<label htmlFor=\"q\">`", "`<div class=\"box\">`", "`<input />`", "`<p style={{ marginTop: 8 }}>`"],
+      answer: [0, 2, 3],
+      explain: "JSX uses `className`, not `class`. The other three follow JSX's rules.",
+    },
+    {
+      q: "What does a fragment `<>...</>` add to the page?",
+      options: ["A `<div>`", "A `<span>`", "Nothing; it only groups children", "A comment"],
+      answer: 2,
+      explain: "Fragments group elements without adding an extra node to the DOM.",
+    },
+  ]}
+/>

@@ -123,7 +123,18 @@ export const COURSES: CourseInfo[] = [
     color: 'react',
     description:
       'Components, JSX, props, state, events, lists, conditional rendering, forms, lifting state up and composition.',
-    lessons: [],
+    lessons: [
+      'components-jsx',
+      'props',
+      'state',
+      'events',
+      'lists-keys',
+      'conditional',
+      'forms',
+      'lifting-state',
+      'composition',
+      'review',
+    ],
     phase: 5,
   },
   {

@@ -1,0 +1,327 @@
+---
+id: conditional
+title: Conditional rendering
+summary: Show different UI for different data with if, the ternary, && and null, and avoid the stray 0 that && can leave on the page.
+minutes: 14
+tags: [conditional rendering, ternary, "&&", "null", early return, className]
+---
+
+UIs constantly depend on data: show "Sold out" when stock is 0, a spinner while loading, a different button when the user is logged in. Since JSX is JavaScript, you choose what to render with ordinary JavaScript.
+
+<Concept name="Four ways to choose" id="four-ways">
+
+<ReactPlayground height={420}>
+
+```jsx file=/App.js
+import { useState } from "react";
+
+function StockNote({ stock }) {
+  // 1. if + early return: whole different output
+  if (stock === 0) return <p className="out">Sold out</p>;
+
+  return (
+    <p>
+      {/* 2. ternary: one of two things */}
+      {stock < 5 ? `Only ${stock} left!` : "In stock"}
+      {/* 3. &&: something or nothing */}
+      {stock > 20 && <span className="tag">Bestseller</span>}
+    </p>
+  );
+}
+
+export default function App() {
+  const [stock, setStock] = useState(3);
+  return (
+    <>
+      <label>
+        Stock: <input type="number" min="0" value={stock} onChange={(e) => setStock(Number(e.target.value))} />
+      </label>
+      <StockNote stock={stock} />
+      {/* 4. a class that depends on data */}
+      <button className={stock === 0 ? "btn disabled" : "btn"} disabled={stock === 0}>
+        Add to cart
+      </button>
+    </>
+  );
+}
+```
+
+```css file=/styles.css
+body { font-family: system-ui, sans-serif; padding: 16px; }
+.out { color: #c0392b; font-weight: 700; }
+.tag { background: #ffd93d; border-radius: 6px; padding: 2px 8px; margin-left: 8px; font-size: 12px; }
+.btn { background: #61dafb; border: 0; border-radius: 8px; padding: 8px 14px; font-weight: 600; }
+.btn.disabled { background: #ddd; color: #888; }
+```
+
+</ReactPlayground>
+
+Change the stock to 0, 3, 10 and 25 to see each branch.
+
+1. **`if` with an early return** when the whole output is different.
+2. **The ternary `a ? b : c`** to pick one of two things inside JSX.
+3. **`cond && <X />`** to show something or nothing.
+4. **Returning `null`** (or `false`, `undefined`) renders nothing at all.
+
+</Concept>
+
+<Concept name="The && trap: a stray 0" id="and-trap">
+
+`&&` returns its **left side** when the left side is falsy. React renders `false`, `null` and `undefined` as nothing, but it renders the number **`0`** as text.
+
+<Compare
+  wrong="With an empty cart, a lonely 0 appears on the page"
+  right="A real boolean on the left, so nothing renders"
+  wrongFile="trap.jsx"
+  rightFile="fixed.jsx"
+>
+
+```jsx
+{cart.length && <p>{cart.length} items</p>}
+```
+
+```jsx
+{cart.length > 0 && <p>{cart.length} items</p>}
+```
+
+</Compare>
+
+Make the left side of `&&` a real boolean (`> 0`, `!== ""`, `Boolean(x)`), or use a ternary with `null`.
+
+</Concept>
+
+<HowItWorks title="What React renders for each value">
+
+| Value in JSX | What shows |
+| --- | --- |
+| `"text"`, `42` | the text or number |
+| `0`, `NaN` | `0`, `NaN` (they're numbers!) |
+| `true`, `false`, `null`, `undefined` | nothing |
+| an element `<p />` | the element |
+| an array | each item, in order |
+| a plain object `{ a: 1 }` | an error: objects aren't valid children |
+
+That table explains every conditional pattern: a ternary and `&&` are just expressions that end up as one of these values.
+
+</HowItWorks>
+
+<GoDeeper title="Too many conditions? Use a lookup or a component">
+
+When a component has three or more states (loading, error, empty, ready), nested ternaries get hard to read. Two cleaner options:
+
+```jsx file=Status.jsx
+// Early returns, one per state
+function OrderStatus({ status }) {
+  if (status === "loading") return <Spinner />;
+  if (status === "error") return <ErrorMessage />;
+  if (status === "empty") return <p>No orders yet.</p>;
+  return <OrderList />;
+}
+
+// A lookup object for labels and colors
+const BADGE = {
+  paid: { label: "Paid", color: "green" },
+  shipped: { label: "Shipped", color: "blue" },
+  refunded: { label: "Refunded", color: "gray" },
+};
+const { label, color } = BADGE[order.status];
+```
+
+</GoDeeper>
+
+<Practice>
+
+<Predict
+  id="predict-and-values"
+  answer={["[ 0, '', 'items', null, 'yes' ]"]}
+  explain="`&&` gives back the first falsy value, or the last value if all are truthy. `??` only replaces null or undefined. In JSX, React would show the 0, `items` and `yes`, and nothing for the empty string and null."
+>
+
+```js
+const results = [
+  0 && "items",
+  "" && "items",
+  3 && "items",
+  null && "items",
+  null ?? "yes",
+];
+console.log(results);
+```
+
+</Predict>
+
+<SpotTheBug
+  id="bug-zero"
+  bug={5}
+  prompt="When there are no reviews, the product page shows a strange 0 under the title. Click the buggy line."
+  explain="`reviews.length && ...` evaluates to `0` when the array is empty, and React renders the number 0. Use `reviews.length > 0 && ...`."
+>
+
+```jsx
+function Product({ name, reviews }) {
+  return (
+    <article>
+      <h2>{name}</h2>
+      {reviews.length && <ReviewList reviews={reviews} />}
+    </article>
+  );
+}
+```
+
+</SpotTheBug>
+
+<TrueFalse
+  id="tf-conditional"
+  statements={[
+    { text: "A component can return `null` to render nothing.", answer: true, explain: "`null`, `false` and `undefined` all render nothing." },
+    { text: "You can write an `if` statement directly inside JSX braces.", answer: false, explain: "Braces take expressions. Use `if` before the `return`, or a ternary or `&&` inside JSX." },
+    { text: "`{isOpen && <Menu />}` renders `false` as text when `isOpen` is false.", answer: false, explain: "React renders booleans as nothing. Only `0` and `NaN` leak through as text." },
+    { text: "`{count ? count : null}` is a safe way to hide 0.", answer: true, explain: "When `count` is 0 the ternary picks `null`, which renders nothing." },
+  ]}
+/>
+
+<CodeReview
+  id="review-status"
+  answer={2}
+  prompt="Which `Status` would you approve?"
+  reasons={[
+    "Nested ternaries work, but they're hard to read and easy to break when a fourth status arrives.",
+    "Comparing with `&&` four times can render several messages at once if statuses overlap, and it renders `false` placeholders in between.",
+    "One early return per case: each state is easy to find, and the happy path is last.",
+  ]}
+>
+
+```jsx
+function Status({ status }) {
+  return status === "loading" ? <Spinner /> : status === "error" ? <Oops /> : status === "empty" ? <Empty /> : <List />;
+}
+```
+
+```jsx
+function Status({ status }) {
+  return (
+    <>
+      {status === "loading" && <Spinner />}
+      {status === "error" && <Oops />}
+      {status === "empty" && <Empty />}
+      {status === "ready" && <List />}
+    </>
+  );
+}
+```
+
+```jsx
+function Status({ status }) {
+  if (status === "loading") return <Spinner />;
+  if (status === "error") return <Oops />;
+  if (status === "empty") return <Empty />;
+  return <List />;
+}
+```
+
+</CodeReview>
+
+</Practice>
+
+<ReactExercise
+  id="stock-label"
+  title="The stock label"
+  hints={[
+    "Start with the sold-out case: `if (stock === 0) return <span className=\"stock out\">Sold out</span>;`",
+    "Then the low case: `if (stock < 5) return <span className=\"stock low\">Only {stock} left</span>;`",
+    "Otherwise return `null`, so nothing renders.",
+  ]}
+>
+
+Write `StockLabel` in `StockLabel.js`. It gets a `stock` number and shows:
+
+- **Sold out** when stock is 0,
+- **Only 3 left** (with the real number) when stock is 1 to 4,
+- **nothing at all** when stock is 5 or more.
+
+```jsx starter file=/StockLabel.js
+export default function StockLabel({ stock }) {
+  return <span className="stock">{stock}</span>;
+}
+```
+
+```jsx starter file=/App.js
+import StockLabel from "./StockLabel";
+
+export default function App() {
+  return (
+    <ul>
+      <li>Coffee <StockLabel stock={0} /></li>
+      <li>Bagel <StockLabel stock={3} /></li>
+      <li>Tea <StockLabel stock={12} /></li>
+    </ul>
+  );
+}
+```
+
+```css starter file=/styles.css
+body { font-family: system-ui, sans-serif; padding: 16px; }
+li { margin: 6px 0; }
+.stock { margin-left: 8px; border-radius: 6px; padding: 2px 8px; font-size: 12px; font-weight: 700; }
+.out { background: #fde2e1; color: #c0392b; }
+.low { background: #fff3cd; color: #8a6d00; }
+```
+
+```jsx tests file=/StockLabel.test.js
+import { render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import StockLabel from "./StockLabel";
+
+test("0 is sold out", () => {
+  render(<StockLabel stock={0} />);
+  expect(screen.getByText("Sold out")).toBeInTheDocument();
+});
+
+test("1 to 4 shows how many are left", () => {
+  render(<StockLabel stock={3} />);
+  expect(screen.getByText("Only 3 left")).toBeInTheDocument();
+});
+
+test("4 is still low", () => {
+  render(<StockLabel stock={4} />);
+  expect(screen.getByText("Only 4 left")).toBeInTheDocument();
+});
+
+test("5 or more renders nothing", () => {
+  const { container } = render(<StockLabel stock={12} />);
+  expect(container).toBeEmptyDOMElement();
+});
+```
+
+```jsx solution file=/StockLabel.js
+export default function StockLabel({ stock }) {
+  if (stock === 0) return <span className="stock out">Sold out</span>;
+  if (stock < 5) return <span className="stock low">Only {stock} left</span>;
+  return null;
+}
+```
+
+</ReactExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "What does `{items.length && <List />}` render when `items` is empty?",
+      options: ["Nothing", "`0`", "`false`", "An empty list"],
+      answer: 1,
+      explain: "`0 && anything` is `0`, and React renders numbers. Use `items.length > 0 && ...`.",
+    },
+    {
+      q: "Which renders nothing?",
+      options: ["`null`", "`false`", "`undefined`", "`0`"],
+      answer: [0, 1, 2],
+      explain: "`0` is a number and shows up as text.",
+    },
+    {
+      q: "Which is best for choosing between two different elements inside JSX?",
+      options: ["An `if` statement inside the braces", "A ternary: `{loggedIn ? <Logout /> : <Login />}`", "A `switch` inside the braces", "Two components with the same key"],
+      answer: 1,
+      explain: "A ternary is an expression, so it works inside JSX. `if` and `switch` are statements.",
+    },
+  ]}
+/>

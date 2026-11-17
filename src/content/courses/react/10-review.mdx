@@ -1,0 +1,268 @@
+---
+id: review
+title: "Review: React Fundamentals"
+summary: Mixed questions across components, props, state, events, lists, conditions, forms, lifting state and composition, plus one exercise that uses them all.
+minutes: 22
+kind: review
+tags: [review, components, props, state, events, keys, forms, lifting state, composition]
+---
+
+This review mixes the whole course. The lesson names in brackets tell you where to look if a question stumps you.
+
+<Practice title="Building blocks">
+
+<MatchPairs
+  id="match-review-fundamentals"
+  prompt="Match each idea with its one-line summary."
+  columns={["Idea", "Summary"]}
+  pairs={[
+    ["Props", "Read-only inputs a parent passes to a child"],
+    ["State", "A component's own memory that triggers re-renders"],
+    ["Key", "An item's identity in a list"],
+    ["Controlled input", "An input whose value comes from state"],
+    ["Lifting state up", "Moving state to the closest common parent"],
+    ["Composition", "Building components by nesting and passing UI"],
+  ]}
+/>
+
+<Predict
+  id="predict-review-spread"
+  answer={["Coffee 1 2", "true false"]}
+  explain="Spread copies the outer object, so `next` is a new object with `qty: 2`, and `line` keeps `qty: 1`. But `tags` is shared: a shallow copy only copies the reference. (State with useState)"
+>
+
+```js
+const line = { name: "Coffee", qty: 1, tags: ["hot"] };
+const next = { ...line, qty: 2 };
+
+console.log(line.name, line.qty, next.qty);
+console.log(line.tags === next.tags, line === next);
+```
+
+</Predict>
+
+<SpotTheBug
+  id="bug-review-mix"
+  bug={[7, 10]}
+  prompt="This list has two bugs. Click either one. (Events, Lists and keys)"
+  explain="Line 7 uses the index as the key in a list that can reorder. Line 10 calls `remove(item.id)` during render instead of passing a function: use `onClick={() => remove(item.id)}`."
+>
+
+```jsx
+function Wishlist({ items, setItems }) {
+  const remove = (id) => setItems(items.filter((i) => i.id !== id));
+  const sorted = [...items].sort((a, b) => a.name.localeCompare(b.name));
+  return (
+    <ul>
+      {sorted.map((item, index) => (
+        <li key={index}>
+          {item.name}
+          {" "}
+          <button onClick={remove(item.id)}>Remove</button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+```
+
+</SpotTheBug>
+
+<TraceState
+  id="trace-review-form"
+  track="the text on the button"
+  steps={[
+    { action: "First render (name is empty)", answer: "Enter a name" },
+    { action: "Type `A`", answer: "Order for A" },
+    { action: "Type `da` (name is now `Ada`)", answer: "Order for Ada" },
+    { action: "Delete everything", answer: "Enter a name" },
+  ]}
+  explain="The label is derived from state on every render, so it always matches the input. (Forms, Conditional rendering)"
+>
+
+```jsx
+const [name, setName] = useState("");
+<input value={name} onChange={(e) => setName(e.target.value)} />
+<button disabled={!name}>{name ? `Order for ${name}` : "Enter a name"}</button>
+```
+
+</TraceState>
+
+<SortBuckets
+  id="buckets-review-props-state"
+  prompt="Props or state? (Props, State, Lifting state up)"
+  buckets={["Props", "State", "Neither: derive it"]}
+  items={[
+    ["The product a `ProductCard` should display", 0],
+    ["Whether a dropdown inside one component is open", 1],
+    ["What the user typed in a search box", 1],
+    ["The number of results that match the search", 2],
+    ["The `onAdd` function a button calls", 0],
+    ["The cart total", 2],
+  ]}
+  explain="Inputs from the parent are props; changing data a component owns is state; anything you can calculate is neither."
+/>
+
+<Choice
+  id="choice-review-render"
+  q="What does this render when `count` is 0?"
+  options={["Nothing", "`0`", "`0 items`", "`false`"]}
+  answer={1}
+  explain="`0 && …` evaluates to `0`, which React renders. Write `count > 0 && …`. (Conditional rendering)"
+>
+
+```jsx
+<p>{count && `${count} items`}</p>
+```
+
+</Choice>
+
+</Practice>
+
+<ReactExercise
+  id="filter-products"
+  title="Search the menu"
+  hints={[
+    "Add `const [query, setQuery] = useState(\"\");` and control the input with `value` and `onChange`.",
+    "Derive the list: `const shown = products.filter((p) => p.name.toLowerCase().includes(query.trim().toLowerCase()));`",
+    "Render `shown.map((p) => <li key={p.id}>{p.name}</li>)`, and the message when `shown.length === 0`.",
+  ]}
+>
+
+Make the search box filter the menu as the user types:
+
+- only products whose name contains the search text are listed (ignore upper/lower case),
+- when nothing matches, show **No products match.** instead of the list,
+- use the product ids as keys, and don't store the filtered list in state: derive it.
+
+```jsx starter file=/App.js
+const products = [
+  { id: 1, name: "Coffee" },
+  { id: 2, name: "Iced Coffee" },
+  { id: 3, name: "Tea" },
+  { id: 4, name: "Bagel" },
+];
+
+export default function App() {
+  return (
+    <section>
+      <label>
+        Search <input type="search" />
+      </label>
+      <ul>
+        {products.map((p, i) => (
+          <li key={i}>{p.name}</li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+```
+
+```jsx tests file=/App.test.js
+import { fireEvent, render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import App from "./App";
+
+const names = () => screen.queryAllByRole("listitem").map((li) => li.textContent);
+const search = (text) =>
+  fireEvent.change(screen.getByLabelText("Search"), { target: { value: text } });
+
+test("shows every product at first", () => {
+  render(<App />);
+  expect(names()).toEqual(["Coffee", "Iced Coffee", "Tea", "Bagel"]);
+});
+
+test("filters as you type, ignoring case", () => {
+  render(<App />);
+  search("COFFEE");
+  expect(names()).toEqual(["Coffee", "Iced Coffee"]);
+  expect(screen.getByLabelText("Search")).toHaveValue("COFFEE");
+});
+
+test("shows a message when nothing matches", () => {
+  render(<App />);
+  search("pizza");
+  expect(names()).toEqual([]);
+  expect(screen.getByText("No products match.")).toBeInTheDocument();
+});
+
+test("clearing the search shows everything again", () => {
+  render(<App />);
+  search("tea");
+  search("");
+  expect(names()).toHaveLength(4);
+});
+```
+
+```jsx solution file=/App.js
+import { useState } from "react";
+
+const products = [
+  { id: 1, name: "Coffee" },
+  { id: 2, name: "Iced Coffee" },
+  { id: 3, name: "Tea" },
+  { id: 4, name: "Bagel" },
+];
+
+export default function App() {
+  const [query, setQuery] = useState("");
+  const q = query.trim().toLowerCase();
+  const shown = products.filter((p) => p.name.toLowerCase().includes(q));
+
+  return (
+    <section>
+      <label>
+        Search{" "}
+        <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} />
+      </label>
+      {shown.length === 0 ? (
+        <p>No products match.</p>
+      ) : (
+        <ul>
+          {shown.map((p) => (
+            <li key={p.id}>{p.name}</li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+```
+
+</ReactExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "Which component names are valid?",
+      options: ["`ProductCard`", "`productCard`", "`Cart2`", "`cart-item`"],
+      answer: [0, 2],
+      explain: "Component names start with a capital letter (and are valid JavaScript names). (Components and JSX)",
+    },
+    {
+      q: "Why does `setCart(cart)` after `cart.push(x)` fail to update the screen?",
+      options: ["`push` is slow", "It's the same array, so React sees no change", "`setCart` only accepts objects", "Arrays can't be state"],
+      answer: 1,
+      explain: "Pass a new array: `setCart([...cart, x])`. (State with useState)",
+    },
+    {
+      q: "A child needs to remove an item from a list that its parent owns. How?",
+      options: ["The child edits the `items` prop", "The parent passes an `onRemove` function, and the child calls it", "The child keeps its own copy of the list", "The child reloads the page"],
+      answer: 1,
+      explain: "Props down, events up. (Lifting state up)",
+    },
+    {
+      q: "Which belong in a controlled text input?",
+      options: ["`value={text}`", "`onChange={(e) => setText(e.target.value)}`", "`defaultValue={text}`", "`checked={text}`"],
+      answer: [0, 1],
+      explain: "`defaultValue` makes an input uncontrolled, and `checked` is for checkboxes. (Forms)",
+    },
+    {
+      q: "What's a good reason to give a component a slot prop like `footer`?",
+      options: ["To let callers put any UI in a second area of the component", "To make it render faster", "To avoid using keys", "Slots are required for every component"],
+      answer: 0,
+      explain: "`children` fills the main area; other props can fill more. (Composition)",
+    },
+  ]}
+/>

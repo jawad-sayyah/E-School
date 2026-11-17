@@ -1,0 +1,315 @@
+---
+id: props
+title: Props and children
+summary: Pass data into components with props, give them defaults, wrap content with children, and see what typed props look like.
+minutes: 16
+tags: [props, destructuring, default props, children, read-only, typed props, TypeScript]
+---
+
+Last lesson, every `ProductCard` said "Coffee". **Props** fix that: they're the arguments of a component. The parent passes them like HTML attributes, and the component receives them as one object.
+
+<Concept name="Passing props" id="passing-props">
+
+<ReactPlayground height={400}>
+
+```jsx file=/App.js
+function ProductCard({ name, price, onSale }) {
+  return (
+    <article className="card">
+      <h2>{name}</h2>
+      <p>${price.toFixed(2)}</p>
+      {onSale && <span className="sale">Sale</span>}
+    </article>
+  );
+}
+
+export default function App() {
+  return (
+    <div className="grid">
+      <ProductCard name="Coffee" price={4} />
+      <ProductCard name="Bagel" price={3} onSale />
+      <ProductCard name="Tea" price={2.5} />
+    </div>
+  );
+}
+```
+
+```css file=/styles.css
+body { font-family: system-ui, sans-serif; padding: 16px; }
+.grid { display: flex; gap: 12px; flex-wrap: wrap; }
+.card { border: 1px solid #ddd; border-radius: 12px; padding: 12px 16px; min-width: 120px; }
+.card h2 { margin: 0; font-size: 18px; }
+.card p { margin: 4px 0; color: #555; }
+.sale { background: #ffd93d; border-radius: 6px; padding: 2px 8px; font-size: 12px; font-weight: 700; }
+```
+
+</ReactPlayground>
+
+- Strings can use quotes: `name="Coffee"`. Anything else needs braces: `price={4}`, `tags={["hot"]}`, `onAdd={handleAdd}`.
+- A prop with no value, like `onSale`, is `true`.
+- The component receives **one object**, `{ name: "Coffee", price: 4 }`. Destructuring it in the parameter list, `({ name, price })`, is the usual style.
+
+</Concept>
+
+<Concept name="Default values" id="default-props">
+
+Give a prop a default with destructuring's `=`. The default is used when the parent doesn't pass that prop (or passes `undefined`).
+
+```jsx file=Price.jsx
+function Price({ amount, currency = "$" }) {
+  return <span>{currency}{amount.toFixed(2)}</span>;
+}
+
+<Price amount={4} />                // $4.00
+<Price amount={4} currency="€" />   // €4.00
+```
+
+</Concept>
+
+<Concept name="Props are read-only" id="read-only">
+
+A component must never change its props. `props.price = 5` or `name = name.trim()` on a prop breaks the one-way flow of data: the parent owns that value. If a component needs a different value, it calculates a **new** variable (`const label = name.trim()`), or the parent passes something else.
+
+<Callout type="react">
+Data flows **down**: parents pass props to children. When a child needs to change something, the parent passes a function as a prop (like `onAdd`), and the child calls it. That's the Events lesson.
+</Callout>
+</Concept>
+
+<Concept name="children" id="children">
+
+Whatever you put **between** a component's opening and closing tags arrives as a special prop called `children`. It's how you build wrappers: cards, panels, modals, layouts.
+
+<ReactPlayground height={300}>
+
+```jsx file=/App.js
+function Panel({ title, children }) {
+  return (
+    <section className="panel">
+      <h2>{title}</h2>
+      {children}
+    </section>
+  );
+}
+
+export default function App() {
+  return (
+    <>
+      <Panel title="Cart">
+        <p>Your cart is empty.</p>
+      </Panel>
+      <Panel title="Today's special">
+        <p>Iced coffee, $3.50</p>
+        <button>Add to cart</button>
+      </Panel>
+    </>
+  );
+}
+```
+
+```css file=/styles.css
+body { font-family: system-ui, sans-serif; padding: 16px; }
+.panel { border: 1px solid #ddd; border-radius: 12px; padding: 4px 16px 12px; margin-bottom: 12px; }
+.panel h2 { font-size: 16px; color: #0e7490; }
+```
+
+</ReactPlayground>
+</Concept>
+
+<HowItWorks title="What React does with props">
+
+`<ProductCard name="Tea" price={2.5} />` becomes `jsx(ProductCard, { name: "Tea", price: 2.5 })`. When React renders, it calls `ProductCard({ name: "Tea", price: 2.5 })` and uses what it returns. Children go into the same object: `<Panel title="Cart"><p>Empty</p></Panel>` calls `Panel({ title: "Cart", children: <p>Empty</p> })`.
+
+When a parent re-renders with different props, React calls the child again with the new object. That's why a component's output always matches the props it was given.
+
+</HowItWorks>
+
+<GoDeeper title="Typed props with TypeScript">
+
+In a TypeScript project (`.tsx` files), you describe the shape of the props with a type. Then your editor autocompletes them and flags a missing or wrong prop before you even run the code.
+
+```tsx file=ProductCard.tsx
+type ProductCardProps = {
+  name: string;
+  price: number;
+  onSale?: boolean;            // ? means optional
+  children?: React.ReactNode;  // anything React can render
+};
+
+function ProductCard({ name, price, onSale = false, children }: ProductCardProps) {
+  return <article>{name} ${price}{onSale && " (sale)"}{children}</article>;
+}
+
+<ProductCard name="Tea" price="2.5" />
+//                      ~~~~~ Error: Type 'string' is not assignable to type 'number'.
+```
+
+The TypeScript with React course covers this in depth.
+
+</GoDeeper>
+
+<Practice>
+
+<Predict
+  id="predict-defaults"
+  answer={["Tea x1", "Coffee x3", "Bagel x1"]}
+  explain="A destructuring default is used when the property is missing or `undefined`, so Tea and Bagel get 1. (A `null` would not be replaced: it's a real value.)"
+>
+
+```js
+function line({ name, qty = 1 }) {
+  return `${name} x${qty}`;
+}
+
+console.log(line({ name: "Tea" }));
+console.log(line({ name: "Coffee", qty: 3 }));
+console.log(line({ name: "Bagel", qty: undefined }));
+```
+
+</Predict>
+
+<SpotTheBug
+  id="bug-props-params"
+  bug={1}
+  prompt="The card shows `[object Object]` and an empty price. Click the buggy line."
+  explain="A component gets **one** argument, the props object. `function ProductCard(name, price)` puts the whole object in `name`. Destructure it: `function ProductCard({ name, price })`."
+  hint="How many arguments does React pass to a component?"
+>
+
+```jsx
+function ProductCard(name, price) {
+  return (
+    <article>
+      <h2>{name}</h2>
+      <p>{price}</p>
+    </article>
+  );
+}
+```
+
+</SpotTheBug>
+
+<FillBlanks
+  id="blanks-panel"
+  prompt="Fill in the blanks so `Panel` shows its title and whatever is placed inside it."
+  explain="Destructure `title` and the special `children` prop, then render `children` where the content should go."
+>
+
+```jsx
+function Panel({ title, __[children]__ }) {
+  return (
+    <section>
+      <h2>{__[title]__}</h2>
+      {children}
+    </section>
+  );
+}
+```
+
+</FillBlanks>
+
+<TrueFalse
+  id="tf-props"
+  statements={[
+    { text: "A child component can change the props it receives.", answer: false, explain: "Props are read-only. The parent owns them; the child can ask for changes through a function prop." },
+    { text: "`<Badge count={3} />` passes the number 3, but `<Badge count=\"3\" />` passes the string \"3\".", answer: true, explain: "Quotes always mean a string. Use braces for numbers, booleans, arrays, objects and functions." },
+    { text: "Writing `<Button disabled />` passes `disabled: true`.", answer: true, explain: "A prop with no value is `true`, just like boolean HTML attributes." },
+    { text: "`children` only works with a component called `Children`.", answer: false, explain: "Every component gets whatever is between its tags as `props.children`." },
+  ]}
+/>
+
+</Practice>
+
+<ReactExercise
+  id="price-component"
+  title="A reusable Price component"
+  hints={[
+    "Destructure both props with a default: `function Price({ amount, currency = \"$\" })`.",
+    "Format with `amount.toFixed(2)`, and put the currency in front.",
+    "Return a single element, e.g. `<span className=\"price\">{currency}{amount.toFixed(2)}</span>`.",
+  ]}
+>
+
+Write `Price` in `Price.js`. It takes an `amount` (a number) and an optional `currency` that defaults to `"$"`, and shows the amount with two decimals: `<Price amount={4} />` shows **$4.00**, and `<Price amount={2.5} currency="€" />` shows **€2.50**.
+
+```jsx starter file=/Price.js
+export default function Price(props) {
+  return <span className="price">?</span>;
+}
+```
+
+```jsx starter file=/App.js
+import Price from "./Price";
+
+export default function App() {
+  return (
+    <ul>
+      <li>Coffee <Price amount={4} /></li>
+      <li>Croissant <Price amount={2.5} currency="€" /></li>
+      <li>Cake <Price amount={12.999} /></li>
+    </ul>
+  );
+}
+```
+
+```jsx tests file=/Price.test.js
+import { render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import Price from "./Price";
+
+test("shows dollars with two decimals by default", () => {
+  render(<Price amount={4} />);
+  expect(screen.getByText("$4.00")).toBeInTheDocument();
+});
+
+test("uses the currency prop", () => {
+  render(<Price amount={2.5} currency="€" />);
+  expect(screen.getByText("€2.50")).toBeInTheDocument();
+});
+
+test("rounds to two decimals", () => {
+  render(<Price amount={12.999} />);
+  expect(screen.getByText("$13.00")).toBeInTheDocument();
+});
+```
+
+```jsx solution file=/Price.js
+export default function Price({ amount, currency = "$" }) {
+  return (
+    <span className="price">
+      {currency}
+      {amount.toFixed(2)}
+    </span>
+  );
+}
+```
+
+</ReactExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "How does a component receive its props?",
+      options: ["As separate arguments", "As one object, usually destructured", "Through a global variable", "With `this.props` only"],
+      answer: 1,
+      explain: "React calls your component with one props object. `({ name, price })` pulls out the fields.",
+    },
+    {
+      q: "Which passes the **number** 5?",
+      options: ["`qty=\"5\"`", "`qty={5}`", "`qty=5`", "`qty={\"5\"}`"],
+      answer: 1,
+      explain: "Braces mean JavaScript, so `{5}` is a number. Quotes always give a string; `qty=5` isn't valid JSX.",
+    },
+    {
+      q: "What is `children`?",
+      options: ["The list of child components in the whole app", "Whatever is placed between a component's opening and closing tags", "A React hook", "An array of DOM nodes"],
+      answer: 1,
+      explain: "It lets you build wrapper components like `Panel`, `Card` or `Modal`.",
+    },
+    {
+      q: "A component needs a trimmed version of its `name` prop. What should it do?",
+      options: ["`name = name.trim()`", "`props.name = props.name.trim()`", "`const label = name.trim()` and render `label`", "Ask React to trim it"],
+      answer: 2,
+      explain: "Never reassign props. Compute a new value from them.",
+    },
+  ]}
+/>

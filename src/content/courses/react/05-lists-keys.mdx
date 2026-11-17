@@ -1,0 +1,308 @@
+---
+id: lists-keys
+title: Lists and keys
+summary: Turn arrays into elements with map, give every item a stable key, and see what goes wrong with index keys.
+minutes: 16
+tags: [lists, map, key, filter, index key, reconciliation, Fragment]
+---
+
+Most UIs show lists: products, cart lines, messages. In React you turn an **array of data** into an **array of elements** with `.map()`, and give each element a `key`.
+
+<Concept name="Rendering a list" id="render-list">
+
+<ReactPlayground height={340}>
+
+```jsx file=/App.js
+const products = [
+  { id: "p1", name: "Coffee", price: 4, hot: true },
+  { id: "p2", name: "Iced Tea", price: 3, hot: false },
+  { id: "p3", name: "Hot Chocolate", price: 5, hot: true },
+  { id: "p4", name: "Lemonade", price: 3, hot: false },
+];
+
+export default function App() {
+  const hotDrinks = products.filter((p) => p.hot);
+
+  return (
+    <>
+      <h2>All drinks</h2>
+      <ul>
+        {products.map((p) => (
+          <li key={p.id}>
+            {p.name}: ${p.price}
+          </li>
+        ))}
+      </ul>
+      <h2>Hot drinks ({hotDrinks.length})</h2>
+      <ul>
+        {hotDrinks.map((p) => (
+          <li key={p.id}>{p.name}</li>
+        ))}
+      </ul>
+    </>
+  );
+}
+```
+
+</ReactPlayground>
+
+- `products.map(...)` returns an array of `<li>` elements, and JSX renders arrays in order.
+- Filter (or sort) first, then map. Derived lists like `hotDrinks` are plain variables, not state.
+- Every element in the array gets a **`key`** that's unique among its siblings.
+
+</Concept>
+
+<Concept name="Why keys matter" id="why-keys">
+
+Keys tell React **which item is which** between renders. Without them (or with the array index), React matches items by position, and anything attached to an element, like typed text or focus, stays at that position even when the data moves.
+
+Type a note next to **Coffee** in both lists, then click **Add Tea to the top**.
+
+<ReactPlayground height={420}>
+
+```jsx file=/App.js
+import { useState } from "react";
+
+function OrderList({ title, items, useIndexKey }) {
+  return (
+    <section>
+      <h3>{title}</h3>
+      {items.map((item, index) => (
+        <p key={useIndexKey ? index : item.id}>
+          {item.name} <input placeholder="Note" />
+        </p>
+      ))}
+    </section>
+  );
+}
+
+export default function App() {
+  const [items, setItems] = useState([
+    { id: 1, name: "Coffee" },
+    { id: 2, name: "Bagel" },
+  ]);
+
+  function addTea() {
+    setItems([{ id: Date.now(), name: "Tea" }, ...items]);
+  }
+
+  return (
+    <>
+      <button onClick={addTea}>Add Tea to the top</button>
+      <OrderList title="key={index} (broken)" items={items} useIndexKey />
+      <OrderList title="key={item.id} (correct)" items={items} />
+    </>
+  );
+}
+```
+
+</ReactPlayground>
+
+With `key={index}`, the new Tea row takes key `0`, which used to be Coffee's, so it inherits Coffee's input and your note jumps to Tea. With `key={item.id}`, React knows Coffee simply moved down, and the note moves with it.
+
+</Concept>
+
+<Concept name="Rules for keys" id="key-rules">
+
+- **Unique among siblings.** Two lists can reuse the same keys; items in one list can't.
+- **Stable.** The same item must get the same key on every render. Use an id from your data (a database id, a product SKU).
+- **Never `Math.random()` or `Date.now()` in render.** A new key every render means React destroys and rebuilds every item each time.
+- **The index is only OK** when the list never reorders, filters or inserts, and items have no state.
+- The key goes on the **outermost element** returned from `map`. If that's a fragment, use the long form: `<Fragment key={id}>`.
+
+<Callout type="tip">
+`key` isn't a normal prop: the child component can't read `props.key`. If the child needs the id, pass it separately too: `<CartLine key={line.id} id={line.id} />`.
+</Callout>
+</Concept>
+
+<HowItWorks title="Keys and reconciliation">
+
+After each render, React compares the new list of children with the old one. Children with the **same key** (and the same type) are treated as the same item: React keeps its DOM node and its state, and only updates what changed. Keys that disappeared are removed; new keys are created. Without keys React can only compare by position, so inserting at the top looks like "every item changed, plus one new at the end".
+
+This comparison is called **reconciliation**, and How React Works covers it in depth.
+
+</HowItWorks>
+
+<Practice>
+
+<Predict
+  id="predict-filter-map"
+  answer={["[ 'Bagel', 'Tea' ]", "2"]}
+  explain="`filter` keeps the items under $4, then `map` turns each into its name. The original `products` array still has 3 items."
+>
+
+```js
+const products = [
+  { name: "Coffee", price: 4 },
+  { name: "Bagel", price: 3 },
+  { name: "Tea", price: 2 },
+];
+
+const cheap = products.filter((p) => p.price < 4).map((p) => p.name);
+console.log(cheap);
+console.log(cheap.length);
+```
+
+</Predict>
+
+<SpotTheBug
+  id="bug-random-key"
+  bug={4}
+  prompt="Every time anything on the page changes, all the cart lines flash and their inputs lose focus. Click the buggy line."
+  explain="`Math.random()` gives every line a new key on every render, so React thinks they're all new items and rebuilds them. Use a stable id: `key={line.id}`."
+>
+
+```jsx
+function Cart({ lines }) {
+  return (
+    <ul>
+      {lines.map((line) => (
+        <li key={Math.random()}>
+          {line.name} <input defaultValue={line.qty} />
+        </li>
+      ))}
+    </ul>
+  );
+}
+```
+
+</SpotTheBug>
+
+<SortBuckets
+  id="buckets-good-keys"
+  prompt="Is each a good key for a cart line?"
+  buckets={["Good key", "Bad key"]}
+  items={[
+    ["`line.id` from the database", 0],
+    ["`line.sku`, a unique product code", 0],
+    ["`Math.random()`", 1],
+    ["The array index, in a list you can reorder", 1],
+    ["`line.name`, when two lines can share a name", 1],
+    ["`crypto.randomUUID()`, called once when the line is created and stored on it", 0],
+  ]}
+  explain="A key must be unique and stay the same for the same item. Generating an id once and storing it works; generating one during render doesn't."
+/>
+
+<FillBlanks
+  id="blanks-map-key"
+  prompt="Fill in the blanks to render one `<li>` per product, with a proper key."
+  explain="`map` turns each product into an element, and the key comes from the product's own id."
+>
+
+```jsx
+<ul>
+  {products.__[map]__((product) => (
+    <li __[key]__={product.__[id]__}>{product.name}</li>
+  ))}
+</ul>
+```
+
+</FillBlanks>
+
+</Practice>
+
+<BuildUI
+  id="build-menu-list"
+  title="The menu list"
+  hints={[
+    "Inside the `<ul>`, write `{menu.map((item) => ( ... ))}`.",
+    "Each item is `<li key={item.id}>{item.name} — ${item.price}</li>`.",
+  ]}
+>
+
+Show the `menu` array as a list: one `<li>` per item, with the text **Name — $price** (for example **Coffee — $4**), and a proper key.
+
+```jsx starter file=/App.js
+const menu = [
+  { id: "m1", name: "Coffee", price: 4 },
+  { id: "m2", name: "Bagel", price: 3 },
+  { id: "m3", name: "Tea", price: 2 },
+];
+
+export default function App() {
+  return (
+    <section className="menu">
+      <h2>Menu</h2>
+      <ul>{/* one <li> per menu item */}</ul>
+    </section>
+  );
+}
+```
+
+```css starter file=/styles.css
+body { font-family: system-ui, sans-serif; padding: 16px; }
+.menu { border: 1px solid #ddd; border-radius: 12px; padding: 4px 16px; max-width: 260px; }
+.menu ul { list-style: none; padding: 0; }
+.menu li { padding: 6px 0; border-bottom: 1px dashed #ddd; }
+```
+
+```jsx tests file=/App.test.js
+import { render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import App from "./App";
+
+test("renders one list item per menu item", () => {
+  render(<App />);
+  expect(screen.getAllByRole("listitem")).toHaveLength(3);
+});
+
+test("each item shows its name and price", () => {
+  render(<App />);
+  const texts = screen.getAllByRole("listitem").map((li) => li.textContent);
+  expect(texts).toEqual(["Coffee — $4", "Bagel — $3", "Tea — $2"]);
+});
+```
+
+```jsx solution file=/App.js
+const menu = [
+  { id: "m1", name: "Coffee", price: 4 },
+  { id: "m2", name: "Bagel", price: 3 },
+  { id: "m3", name: "Tea", price: 2 },
+];
+
+export default function App() {
+  return (
+    <section className="menu">
+      <h2>Menu</h2>
+      <ul>
+        {menu.map((item) => (
+          <li key={item.id}>
+            {item.name} — ${item.price}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+```
+
+</BuildUI>
+
+<Quiz
+  questions={[
+    {
+      q: "What does `key` help React do?",
+      options: ["Style list items", "Know which item is which between renders", "Sort the list", "Make items clickable"],
+      answer: 1,
+      explain: "Keys give items an identity, so React can keep, move, add or remove the right ones.",
+    },
+    {
+      q: "When is the array index an acceptable key?",
+      options: ["Always", "Never", "When the list never reorders, filters or inserts, and items have no state", "Only for numbers"],
+      answer: 2,
+      explain: "If positions never change meaning, index keys are harmless. Otherwise use a stable id.",
+    },
+    {
+      q: "Which keys are problems?",
+      options: ["`key={Math.random()}`", "`key={product.id}`", "`key={index}` in a sortable list", "Two siblings with `key=\"a\"`"],
+      answer: [0, 2, 3],
+      explain: "Random keys change every render, index keys break when items move, and duplicate keys confuse React. Stable ids are right.",
+    },
+    {
+      q: "A child component needs the item's id. It renders `{props.key}`. What shows?",
+      options: ["The id", "Nothing: `key` isn't passed to the component", "An error", "`[object Object]`"],
+      answer: 1,
+      explain: "React uses `key` itself and doesn't pass it on. Pass `id={item.id}` as a separate prop.",
+    },
+  ]}
+/>

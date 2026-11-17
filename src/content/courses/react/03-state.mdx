@@ -1,0 +1,357 @@
+---
+id: state
+title: State with useState
+summary: Give components memory with useState, see why a plain variable can't do it, and update arrays and objects without mutating them.
+minutes: 18
+tags: [useState, state, re-render, immutability, spread, setter, updater function]
+---
+
+Props come from the parent. **State** is a component's own memory: data that changes while the user uses the page, like a quantity, a cart or what's typed in a box. When state changes, React renders the component again.
+
+<Concept name="Why a plain variable doesn't work" id="plain-variable">
+
+Click **+** in this preview. Then open the console: the variable *does* change, but the screen doesn't.
+
+<ReactPlayground height={300} console>
+
+```jsx file=/App.js
+export default function App() {
+  let qty = 1;
+
+  function increase() {
+    qty = qty + 1;
+    console.log("qty is now", qty);
+  }
+
+  return (
+    <p>
+      Quantity: {qty} <button onClick={increase}>+</button>
+    </p>
+  );
+}
+```
+
+</ReactPlayground>
+
+Two problems:
+
+1. **Changing a local variable doesn't tell React to render again**, so the screen keeps the old value.
+2. **Even if it did render, `let qty = 1` would run again** and reset it, because rendering means calling the function from the top.
+
+</Concept>
+
+<Concept name="useState" id="use-state">
+
+`useState` solves both: React keeps the value between renders, and the setter function asks for a new render.
+
+<ReactPlayground height={320}>
+
+```jsx file=/App.js
+import { useState } from "react";
+
+function QuantityPicker({ name }) {
+  const [qty, setQty] = useState(1);
+
+  return (
+    <p>
+      {name}: <button onClick={() => setQty(qty - 1)}>−</button>{" "}
+      <strong>{qty}</strong>{" "}
+      <button onClick={() => setQty(qty + 1)}>+</button>
+    </p>
+  );
+}
+
+export default function App() {
+  return (
+    <>
+      <QuantityPicker name="Coffee" />
+      <QuantityPicker name="Tea" />
+    </>
+  );
+}
+```
+
+</ReactPlayground>
+
+- `useState(1)` returns a pair: the **current value** and a **setter**. The `1` is only used on the first render.
+- Calling `setQty(5)` stores 5 and re-renders the component, and this time `useState` returns 5.
+- Each instance has **its own** state: the Coffee and Tea pickers don't share a quantity.
+- Hooks like `useState` must be called at the **top level** of the component, never inside an `if`, a loop or a nested function.
+
+</Concept>
+
+<Concept name="Never mutate state" id="never-mutate">
+
+For arrays and objects, **don't change the existing value; give the setter a new one**. React compares the old and new value with `Object.is`: if it's the same array (even with new contents), React assumes nothing changed.
+
+<Compare
+  wrong="Changes the array React already has, then hands back the same array"
+  right="Builds a new array, so React sees a change"
+  wrongFile="mutate.jsx"
+  rightFile="copy.jsx"
+>
+
+```jsx
+cart.push(item);
+setCart(cart);
+
+user.name = "Ada";
+setUser(user);
+```
+
+```jsx
+setCart([...cart, item]);
+
+setUser({ ...user, name: "Ada" });
+```
+
+</Compare>
+
+The everyday recipes:
+
+| To… | Arrays | Objects |
+| --- | --- | --- |
+| add | `[...arr, item]` | `{ ...obj, key: value }` |
+| remove | `arr.filter((x) => x.id !== id)` | `const { key, ...rest } = obj` |
+| change one | `arr.map((x) => x.id === id ? { ...x, qty: 2 } : x)` | `{ ...obj, key: newValue }` |
+
+</Concept>
+
+<HowItWorks title="Where state lives">
+
+React stores state **next to the component's position in the tree**, not inside the function. On each render, the `useState` calls are matched up by their **order**: the first `useState` in the component gets the first stored value, the second gets the second, and so on. That's why hooks can't be inside conditions or loops: a skipped call would shift every value after it.
+
+When you call a setter, React doesn't change `qty` right away; the current render's `qty` is a constant. It schedules a new render, and in that render `useState` hands back the new value. The Hooks course shows this "state is a snapshot" idea with a timeline.
+
+</HowItWorks>
+
+<GoDeeper title="Updater functions: setQty(q => q + 1)">
+
+`setQty(qty + 1)` uses the `qty` from the current render. If you call it twice in the same click, both calls see the same old `qty`:
+
+```jsx file=Picker.jsx
+function addTwo() {
+  setQty(qty + 1);   // qty is 1 → asks for 2
+  setQty(qty + 1);   // qty is still 1 → asks for 2 again
+}
+```
+
+Pass a function instead, and React gives it the latest value in the queue:
+
+```jsx file=Picker.jsx
+function addTwo() {
+  setQty((q) => q + 1);   // 1 → 2
+  setQty((q) => q + 1);   // 2 → 3
+}
+```
+
+Use the updater form whenever the new state depends on the old one and you might update more than once before the next render.
+
+</GoDeeper>
+
+<Practice>
+
+<Predict
+  id="predict-same-array"
+  answer={["true [ 'Tea', 'Cake' ]", "false [ 'Tea' ]"]}
+  explain="`push` changes the original array, so `a` and `same` are still the same array: React would see no change. Spread makes a brand-new array and leaves `b` alone."
+>
+
+```js
+const a = ["Tea"];
+const same = a;
+same.push("Cake");
+console.log(a === same, a);
+
+const b = ["Tea"];
+const copy = [...b, "Cake"];
+console.log(b === copy, b);
+```
+
+</Predict>
+
+<SortBuckets
+  id="buckets-mutate-or-new"
+  prompt="Sort each update: is it safe for React state, or does it mutate?"
+  buckets={["Mutates (bug)", "New value (safe)"]}
+  items={[
+    ["`cart.push(item); setCart(cart)`", 0],
+    ["`setCart([...cart, item])`", 1],
+    ["`cart[0].qty++; setCart([...cart])`", 0],
+    ["`setCart(cart.filter((l) => l.id !== id))`", 1],
+    ["`user.name = \"Ada\"; setUser(user)`", 0],
+    ["`setUser({ ...user, name: \"Ada\" })`", 1],
+    ["`setCart(cart.map((l) => l.id === id ? { ...l, qty: l.qty + 1 } : l))`", 1],
+  ]}
+  explain="The tricky one: `[...cart]` is a new array, but `cart[0].qty++` changed an object that both arrays share. Copy the object you change, too, as the last `map` does."
+/>
+
+<SpotTheBug
+  id="bug-state-push"
+  bug={[5, 6]}
+  prompt="Clicking Add doesn't update the list. Click a buggy line."
+  explain={"`push` mutates the array React is holding, and `setTags(tags)` passes the same array back, so React skips the render. Use `setTags([...tags, \"new\"])`."}
+>
+
+```jsx
+function Tags() {
+  const [tags, setTags] = useState(["hot"]);
+
+  function add() {
+    tags.push("new");
+    setTags(tags);
+  }
+
+  return <button onClick={add}>Add ({tags.length})</button>;
+}
+```
+
+</SpotTheBug>
+
+<TraceState
+  id="trace-qty"
+  track="the number on screen"
+  steps={[
+    { action: "First render", answer: "1" },
+    { action: "Click +", answer: "2" },
+    { action: "Click + again", answer: "3" },
+    { action: "Click −", answer: "2" },
+  ]}
+  explain="Each click calls `setQty` with the current value plus or minus one, and React renders the new value."
+>
+
+```jsx
+const [qty, setQty] = useState(1);
+// + calls setQty(qty + 1), − calls setQty(qty - 1)
+```
+
+</TraceState>
+
+</Practice>
+
+<ReactExercise
+  id="quantity-stepper"
+  title="A quantity stepper that stops at 1"
+  hints={[
+    "Start with `const [qty, setQty] = useState(1);` and show `{qty}`.",
+    "The + button calls `setQty(qty + 1)`.",
+    "For −, only go down when `qty > 1`: `setQty(qty > 1 ? qty - 1 : 1)`, or use `disabled={qty === 1}`.",
+  ]}
+>
+
+Make the stepper work: it starts at **1**, the **+** button adds one, and the **−** button takes one away but never goes below 1. Keep the `aria-label`s: the tests use them to find the buttons and the number.
+
+```jsx starter file=/App.js
+export default function App() {
+  const qty = 1;
+
+  return (
+    <div className="stepper">
+      <button aria-label="Decrease quantity">−</button>
+      <span aria-label="Quantity">{qty}</span>
+      <button aria-label="Increase quantity">+</button>
+    </div>
+  );
+}
+```
+
+```css starter file=/styles.css
+body { font-family: system-ui, sans-serif; padding: 16px; }
+.stepper { display: inline-flex; align-items: center; gap: 12px; border: 1px solid #ddd; border-radius: 999px; padding: 4px; }
+.stepper button { width: 32px; height: 32px; border-radius: 999px; border: 0; background: #61dafb; font-size: 18px; }
+.stepper span { min-width: 20px; text-align: center; font-weight: 700; }
+```
+
+```jsx tests file=/App.test.js
+import { fireEvent, render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import App from "./App";
+
+const qty = () => screen.getByLabelText("Quantity");
+
+test("starts at 1", () => {
+  render(<App />);
+  expect(qty()).toHaveTextContent("1");
+});
+
+test("+ adds one each time", () => {
+  render(<App />);
+  fireEvent.click(screen.getByLabelText("Increase quantity"));
+  fireEvent.click(screen.getByLabelText("Increase quantity"));
+  expect(qty()).toHaveTextContent("3");
+});
+
+test("− takes one away", () => {
+  render(<App />);
+  fireEvent.click(screen.getByLabelText("Increase quantity"));
+  fireEvent.click(screen.getByLabelText("Decrease quantity"));
+  expect(qty()).toHaveTextContent("1");
+});
+
+test("never goes below 1", () => {
+  render(<App />);
+  fireEvent.click(screen.getByLabelText("Decrease quantity"));
+  fireEvent.click(screen.getByLabelText("Decrease quantity"));
+  expect(qty()).toHaveTextContent("1");
+});
+```
+
+```jsx solution file=/App.js
+import { useState } from "react";
+
+export default function App() {
+  const [qty, setQty] = useState(1);
+
+  return (
+    <div className="stepper">
+      <button
+        aria-label="Decrease quantity"
+        onClick={() => setQty(qty > 1 ? qty - 1 : 1)}
+      >
+        −
+      </button>
+      <span aria-label="Quantity">{qty}</span>
+      <button aria-label="Increase quantity" onClick={() => setQty(qty + 1)}>
+        +
+      </button>
+    </div>
+  );
+}
+```
+
+</ReactExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "What does `useState(0)` return?",
+      options: ["The number 0", "A pair: the current value and a function to change it", "A promise", "An object with `get` and `set`"],
+      answer: 1,
+      explain: "That's why you destructure it: `const [count, setCount] = useState(0)`.",
+    },
+    {
+      q: "What happens when you call a state setter with a new value?",
+      options: ["The variable changes immediately in the current render", "React stores the value and renders the component again", "The whole page reloads", "Nothing until you call `render()`"],
+      answer: 1,
+      explain: "The current render keeps its values. The next render gets the new one.",
+    },
+    {
+      q: "Two `<QuantityPicker />`s are on the page. You click + on the first. What happens to the second?",
+      options: ["It goes up too", "Nothing: each instance has its own state", "It resets", "It shows an error"],
+      answer: 1,
+      explain: "State belongs to a component's position in the tree, so each instance remembers its own value.",
+    },
+    {
+      q: "Which updates the `qty` of one cart line correctly?",
+      options: ["`line.qty = 2; setCart(cart)`", "`setCart(cart.map((l) => l.id === id ? { ...l, qty: 2 } : l))`", "`cart[i].qty = 2; setCart([...cart])`", "`setCart(cart.push({ qty: 2 }))`"],
+      answer: 1,
+      explain: "It makes a new array and a new object for the changed line. The others mutate the existing objects.",
+    },
+    {
+      q: "Where can you call `useState`?",
+      options: ["At the top level of a component", "Inside an `if`", "Inside a loop", "Inside an event handler"],
+      answer: 0,
+      explain: "Hooks are matched by call order, so they must run in the same order on every render.",
+    },
+  ]}
+/>

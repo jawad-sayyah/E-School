@@ -1,0 +1,326 @@
+---
+id: lifting-state
+title: "Sharing state: lifting it up"
+summary: When two components need the same data, move the state to their closest common parent and pass it down, so there's one source of truth.
+minutes: 16
+tags: [lifting state up, single source of truth, props down, events up, derived state, data flow]
+---
+
+State lives in one component. So what happens when **two** components need it? The product list adds to the cart, and the header's badge shows the cart's size. They're siblings: neither can read the other's state.
+
+<Concept name="The problem" id="problem">
+
+Here the cart state lives inside `ProductList`. Clicking **Add** updates the list's own count, but `Header` has no way to know.
+
+<ReactPlayground height={360}>
+
+```jsx file=/App.js
+import { useState } from "react";
+
+function Header() {
+  return <header>MiniShop · Cart: ?</header>;
+}
+
+function ProductList() {
+  const [cart, setCart] = useState([]);
+  return (
+    <>
+      <button onClick={() => setCart([...cart, "Coffee"])}>Add Coffee</button>
+      <button onClick={() => setCart([...cart, "Tea"])}>Add Tea</button>
+      <p>(ProductList knows: {cart.length} items)</p>
+    </>
+  );
+}
+
+export default function App() {
+  return (
+    <>
+      <Header />
+      <ProductList />
+    </>
+  );
+}
+```
+
+</ReactPlayground>
+</Concept>
+
+<Concept name="Lift the state up" id="lift">
+
+The fix has three steps:
+
+1. **Move** the state to the **closest common parent** of everyone who needs it: here, `App`.
+2. **Pass the data down** as props to the components that show it (`count` to `Header`).
+3. **Pass a function down** to the components that change it (`onAdd` to `ProductList`). They call it; the parent updates its state.
+
+<ReactPlayground height={380}>
+
+```jsx file=/App.js
+import { useState } from "react";
+
+function Header({ count }) {
+  return <header>MiniShop · Cart: {count}</header>;
+}
+
+function ProductList({ onAdd }) {
+  return (
+    <>
+      <button onClick={() => onAdd("Coffee")}>Add Coffee</button>
+      <button onClick={() => onAdd("Tea")}>Add Tea</button>
+    </>
+  );
+}
+
+function CartSummary({ items }) {
+  if (items.length === 0) return <p>Your cart is empty.</p>;
+  return <p>In your cart: {items.join(", ")}</p>;
+}
+
+export default function App() {
+  const [cart, setCart] = useState([]);
+
+  function handleAdd(name) {
+    setCart([...cart, name]);
+  }
+
+  return (
+    <>
+      <Header count={cart.length} />
+      <ProductList onAdd={handleAdd} />
+      <CartSummary items={cart} />
+    </>
+  );
+}
+```
+
+</ReactPlayground>
+
+Now there's **one source of truth**: `App`'s `cart`. `Header`, `ProductList` and `CartSummary` hold no state of their own; they're simple functions of their props. Data flows **down** as props, and changes flow **up** through callbacks.
+
+</Concept>
+
+<Concept name="Don't copy props into state" id="no-copy">
+
+A common mistake is to "save" a prop in state:
+
+<Compare
+  wrong="The state is set from the prop once, on the first render; later prop changes are ignored"
+  right="Read the prop directly, or calculate from it during render"
+  wrongFile="Badge.jsx"
+  rightFile="Badge.jsx"
+>
+
+```jsx
+function Badge({ count }) {
+  const [shown, setShown] = useState(count);
+  return <span>{shown}</span>;
+}
+```
+
+```jsx
+function Badge({ count }) {
+  return <span>{count > 99 ? "99+" : count}</span>;
+}
+```
+
+</Compare>
+
+`useState(count)` only uses its argument on the **first** render. When the parent later passes a new `count`, `shown` keeps the old one. Anything you can calculate from props or other state should be a plain variable, not state.
+
+</Concept>
+
+<HowItWorks title="Deciding where state lives">
+
+For each piece of state, ask:
+
+1. **Which components show it or change it?** List them.
+2. **What's their closest common parent?** Put the state there (or higher, if it makes more sense).
+3. **Can it be calculated** from props or other state? Then it isn't state at all: compute it during render.
+
+Lifting state up can mean passing props through several layers. When that gets painful ("prop drilling"), composition (next lesson) and Context (Hooks course) help.
+
+</HowItWorks>
+
+<Practice>
+
+<SortBuckets
+  id="buckets-where-state"
+  prompt="MiniShop has a Header (cart badge), a ProductList (Add buttons), a CartPage and a SearchBox that filters the ProductList. Where should each piece of state live?"
+  buckets={["In App (shared)", "In one component (local)", "Not state: calculate it"]}
+  items={[
+    ["The cart lines", 0],
+    ["What's typed in the SearchBox, used to filter ProductList", 0],
+    ["Whether a single product's details are expanded", 1],
+    ["Whether the Header's mobile menu is open", 1],
+    ["The cart total", 2],
+    ["The number on the badge", 2],
+  ]}
+  explain="Shared data goes to the common parent. UI details only one component cares about stay local. Totals and counts are derived from the cart, so they're never state."
+/>
+
+<SpotTheBug
+  id="bug-copied-prop"
+  bug={2}
+  prompt="The parent's `price` changes when a coupon is applied, but `PriceTag` still shows the old price. Click the buggy line."
+  explain="`useState(price)` copies the prop once, on the first render, and ignores later changes. Render the prop directly: `<strong>${price}</strong>`."
+>
+
+```jsx
+function PriceTag({ price }) {
+  const [current] = useState(price);
+  return <strong>${current}</strong>;
+}
+```
+
+</SpotTheBug>
+
+<OrderLines
+  id="order-lift"
+  prompt="Put the lines of `App` in order: state first, then the handler, then the JSX that passes things down."
+  explain="Hooks come first in the component, then the functions that use the state, then the JSX that hands the data and the callback to the children."
+>
+
+```jsx
+function App() {
+  const [cart, setCart] = useState([]);
+  const handleAdd = (item) => setCart([...cart, item]);
+  return <ProductList count={cart.length} onAdd={handleAdd} />;
+}
+```
+
+</OrderLines>
+
+<TrueFalse
+  id="tf-lifting"
+  statements={[
+    { text: "Sibling components can read each other's state directly.", answer: false, explain: "State is private. Siblings share data through their common parent." },
+    { text: "After lifting state up, the children often have no state at all.", answer: true, explain: "They become functions of their props, which makes them simpler and easier to test." },
+    { text: "Children change the parent's state by calling a function the parent passed as a prop.", answer: true, explain: "Props down, events up: `onAdd`, `onChange`, `onRemove`…" },
+  ]}
+/>
+
+</Practice>
+
+<ReactExercise
+  id="lift-cart-state"
+  title="Fix the stuck badge"
+  hints={[
+    "Move `const [cart, setCart] = useState([]);` from `ProductList` into `App`.",
+    "Pass `count={cart.length}` to `Header`, and `onAdd={(name) => setCart([...cart, name])}` to `ProductList`.",
+    "In `ProductList`, take `{ onAdd }` as a prop and call `onAdd(\"Coffee\")` on click.",
+  ]}
+>
+
+The badge in the header is stuck at 0, because the cart state lives inside `ProductList`. Lift it up to `App`, so the header shows the number of items added.
+
+```jsx starter file=/App.js
+import { useState } from "react";
+
+function Header({ count }) {
+  return (
+    <header>
+      MiniShop <span aria-label="Items in cart">{count}</span>
+    </header>
+  );
+}
+
+function ProductList() {
+  const [cart, setCart] = useState([]);
+  return (
+    <>
+      <button onClick={() => setCart([...cart, "Coffee"])}>Add Coffee</button>
+      <button onClick={() => setCart([...cart, "Tea"])}>Add Tea</button>
+    </>
+  );
+}
+
+export default function App() {
+  return (
+    <>
+      <Header count={0} />
+      <ProductList />
+    </>
+  );
+}
+```
+
+```jsx tests file=/App.test.js
+import { fireEvent, render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import App from "./App";
+
+test("the badge starts at 0", () => {
+  render(<App />);
+  expect(screen.getByLabelText("Items in cart")).toHaveTextContent("0");
+});
+
+test("adding products updates the badge", () => {
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "Add Coffee" }));
+  fireEvent.click(screen.getByRole("button", { name: "Add Tea" }));
+  fireEvent.click(screen.getByRole("button", { name: "Add Coffee" }));
+  expect(screen.getByLabelText("Items in cart")).toHaveTextContent("3");
+});
+```
+
+```jsx solution file=/App.js
+import { useState } from "react";
+
+function Header({ count }) {
+  return (
+    <header>
+      MiniShop <span aria-label="Items in cart">{count}</span>
+    </header>
+  );
+}
+
+function ProductList({ onAdd }) {
+  return (
+    <>
+      <button onClick={() => onAdd("Coffee")}>Add Coffee</button>
+      <button onClick={() => onAdd("Tea")}>Add Tea</button>
+    </>
+  );
+}
+
+export default function App() {
+  const [cart, setCart] = useState([]);
+  return (
+    <>
+      <Header count={cart.length} />
+      <ProductList onAdd={(name) => setCart([...cart, name])} />
+    </>
+  );
+}
+```
+
+</ReactExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "Two siblings need the same state. Where should it live?",
+      options: ["In the first sibling", "In both, kept in sync with effects", "In their closest common parent", "In a global variable"],
+      answer: 2,
+      explain: "Lift it to the closest common parent and pass it down. One source of truth.",
+    },
+    {
+      q: "How does a child ask the parent to change lifted state?",
+      options: ["It changes the prop", "It calls a function the parent passed down, like `onAdd`", "It calls `setState` on the parent", "It can't"],
+      answer: 1,
+      explain: "Props down, events up.",
+    },
+    {
+      q: "What's wrong with `const [shown] = useState(props.count)`?",
+      options: ["Nothing", "It ignores later changes to `count`", "It's a syntax error", "It renders twice"],
+      answer: 1,
+      explain: "The initial value is only read on the first render. Use the prop directly.",
+    },
+    {
+      q: "Which should **not** be stored in state?",
+      options: ["The cart lines", "The cart total", "What's typed in the search box", "Whether a dialog is open"],
+      answer: 1,
+      explain: "The total can be calculated from the cart lines on every render.",
+    },
+  ]}
+/>

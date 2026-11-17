@@ -1,0 +1,321 @@
+---
+id: forms
+title: Forms and controlled inputs
+summary: Keep inputs in state with value and onChange, handle submit without a page reload, manage several fields in one object, and validate as the user types.
+minutes: 18
+tags: [forms, controlled input, onChange, onSubmit, preventDefault, checkbox, select, validation]
+---
+
+A **controlled input** is an input whose value lives in React state. React is the single source of truth: the input shows the state, and every keystroke updates the state.
+
+<Concept name="A controlled input" id="controlled">
+
+```jsx file=Search.jsx
+const [query, setQuery] = useState("");
+
+<input value={query} onChange={(e) => setQuery(e.target.value)} />
+```
+
+- `value={query}` makes the input show the state.
+- `onChange` copies every keystroke into the state, which re-renders the input with the new value.
+- Because the value is in state, you can use it anywhere: filter a list, count characters, disable a button.
+
+<Callout type="warn">
+`value` without `onChange` gives you a **read-only** input: React keeps setting it back to the state, so typing does nothing (and React warns in the console). If you only want a starting value, use `defaultValue` instead, which makes it **uncontrolled**.
+</Callout>
+</Concept>
+
+<Concept name="A whole form" id="whole-form">
+
+One object in state can hold every field. A single `handleChange` reads the input's `name` to know which field to update. Fill it in and submit.
+
+<ReactPlayground height={520}>
+
+```jsx file=/App.js
+import { useState } from "react";
+
+export default function App() {
+  const [form, setForm] = useState({ name: "", email: "", size: "medium", gift: false });
+  const [sent, setSent] = useState(null);
+
+  function handleChange(e) {
+    const { name, value, type, checked } = e.target;
+    setForm({ ...form, [name]: type === "checkbox" ? checked : value });
+  }
+
+  function handleSubmit(e) {
+    e.preventDefault(); // stop the browser from reloading the page
+    setSent(form);
+  }
+
+  const emailOk = form.email.includes("@");
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <label>
+        Name <input name="name" value={form.name} onChange={handleChange} required />
+      </label>
+      <label>
+        Email <input name="email" type="email" value={form.email} onChange={handleChange} />
+      </label>
+      {form.email && !emailOk && <p className="error">That email needs an @.</p>}
+      <label>
+        Size
+        <select name="size" value={form.size} onChange={handleChange}>
+          <option value="small">Small</option>
+          <option value="medium">Medium</option>
+          <option value="large">Large</option>
+        </select>
+      </label>
+      <label className="row">
+        <input name="gift" type="checkbox" checked={form.gift} onChange={handleChange} />
+        This is a gift
+      </label>
+      <button disabled={!form.name || !emailOk}>Place order</button>
+      {sent && <pre>{JSON.stringify(sent, null, 2)}</pre>}
+    </form>
+  );
+}
+```
+
+```css file=/styles.css
+body { font-family: system-ui, sans-serif; padding: 16px; }
+form { display: grid; gap: 10px; max-width: 280px; }
+label { display: grid; gap: 4px; font-size: 14px; }
+label.row { display: flex; align-items: center; gap: 8px; }
+input, select { padding: 6px 8px; border: 1px solid #ccc; border-radius: 6px; }
+.error { color: #c0392b; margin: 0; font-size: 13px; }
+button { background: #61dafb; border: 0; border-radius: 8px; padding: 8px; font-weight: 600; }
+button:disabled { background: #ddd; color: #888; }
+pre { background: #f4f4f4; padding: 8px; border-radius: 6px; }
+```
+
+</ReactPlayground>
+
+- **Text, email, select, textarea:** use `value` and read `e.target.value`.
+- **Checkbox:** use `checked` and read `e.target.checked`.
+- **Submit:** handle `onSubmit` on the `<form>` (it fires for the button *and* for Enter in a field) and call `e.preventDefault()`.
+- **Validation:** the error message and the disabled button are **derived** from state, so they're always in sync.
+
+</Concept>
+
+<HowItWorks title="Why every keystroke goes through state">
+
+When you type, the browser changes the input, then React's `onChange` runs, your handler sets state, and React re-renders. During that render the input's `value` prop equals what you typed, so nothing visible changes. If your handler *doesn't* set state (or sets something else, like an uppercase version), React makes the input show the state's value instead. That's what "controlled" means: the input can only ever show what the state says.
+
+It sounds like a lot of work per keystroke, but a render is just a function call; for normal forms it's instant.
+
+</HowItWorks>
+
+<GoDeeper title="Uncontrolled inputs and FormData">
+
+You don't *have* to control every input. An **uncontrolled** form lets the DOM hold the values, and you read them all at once on submit with `FormData`:
+
+```jsx file=Newsletter.jsx
+function Newsletter() {
+  function handleSubmit(e) {
+    e.preventDefault();
+    const data = new FormData(e.currentTarget);
+    console.log(data.get("email"));
+  }
+  return (
+    <form onSubmit={handleSubmit}>
+      <input name="email" type="email" defaultValue="" />
+      <button>Subscribe</button>
+    </form>
+  );
+}
+```
+
+Use controlled inputs when the UI reacts *while* the user types (live validation, filtering, a character counter). Uncontrolled is fine for "fill in and submit" forms. React 19's form **actions** build on the uncontrolled style; the React 19 course covers them.
+
+</GoDeeper>
+
+<Practice>
+
+<SpotTheBug
+  id="bug-readonly-input"
+  bug={5}
+  prompt="Typing in the search box does nothing, and React warns about a read-only field. Click the buggy line."
+  explain={"The input has `value` but no `onChange`, so React keeps resetting it to `\"\"`. Add `onChange={(e) => setQuery(e.target.value)}`."}
+>
+
+```jsx
+function Search() {
+  const [query, setQuery] = useState("");
+  return (
+    <label>
+      Search <input value={query} />
+    </label>
+  );
+}
+```
+
+</SpotTheBug>
+
+<FillBlanks
+  id="blanks-controlled"
+  prompt="Fill in the blanks to make a controlled checkbox."
+  explain="Checkboxes use `checked` instead of `value`, and the new state is `e.target.checked`."
+>
+
+```jsx
+const [agree, setAgree] = useState(false);
+
+<input
+  type="checkbox"
+  __[checked]__={agree}
+  onChange={(e) => setAgree(e.target.__[checked]__)}
+/>
+```
+
+</FillBlanks>
+
+<MatchPairs
+  id="match-form-props"
+  prompt="Match each form element with what you control and read."
+  columns={["Element", "Control with / read from"]}
+  pairs={[
+    ["`<input type=\"text\">`", "`value` / `e.target.value`"],
+    ["`<input type=\"checkbox\">`", "`checked` / `e.target.checked`"],
+    ["`<select>`", "`value` on the select / `e.target.value`"],
+    ["`<form>`", "`onSubmit` + `e.preventDefault()`"],
+    ["`<input defaultValue=\"x\">`", "Uncontrolled: read it on submit"],
+  ]}
+/>
+
+<Choice
+  id="choice-submit"
+  q="Where should the submit handler go?"
+  options={["`onClick` on the submit button", "`onSubmit` on the `<form>`", "`onChange` on every input", "`onKeyDown` on the last input"]}
+  answer={1}
+  explain="`onSubmit` on the form catches both the button click and pressing Enter in a field."
+/>
+
+</Practice>
+
+<ReactExercise
+  id="coupon-form"
+  title="A coupon code form"
+  hints={[
+    "You need two pieces of state: the code (a string) and the message (a string).",
+    "The input is controlled: `value={code}` and `onChange={(e) => setCode(e.target.value)}`.",
+    "In `handleSubmit`, call `e.preventDefault()`, then set the message with `code.trim().toUpperCase() === \"SAVE10\"`.",
+  ]}
+>
+
+Make the coupon form work. When the form is submitted:
+
+- if the code is **SAVE10** (ignore case and spaces around it), show **10% off applied!**
+- otherwise, show **That code doesn't work.**
+
+The input must be controlled, and submitting must not reload the page.
+
+```jsx starter file=/App.js
+export default function App() {
+  return (
+    <form className="coupon">
+      <label htmlFor="code">Coupon code</label>
+      <input id="code" />
+      <button type="submit">Apply</button>
+    </form>
+  );
+}
+```
+
+```css starter file=/styles.css
+body { font-family: system-ui, sans-serif; padding: 16px; }
+.coupon { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.coupon input { padding: 6px 8px; border: 1px solid #ccc; border-radius: 6px; }
+.coupon button { background: #61dafb; border: 0; border-radius: 8px; padding: 7px 12px; font-weight: 600; }
+.coupon p { flex-basis: 100%; margin: 4px 0 0; }
+```
+
+```jsx tests file=/App.test.js
+import { fireEvent, render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import App from "./App";
+
+function apply(code) {
+  render(<App />);
+  const input = screen.getByLabelText("Coupon code");
+  fireEvent.change(input, { target: { value: code } });
+  fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+  return input;
+}
+
+test("the input is controlled", () => {
+  const input = apply("SAVE10");
+  expect(input).toHaveValue("SAVE10");
+});
+
+test("SAVE10 applies the discount", () => {
+  apply("SAVE10");
+  expect(screen.getByText("10% off applied!")).toBeInTheDocument();
+});
+
+test("case and spaces don't matter", () => {
+  apply("  save10 ");
+  expect(screen.getByText("10% off applied!")).toBeInTheDocument();
+});
+
+test("a wrong code shows an error", () => {
+  apply("FREESTUFF");
+  expect(screen.getByText("That code doesn't work.")).toBeInTheDocument();
+});
+```
+
+```jsx solution file=/App.js
+import { useState } from "react";
+
+export default function App() {
+  const [code, setCode] = useState("");
+  const [message, setMessage] = useState("");
+
+  function handleSubmit(e) {
+    e.preventDefault();
+    const ok = code.trim().toUpperCase() === "SAVE10";
+    setMessage(ok ? "10% off applied!" : "That code doesn't work.");
+  }
+
+  return (
+    <form className="coupon" onSubmit={handleSubmit}>
+      <label htmlFor="code">Coupon code</label>
+      <input id="code" value={code} onChange={(e) => setCode(e.target.value)} />
+      <button type="submit">Apply</button>
+      {message && <p>{message}</p>}
+    </form>
+  );
+}
+```
+
+</ReactExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "What makes an input **controlled**?",
+      options: ["It has a `name`", "Its value comes from state via `value`, and `onChange` updates that state", "It's inside a `<form>`", "It has `required`"],
+      answer: 1,
+      explain: "State is the single source of truth; the input just displays it.",
+    },
+    {
+      q: "Why call `e.preventDefault()` in `onSubmit`?",
+      options: ["To clear the form", "To stop the browser from reloading the page", "To stop other handlers", "To validate the fields"],
+      answer: 1,
+      explain: "A form's default action is to send a request and load a new page.",
+    },
+    {
+      q: "How do you read a checkbox's new state in `onChange`?",
+      options: ["`e.target.value`", "`e.target.checked`", "`e.checked`", "`e.target.selected`"],
+      answer: 1,
+      explain: "Checkboxes use `checked`. Their `value` is a fixed string, usually \"on\".",
+    },
+    {
+      q: "With one `form` object in state, what does `setForm({ ...form, [name]: value })` do?",
+      options: ["Replaces the whole form with one field", "Copies the form and changes only the field named by `name`", "Deletes the field", "Mutates `form`"],
+      answer: 1,
+      explain: "Spread copies every field, and the computed key `[name]` overwrites the one that changed.",
+    },
+  ]}
+/>

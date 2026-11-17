@@ -1,0 +1,300 @@
+---
+id: composition
+title: Composition
+summary: Build flexible components from smaller ones with children and slot props, make specialized versions of general components, and avoid passing props through layers that don't use them.
+minutes: 15
+tags: [composition, children, slots, layout, specialization, prop drilling, wrapper components]
+---
+
+React doesn't have inheritance for components. Instead, you **compose**: put components inside other components, and pass pieces of UI around like any other value.
+
+<Concept name="Wrappers with children" id="wrappers">
+
+A wrapper component draws the frame and lets the caller decide what goes inside. You met `children` in the Props lesson; it's the main tool for composition.
+
+<ReactPlayground height={360}>
+
+```jsx file=/App.js
+function Card({ children, highlight = false }) {
+  return <div className={highlight ? "card highlight" : "card"}>{children}</div>;
+}
+
+function Dialog({ title, children, actions }) {
+  return (
+    <div className="dialog" role="dialog" aria-label={title}>
+      <h2>{title}</h2>
+      <div>{children}</div>
+      <footer>{actions}</footer>
+    </div>
+  );
+}
+
+export default function App() {
+  return (
+    <>
+      <Card>
+        <h3>Coffee</h3>
+        <p>$4.00</p>
+      </Card>
+      <Card highlight>
+        <h3>Today only: Iced Latte</h3>
+      </Card>
+      <Dialog
+        title="Remove item?"
+        actions={
+          <>
+            <button>Cancel</button>
+            <button className="danger">Remove</button>
+          </>
+        }
+      >
+        <p>Coffee will be removed from your cart.</p>
+      </Dialog>
+    </>
+  );
+}
+```
+
+```css file=/styles.css
+body { font-family: system-ui, sans-serif; padding: 16px; }
+.card { border: 1px solid #ddd; border-radius: 12px; padding: 4px 16px; margin-bottom: 10px; }
+.card h3 { margin: 10px 0 4px; }
+.highlight { border-color: #ffd93d; background: #fffbea; }
+.dialog { border: 1px solid #ccc; border-radius: 12px; padding: 4px 16px 12px; box-shadow: 0 6px 24px rgba(0,0,0,.12); max-width: 300px; }
+.dialog footer { display: flex; gap: 8px; justify-content: flex-end; }
+.danger { background: #f07178; color: white; border: 0; border-radius: 6px; padding: 6px 10px; }
+```
+
+</ReactPlayground>
+
+`Dialog` has **two slots**: `children` for the body and an `actions` prop for the buttons. Any prop can hold JSX, so a component can have as many slots as it needs (`header`, `sidebar`, `footer`, `icon`…).
+
+</Concept>
+
+<Concept name="Specialization" id="specialization">
+
+Instead of extending a component, make a **specialized version** that renders the general one with some props filled in:
+
+```jsx file=Buttons.jsx
+function Button({ variant = "plain", ...rest }) {
+  return <button className={`btn btn-${variant}`} {...rest} />;
+}
+
+function DangerButton(props) {
+  return <Button variant="danger" {...props} />;
+}
+
+<DangerButton onClick={removeAll}>Empty cart</DangerButton>
+```
+
+`{...rest}` collects every other prop (`onClick`, `children`, `disabled`…) and spreads them onto the inner element, so the specialized version supports everything the general one does.
+
+</Concept>
+
+<Concept name="Composition fixes prop drilling" id="prop-drilling">
+
+**Prop drilling** is passing a prop through components that don't use it, just to reach one deep inside:
+
+<Compare
+  wrong="Layout and Sidebar only pass `user` along; they never use it"
+  right="App builds the UserMenu itself and hands it over as a slot"
+  wrongFile="drilling.jsx"
+  rightFile="composed.jsx"
+>
+
+```jsx
+function App() {
+  return <Layout user={user} />;
+}
+function Layout({ user }) {
+  return <Sidebar user={user} />;
+}
+function Sidebar({ user }) {
+  return <UserMenu user={user} />;
+}
+```
+
+```jsx
+function App() {
+  return (
+    <Layout sidebar={<UserMenu user={user} />} />
+  );
+}
+function Layout({ sidebar }) {
+  return <aside>{sidebar}</aside>;
+}
+```
+
+</Compare>
+
+When the parent creates the element itself and passes it down as a slot, the layers in between don't need to know about `user` at all. For data that many distant components need (the current user, the theme, the cart), **Context** is the other tool; it's in the Hooks course.
+
+</Concept>
+
+<HowItWorks title="Why passing JSX around is cheap">
+
+`<UserMenu user={user} />` is just an object, `{ type: UserMenu, props: { user } }`. Creating it doesn't run `UserMenu`; React only calls the component when that object ends up in the tree it renders. So passing elements through props or `children` is as cheap as passing any other object, and the component that *receives* them decides where they appear.
+
+</HowItWorks>
+
+<Practice>
+
+<MatchPairs
+  id="match-composition"
+  prompt="Match each pattern with what it's for."
+  columns={["Pattern", "Use it to"]}
+  pairs={[
+    ["`children`", "Let the caller fill a wrapper's main content"],
+    ["A slot prop like `actions={<Buttons />}`", "Fill a second (or third) area of a component"],
+    ["`function DangerButton(props)` rendering `Button`", "Make a specialized version of a general component"],
+    ["`{...rest}`", "Forward every other prop to an inner element"],
+    ["Context", "Share data with many distant components"],
+  ]}
+/>
+
+<FillBlanks
+  id="blanks-layout"
+  prompt="Fill in the blanks so `Layout` shows a sidebar slot next to its main content."
+  explain="The sidebar arrives as an ordinary prop holding JSX; the main content is `children`."
+>
+
+```jsx
+function Layout({ __[sidebar]__, children }) {
+  return (
+    <div className="layout">
+      <aside>{sidebar}</aside>
+      <main>{__[children]__}</main>
+    </div>
+  );
+}
+
+<Layout sidebar={<CategoryMenu />}>
+  <ProductGrid />
+</Layout>
+```
+
+</FillBlanks>
+
+<Choice
+  id="choice-drilling"
+  q="`App` has the `user`. Only `Avatar`, five levels down, needs it; the four components in between just pass it along. What's the simplest fix to try first?"
+  options={["Copy `user` into state in every level", "Pass `<Avatar user={user} />` down as a slot from `App`, so the middle layers don't need the prop", "Make `user` a global variable", "Use the array index as a key"]}
+  answer={1}
+  explain="Composition removes the drilling without new tools. If many unrelated components need `user`, reach for Context."
+/>
+
+<TrueFalse
+  id="tf-composition"
+  statements={[
+    { text: "React components usually share code by extending other component classes.", answer: false, explain: "React favors composition: wrap, specialize and pass UI through props." },
+    { text: "A prop can hold JSX, like `icon={<StarIcon />}`.", answer: true, explain: "JSX is a value, so any prop can carry it." },
+    { text: "Creating `<UserMenu />` to pass as a prop immediately runs the `UserMenu` function.", answer: false, explain: "It only creates a description. React calls `UserMenu` when that element is rendered." },
+  ]}
+/>
+
+</Practice>
+
+<BuildUI
+  id="build-panel"
+  title="A reusable Panel"
+  hints={[
+    "Destructure `title`, `children` and `footer` from the props.",
+    "Return a `<section>` with an `<h2>{title}</h2>`, then `{children}`, then `{footer && <footer>{footer}</footer>}`.",
+  ]}
+>
+
+Write `Panel` in `Panel.js`: a `<section>` with a heading from the `title` prop, the `children` under it, and an optional `footer` slot that's only rendered (inside a `<footer>`) when it's given. `App` already uses it twice.
+
+```jsx starter file=/Panel.js
+export default function Panel(props) {
+  return <section className="panel">Panel goes here</section>;
+}
+```
+
+```jsx starter file=/App.js
+import Panel from "./Panel";
+
+export default function App() {
+  return (
+    <>
+      <Panel title="Cart" footer={<button>Checkout</button>}>
+        <p>Coffee × 2</p>
+      </Panel>
+      <Panel title="Recently viewed">
+        <p>Bagel</p>
+      </Panel>
+    </>
+  );
+}
+```
+
+```css starter file=/styles.css
+body { font-family: system-ui, sans-serif; padding: 16px; }
+.panel { border: 1px solid #ddd; border-radius: 12px; padding: 4px 16px 10px; margin-bottom: 12px; max-width: 280px; }
+.panel h2 { font-size: 16px; color: #0e7490; }
+.panel footer { border-top: 1px solid #eee; padding-top: 8px; text-align: right; }
+.panel button { background: #61dafb; border: 0; border-radius: 8px; padding: 6px 12px; font-weight: 600; }
+```
+
+```jsx tests file=/Panel.test.js
+import { render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import Panel from "./Panel";
+
+test("shows the title as a heading", () => {
+  render(<Panel title="Cart"><p>Coffee</p></Panel>);
+  expect(screen.getByRole("heading", { name: "Cart" })).toBeInTheDocument();
+});
+
+test("renders its children", () => {
+  render(<Panel title="Cart"><p>Coffee × 2</p></Panel>);
+  expect(screen.getByText("Coffee × 2")).toBeInTheDocument();
+});
+
+test("renders the footer slot in a footer", () => {
+  render(<Panel title="Cart" footer={<button>Checkout</button>}><p>Coffee</p></Panel>);
+  expect(screen.getByRole("button", { name: "Checkout" }).closest("footer")).not.toBeNull();
+});
+
+test("leaves out the footer when there isn't one", () => {
+  const { container } = render(<Panel title="Cart"><p>Coffee</p></Panel>);
+  expect(container.querySelector("footer")).toBeNull();
+});
+```
+
+```jsx solution file=/Panel.js
+export default function Panel({ title, children, footer }) {
+  return (
+    <section className="panel">
+      <h2>{title}</h2>
+      {children}
+      {footer && <footer>{footer}</footer>}
+    </section>
+  );
+}
+```
+
+</BuildUI>
+
+<Quiz
+  questions={[
+    {
+      q: "How do React components usually reuse each other?",
+      options: ["Class inheritance", "Composition: rendering components inside others and passing UI as props", "Copying the code", "Mixins"],
+      answer: 1,
+      explain: "Wrapping, slots and specialization cover what inheritance does in other UI libraries.",
+    },
+    {
+      q: "What is prop drilling?",
+      options: ["Passing a prop through components that don't use it, to reach a deep child", "Changing props in a child", "Using too many props", "Spreading props with `...`"],
+      answer: 0,
+      explain: "Composition (slots) or Context fix it.",
+    },
+    {
+      q: "Which props can hold JSX?",
+      options: ["Only `children`", "Any prop", "Only props whose names start with `render`", "None"],
+      answer: 1,
+      explain: "JSX is a value like any other.",
+    },
+  ]}
+/>

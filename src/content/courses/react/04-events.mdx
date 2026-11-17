@@ -1,0 +1,305 @@
+---
+id: events
+title: Handling events
+summary: Respond to clicks, typing and key presses, pass handlers as props, read the event object, and stop clicks from bubbling up.
+minutes: 15
+tags: [events, onClick, onChange, event object, handler props, stopPropagation, preventDefault]
+---
+
+Events are how the user talks to your components. In JSX you pass a **function** to an event prop like `onClick`, and React calls it when the event happens.
+
+<Concept name="Pass the function, don't call it" id="pass-function">
+
+<ReactPlayground height={300} console>
+
+```jsx file=/App.js
+export default function App() {
+  function handleClick() {
+    console.log("Added to cart!");
+  }
+
+  return (
+    <>
+      <button onClick={handleClick}>Add</button>
+      <button onClick={() => console.log("Added Tea")}>Add Tea</button>
+    </>
+  );
+}
+```
+
+</ReactPlayground>
+
+`onClick={handleClick}` hands React the function to call **later**. `onClick={handleClick()}` would call it **right now**, during rendering, and pass its return value (`undefined`) as the handler. That's one of the most common React bugs.
+
+To pass an argument, wrap the call in an arrow function: `onClick={() => add(product)}`. The arrow is created now; `add(product)` only runs when the button is clicked.
+
+</Concept>
+
+<Concept name="The event object" id="event-object">
+
+React passes your handler an **event object** with details about what happened: `e.target` is the element, `e.target.value` is what's typed in an input, `e.key` is the key that was pressed.
+
+<ReactPlayground height={300}>
+
+```jsx file=/App.js
+import { useState } from "react";
+
+export default function App() {
+  const [text, setText] = useState("");
+  const [lastKey, setLastKey] = useState("");
+
+  return (
+    <>
+      <input
+        placeholder="Search products"
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => setLastKey(e.key)}
+      />
+      <p>You typed: {text}</p>
+      <p>Last key: {lastKey}</p>
+    </>
+  );
+}
+```
+
+</ReactPlayground>
+
+Common event props: `onClick`, `onChange` (React fires it on **every keystroke**, unlike the DOM's `change`), `onSubmit`, `onKeyDown`, `onFocus`, `onBlur`, `onMouseEnter`.
+
+</Concept>
+
+<Concept name="Handlers as props" id="handler-props">
+
+A child often needs to tell its parent "something happened". The parent passes a function as a prop; the child calls it. By convention, the **prop** is named `onSomething` and the **function** that handles it is named `handleSomething`.
+
+```jsx file=App.jsx
+function AddButton({ onAdd }) {
+  return <button onClick={onAdd}>Add</button>;
+}
+
+export default function App() {
+  const [count, setCount] = useState(0);
+  function handleAdd() {
+    setCount(count + 1);
+  }
+  return <AddButton onAdd={handleAdd} />;
+}
+```
+
+`AddButton` doesn't know what adding means; it just reports the click. The state stays in `App`, which owns it.
+
+</Concept>
+
+<Concept name="Bubbling, stopPropagation and preventDefault" id="propagation">
+
+Events **bubble**: a click on a button also counts as a click on every element around it. Here the whole card opens the product, but the Add button shouldn't. Click both and watch the console.
+
+<ReactPlayground height={320} console>
+
+```jsx file=/App.js
+export default function App() {
+  return (
+    <article className="card" onClick={() => console.log("Open product page")}>
+      <h2>Coffee</h2>
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          console.log("Added Coffee");
+        }}
+      >
+        Add
+      </button>
+    </article>
+  );
+}
+```
+
+```css file=/styles.css
+body { font-family: system-ui, sans-serif; padding: 16px; }
+.card { border: 1px solid #ddd; border-radius: 12px; padding: 12px 16px; cursor: pointer; max-width: 200px; }
+.card h2 { margin: 0 0 8px; font-size: 18px; }
+```
+
+</ReactPlayground>
+
+- `e.stopPropagation()` stops the event from reaching parent handlers. Remove it and both messages print.
+- `e.preventDefault()` stops the **browser's** default action, like a form reloading the page on submit or a link navigating. You'll use it in the Forms lesson.
+
+</Concept>
+
+<HowItWorks title="How React wires up events">
+
+React doesn't attach a listener to every button. It puts **one listener per event type on the root** of your app, and when an event bubbles up to it, React works out which components' handlers should run and calls them in order, from the target outwards. Your handler gets a **synthetic event**: a wrapper that behaves the same in every browser, with the real DOM event at `e.nativeEvent`.
+
+State updates made inside one event are **batched**: three `set` calls in one click cause one re-render, not three.
+
+</HowItWorks>
+
+<Practice>
+
+<Predict
+  id="predict-call-vs-pass"
+  answer={["function", "Added!", "undefined"]}
+  explain="`add` is the function itself. `add()` calls it right away: it logs, then returns `undefined`. That `undefined` is what `onClick={add()}` would hand to React."
+>
+
+```js
+function add() {
+  console.log("Added!");
+}
+
+console.log(typeof add);
+console.log(typeof add());
+```
+
+</Predict>
+
+<SpotTheBug
+  id="bug-called-handler"
+  bug={9}
+  prompt="The cart fills up with Coffee as soon as the page loads, and React warns about too many re-renders. Click the buggy line."
+  explain="`onClick={add(product)}` calls `add` during rendering, which sets state, which renders again, which calls `add` again… Pass a function: `onClick={() => add(product)}`."
+  hint="When does the code inside the braces run?"
+>
+
+```jsx
+function ProductRow({ product }) {
+  const [cart, setCart] = useState([]);
+
+  function add(item) {
+    setCart([...cart, item]);
+  }
+
+  return (
+    <button onClick={add(product)}>Add {product.name}</button>
+  );
+}
+```
+
+</SpotTheBug>
+
+<MatchPairs
+  id="match-event-props"
+  prompt="Match each event prop with when it fires."
+  columns={["Prop", "Fires when"]}
+  pairs={[
+    ["`onClick`", "The element is clicked or tapped"],
+    ["`onChange`", "An input's value changes (every keystroke)"],
+    ["`onSubmit`", "A form is submitted"],
+    ["`onKeyDown`", "A key is pressed"],
+    ["`onBlur`", "An element loses focus"],
+    ["`onMouseEnter`", "The pointer moves onto an element"],
+  ]}
+/>
+
+<Choice
+  id="choice-stop-vs-prevent"
+  q="A link inside a clickable card should navigate, but the card's own `onClick` shouldn't run. What do you call in the link's handler?"
+  options={["`e.preventDefault()`", "`e.stopPropagation()`", "Both", "Neither"]}
+  answer={1}
+  explain="`stopPropagation` keeps the click from bubbling up to the card. `preventDefault` would stop the link from navigating, which we want to keep."
+  hint="One stops the browser's default action, the other stops parents from hearing the event."
+/>
+
+</Practice>
+
+<ReactExercise
+  id="like-button"
+  title="A Like button"
+  hints={[
+    "Keep a boolean in state: `const [liked, setLiked] = useState(false);`",
+    "Toggle it on click: `onClick={() => setLiked(!liked)}`.",
+    "Show `{liked ? \"♥ Liked\" : \"♡ Like\"}` and set `aria-pressed={liked}`.",
+  ]}
+>
+
+Make the button toggle: it starts as **♡ Like**, a click turns it into **♥ Liked**, and another click turns it back. Also set `aria-pressed` to `true` or `false`, so screen readers announce it as a toggle.
+
+```jsx starter file=/App.js
+export default function App() {
+  return (
+    <button className="like" aria-pressed={false}>
+      ♡ Like
+    </button>
+  );
+}
+```
+
+```css starter file=/styles.css
+body { font-family: system-ui, sans-serif; padding: 16px; }
+.like { border: 1px solid #f07178; color: #f07178; background: white; border-radius: 999px; padding: 6px 14px; font-weight: 600; }
+.like[aria-pressed="true"] { background: #f07178; color: white; }
+```
+
+```jsx tests file=/App.test.js
+import { fireEvent, render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import App from "./App";
+
+test("starts as Like, not pressed", () => {
+  render(<App />);
+  const button = screen.getByRole("button");
+  expect(button).toHaveTextContent("♡ Like");
+  expect(button).toHaveAttribute("aria-pressed", "false");
+});
+
+test("a click likes it", () => {
+  render(<App />);
+  fireEvent.click(screen.getByRole("button"));
+  expect(screen.getByRole("button")).toHaveTextContent("♥ Liked");
+  expect(screen.getByRole("button")).toHaveAttribute("aria-pressed", "true");
+});
+
+test("a second click unlikes it", () => {
+  render(<App />);
+  fireEvent.click(screen.getByRole("button"));
+  fireEvent.click(screen.getByRole("button"));
+  expect(screen.getByRole("button")).toHaveTextContent("♡ Like");
+});
+```
+
+```jsx solution file=/App.js
+import { useState } from "react";
+
+export default function App() {
+  const [liked, setLiked] = useState(false);
+
+  return (
+    <button className="like" aria-pressed={liked} onClick={() => setLiked(!liked)}>
+      {liked ? "♥ Liked" : "♡ Like"}
+    </button>
+  );
+}
+```
+
+</ReactExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "Which passes a click handler that adds `product` when clicked?",
+      options: ["`onClick={add(product)}`", "`onClick={() => add(product)}`", "`onClick=\"add(product)\"`", "`onclick={add}`"],
+      answer: 1,
+      explain: "The arrow function runs `add(product)` later, on click. The first calls it during render; the third is a string; the fourth isn't React's prop name.",
+    },
+    {
+      q: "In `onChange={(e) => setText(e.target.value)}`, what is `e.target`?",
+      options: ["The component", "The input element that changed", "The state", "The window"],
+      answer: 1,
+      explain: "`e.target` is the element the event happened on; `.value` is its current text.",
+    },
+    {
+      q: "What's the naming convention for handler props?",
+      options: ["`clickHandler` for props, `onClick` for functions", "`onSomething` for the prop, `handleSomething` for the function", "Any name is fine and there's no convention", "They must be called `callback`"],
+      answer: 1,
+      explain: "`<AddButton onAdd={handleAdd} />` reads clearly: the prop says when, the function says what.",
+    },
+    {
+      q: "What does `e.preventDefault()` do on a form's submit event?",
+      options: ["Stops parent elements from hearing the event", "Stops the browser from reloading the page", "Clears the form", "Disables the submit button"],
+      answer: 1,
+      explain: "It cancels the browser's default action. `stopPropagation` is the one that stops bubbling.",
+    },
+  ]}
+/>
