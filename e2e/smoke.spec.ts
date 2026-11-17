@@ -1,0 +1,105 @@
+import { expect, test } from '@playwright/test';
+
+const GET_TOTAL = `function getTotal(cart) {
+  return cart.reduce((sum, item) => sum + item.price * item.qty, 0);
+}`;
+
+test('open a lesson, run an example, pass an exercise and see progress', async ({ page }) => {
+  await page.goto('/courses/js-basics/arrays-methods');
+  await expect(page.getByRole('heading', { level: 1, name: 'Arrays II' })).toBeVisible();
+
+  // Run an example in the worker.
+  const reduce = page.locator('section', { has: page.locator('#reduce') });
+  await reduce.getByRole('button', { name: 'Run reduce.js' }).click();
+  await expect(reduce.getByText('Output · just now')).toBeVisible();
+  await expect(reduce.getByRole('log')).toContainText('12');
+  await expect(reduce.getByRole('log')).toContainText('11');
+
+  // Pass the exercise.
+  const editor = page.getByRole('textbox', { name: 'Exercise code: The cart total' });
+  await editor.fill(GET_TOTAL);
+  await page.getByRole('button', { name: 'Check The cart total' }).click();
+  await expect(page.getByText('4 passed', { exact: true })).toBeVisible();
+  await expect(page.getByRole('status')).toContainText('All tests pass');
+
+  // Complete the lesson.
+  await page.getByRole('button', { name: 'Mark as complete' }).click();
+  await expect(page.getByRole('button', { name: 'Completed' })).toBeVisible();
+  await expect(
+    page.getByRole('navigation', { name: 'JavaScript Basics lessons' }).getByRole('link', {
+      name: /Arrays II.*\(completed\)/,
+    }),
+  ).toBeVisible();
+
+  // Progress shows up on the home page and the progress page.
+  await page.goto('/');
+  await expect(page.getByText('Continue where you left off')).toBeVisible();
+  await expect(page.getByText('1 of 10 lessons')).toBeVisible();
+  await page.goto('/progress');
+  await expect(page.getByText('1 exercise passed so far.')).toBeVisible();
+});
+
+test('search for "reduce" jumps to the concept', async ({ page }) => {
+  await page.goto('/');
+  // Wait for the app to mount (pages load lazily) before using shortcuts.
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+  await page.keyboard.press('/');
+  const input = page.getByPlaceholder('Search lessons, concepts and code…');
+  await expect(input).toBeFocused();
+  await input.fill('reduce');
+  await expect(page.getByRole('option').first()).toContainText('reduce()');
+  await page.keyboard.press('Enter');
+  await expect(page).toHaveURL(/\/courses\/js-basics\/arrays-methods#reduce$/);
+  await expect(page.locator('#reduce')).toBeInViewport();
+  await expect(
+    page.getByRole('navigation', { name: 'On this page' }).locator('[aria-current="location"]'),
+  ).toHaveText('reduce()');
+});
+
+test('the palette opens with Ctrl+K and closes with Escape', async ({ page }) => {
+  await page.goto('/courses');
+  await expect(page.getByRole('heading', { level: 1, name: 'All courses' })).toBeVisible();
+  await page.keyboard.press('Control+k');
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).toBeHidden();
+});
+
+test('an infinite loop is stopped and the page stays responsive', async ({ page }) => {
+  await page.goto('/courses/js-basics/loops');
+  const section = page.locator('section', { has: page.locator('#while') });
+  await section.getByRole('textbox').fill('while (true) {}');
+  await section.getByRole('button', { name: 'Run while.js' }).click();
+  // The page is still interactive while the worker spins.
+  await page.getByRole('button', { name: /Switch to (light|dark) theme/ }).click();
+  await expect(section.getByRole('log')).toContainText(
+    'Stopped: the code ran for more than 4 seconds. Is there an infinite loop?',
+    { timeout: 8000 },
+  );
+});
+
+test('the theme choice is remembered', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.locator('html')).toHaveClass(/dark/);
+  await page.getByRole('button', { name: 'Switch to light theme' }).click();
+  await expect(page.locator('html')).toHaveClass(/light/);
+  await page.reload();
+  await expect(page.locator('html')).toHaveClass(/light/);
+});
+
+test.describe('on a phone', () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  test('the lesson list opens as a drawer', async ({ page }) => {
+    await page.goto('/courses/js-basics/functions');
+    await expect(page.getByRole('heading', { level: 1, name: 'Functions' })).toBeVisible();
+    await page.getByRole('button', { name: 'Open the lesson list' }).click();
+    const drawer = page.getByRole('dialog');
+    await expect(drawer.getByRole('link', { name: /Loops/ })).toBeVisible();
+    await drawer.getByRole('link', { name: /Strings/ }).click();
+    await expect(page).toHaveURL(/\/courses\/js-basics\/strings$/);
+    await expect(page.getByRole('dialog')).toBeHidden();
+    const width = await page.evaluate(() => document.documentElement.scrollWidth);
+    expect(width).toBeLessThanOrEqual(390);
+  });
+});
