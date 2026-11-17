@@ -156,6 +156,77 @@ import Cart from "./Cart.jsx";
 </Compare>
 </Concept>
 
+<GoDeeper title="What a bundler does with your imports">
+
+Browsers can load modules directly (`<script type="module">`), but real projects use a **bundler** like Vite. It starts at your entry file, follows every `import`, and combines everything into a few optimized files. Along the way it:
+
+- resolves bare imports like `import React from "react"` to the package in `node_modules`;
+- drops exports nobody imports (**tree-shaking**), so unused code never reaches the user;
+- splits code loaded with `import()` (a dynamic import) into separate chunks that download on demand.
+
+This site works that way too: each lesson is its own chunk, loaded when you open it.
+
+</GoDeeper>
+
+<Practice>
+
+<MatchPairs
+  id="match-imports"
+  prompt="Match each import with what it brings in."
+  columns={["Import", "Brings in"]}
+  pairs={[
+    ["`import Cart from \"./Cart.jsx\"`", "The default export"],
+    ["`import { addItem } from \"./cart.js\"`", "One named export"],
+    ["`import { addItem as add } from \"./cart.js\"`", "A named export, under a new name"],
+    ["`import * as cart from \"./cart.js\"`", "Every export, as one object"],
+    ["`import Cart, { TAX } from \"./cart.js\"`", "The default export and a named export"],
+  ]}
+/>
+
+<SortBuckets
+  id="buckets-exports"
+  prompt="Sort each line: named export or default export?"
+  buckets={["Named export", "Default export"]}
+  items={[
+    ["`export function addItem() {}`", 0],
+    ["`export default function Cart() {}`", 1],
+    ["`export const TAX = 0.16;`", 0],
+    ["`export default App;`", 1],
+    ["`export { formatPrice };`", 0],
+  ]}
+  explain="Anything with `default` is the file's single default export; everything else is a named export, imported with `{ }`."
+/>
+
+<SpotTheBug
+  id="bug-import-braces"
+  bug={6}
+  prompt="`Cart` comes out as `undefined` in App.js. Click the buggy line."
+  explain={"`Cart` is the default export, so it's imported without braces: `import Cart, { addItem } from \"./cart.js\";`."}
+>
+
+```js
+// cart.js
+export default function Cart() {}
+export function addItem() {}
+
+// App.js
+import { Cart, addItem } from "./cart.js";
+```
+
+</SpotTheBug>
+
+<TrueFalse
+  id="tf-modules"
+  statements={[
+    { text: "A file can have several named exports.", answer: true, explain: "As many as you like." },
+    { text: "A file can have several default exports.", answer: false, explain: "At most one." },
+    { text: "Variables in a module are global unless you export them.", answer: false, explain: "They're private to the file unless exported." },
+    { text: "You can name a default import anything you like.", answer: true, explain: "`import Whatever from \"./Cart.jsx\"` works." },
+  ]}
+/>
+
+</Practice>
+
 <Quiz
   questions={[
     {

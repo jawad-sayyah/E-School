@@ -138,6 +138,126 @@ console.log(title, count, heading);
 </Playground>
 </Concept>
 
+<GoDeeper title="Deep copies with structuredClone">
+
+Spread is shallow on purpose: copying only what you change is fast, and React only needs the objects you changed to be new. When you really need a full, independent copy of nested data, use `structuredClone`:
+
+<Playground file="deep-copy.js" expected={["Amman", "Irbid"]}>
+
+```js
+const user = { name: "Sara", address: { city: "Amman" } };
+const deep = structuredClone(user);
+
+deep.address.city = "Irbid";
+console.log(user.address.city);   // untouched
+console.log(deep.address.city);
+```
+
+</Playground>
+
+`structuredClone` can't copy functions, and it's slower than spread, so in React code you'll mostly spread the levels you change.
+
+</GoDeeper>
+
+<Practice>
+
+<Predict
+  id="predict-spread-rest"
+  answer={["1 [ 2, 3 ]", "1 { qty: 3 }"]}
+  explain="Array rest collects the remaining items into a new array. In the object, the spread copies `id` and `qty`, the `qty: 3` after it wins, and `...others` collects everything except `id`."
+>
+
+```js
+const a = [1, 2];
+const b = [...a, 3];
+const [first, ...rest] = b;
+console.log(first, rest);
+
+const item = { id: 1, qty: 2 };
+const { id, ...others } = { ...item, qty: 3 };
+console.log(id, others);
+```
+
+</Predict>
+
+<SortBuckets
+  id="buckets-new-or-changed"
+  prompt="Sort each line: does it make a new value, or change the original?"
+  buckets={["Makes something new", "Changes the original"]}
+  items={[
+    ["`[...cart, item]`", 0],
+    ["`cart.push(item)`", 1],
+    ["`{ ...item, qty: 2 }`", 0],
+    ["`item.qty = 2`", 1],
+    ["`cart.map(fn)`", 0],
+    ["`cart[0] = item`", 1],
+    ["`cart.filter(fn)`", 0],
+  ]}
+  explain="React compares old and new state, so updates must make something new. Everything in the right bucket would change state in place."
+/>
+
+<CodeReview
+  id="review-update-qty"
+  answer={1}
+  prompt="Which function correctly returns a cart with item 2's quantity set to 5, for React state?"
+  reasons={[
+    "It changes the item inside the existing cart, and returns the same array. React sees no change.",
+    "A new array, a new object for the changed item, and every other item kept as it is. This is the React way.",
+    "The array is new, but the spread is shallow: the item objects are shared, so line 3 still changes the old cart's item.",
+  ]}
+>
+
+```js
+function setQty(cart) {
+  const item = cart.find((i) => i.id === 2);
+  item.qty = 5;
+  return cart;
+}
+```
+
+```js
+function setQty(cart) {
+  return cart.map((i) => (i.id === 2 ? { ...i, qty: 5 } : i));
+}
+```
+
+```js
+function setQty(cart) {
+  const next = [...cart];
+  next.find((i) => i.id === 2).qty = 5;
+  return next;
+}
+```
+
+</CodeReview>
+
+<TraceState
+  id="trace-cart-updates"
+  track="`cart.length`"
+  steps={[
+    { action: "`add(\"Coffee\")`", answer: "1" },
+    { action: "`add(\"Tea\")`", answer: "2" },
+    { action: "`add(\"Coffee\")`", answer: "3" },
+    { action: "`remove(\"Coffee\")`", answer: "1" },
+  ]}
+  explain={"`remove` keeps every item that isn't \"Coffee\", so it removes both coffees at once. If you only want to remove one, remove by position or by a unique id."}
+  hint="Look closely at what `filter` keeps in `remove`."
+>
+
+```js
+let cart = [];
+const add = (name) => {
+  cart = [...cart, name];
+};
+const remove = (name) => {
+  cart = cart.filter((n) => n !== name);
+};
+```
+
+</TraceState>
+
+</Practice>
+
 <Exercise
   id="add-to-cart"
   title="Add to cart, the React way"

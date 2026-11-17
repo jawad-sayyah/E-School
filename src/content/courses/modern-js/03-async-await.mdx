@@ -156,6 +156,111 @@ console.log(cart[0].name, user.name);
 </Playground>
 </Concept>
 
+<GoDeeper title="async / await is promises underneath">
+
+`await` doesn't block anything. It pauses **this function only**, gives control back, and resumes when the promise settles. These two functions do exactly the same thing:
+
+<Playground file="same-thing.js" expected={["Coffee", "Coffee"]}>
+
+```js
+async function withAwait() {
+  const res = await fetch("/api/cart");
+  const cart = await res.json();
+  return cart[0].name;
+}
+
+function withThen() {
+  return fetch("/api/cart")
+    .then((res) => res.json())
+    .then((cart) => cart[0].name);
+}
+
+console.log(await withAwait());
+console.log(await withThen());
+```
+
+</Playground>
+
+A `throw` inside an async function becomes a rejected promise, and a rejected promise becomes a `throw` at the `await`. That's why `try`/`catch` works with `await`.
+
+</GoDeeper>
+
+<Practice>
+
+<Predict
+  id="predict-async-order"
+  answer={["function", "sync done", "qty: 2"]}
+  explain={"An async function returns a promise, which has a `.then` method. The `.then` callback waits for the current code to finish, so \"sync done\" comes first."}
+>
+
+```js
+async function getQty() {
+  return 2;
+}
+
+const p = getQty();
+console.log(typeof p.then);
+p.then((qty) => console.log("qty:", qty));
+console.log("sync done");
+```
+
+</Predict>
+
+<SpotTheBug
+  id="bug-missing-await"
+  bug={2}
+  prompt="This crashes with `res.json is not a function`. Click the buggy line."
+  explain="Without `await`, `res` is a promise, not the response, and promises have no `.json()`."
+>
+
+```js
+async function loadProducts() {
+  const res = fetch("/api/products");
+  const data = await res.json();
+  return data;
+}
+```
+
+```js fixed
+async function loadProducts() {
+  const res = await fetch("/api/products");
+  const data = await res.json();
+  return data;
+}
+```
+
+</SpotTheBug>
+
+<FillBlanks
+  id="blanks-load-user"
+  prompt="Fill in the blanks to load the user safely."
+  explain="The function must be `async` to use `await`, and `res.ok` is false for HTTP errors like 404."
+>
+
+```js
+__[async]__ function loadUser() {
+  const res = __[await]__ fetch("/api/user");
+  if (!res.__[ok]__) throw new Error("HTTP " + res.status);
+  return res.json();
+}
+
+console.log((await loadUser()).name);
+```
+
+</FillBlanks>
+
+<TrueFalse
+  id="tf-async"
+  statements={[
+    { text: "`fetch` rejects (throws) when the server answers 404.", answer: false, explain: "It only rejects on network errors; check `res.ok` for HTTP errors." },
+    { text: "An async function always returns a promise.", answer: true, explain: "Even `return 5` becomes a promise that resolves to 5." },
+    { text: "`Promise.all` runs the promises one after the other.", answer: false, explain: "They all run at the same time; `Promise.all` waits for every one of them." },
+    { text: "You can catch errors from `await` with `try`/`catch`.", answer: true, explain: "A rejected promise throws at the `await`." },
+  ]}
+/>
+
+</Practice>
+
 <Exercise
   id="get-json"
   title="A safe getJson() helper"

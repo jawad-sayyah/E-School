@@ -179,6 +179,88 @@ This is the problem React solves: you change the data once, and React updates ev
 </Callout>
 </Concept>
 
+<GoDeeper title="Event bubbling and delegation">
+
+When you click a button, the click event first fires on the button, then **bubbles up** to its parent, its parent's parent, and so on up to the document. That means one listener on a list can handle clicks on every item inside it, even items added later. This is called **event delegation**:
+
+<Playground file="delegation.js" browserOnly expected={["~ After clicking the “Remove” button of item 2:", "Remove item 2"]}>
+
+```js
+const list = document.querySelector("#cart");
+
+list.addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-id]");
+  if (!button) return;               // the click wasn't on a button
+  console.log("Remove item", button.dataset.id);
+});
+```
+
+</Playground>
+
+`event.target` is the element that was actually clicked; `event.currentTarget` is the element the listener is on. React uses delegation internally: it attaches one listener at the root for every event type.
+
+</GoDeeper>
+
+<Practice>
+
+<MatchPairs
+  id="match-dom"
+  prompt="Match each DOM tool with its job."
+  columns={["Tool", "Job"]}
+  pairs={[
+    ["`querySelector()`", "Find the first element matching a CSS selector"],
+    ["`textContent`", "Read or set an element's text"],
+    ["`addEventListener()`", "Run a function when something happens"],
+    ["`preventDefault()`", "Stop the browser's built-in action"],
+    ["`classList.toggle()`", "Add a class if it's missing, remove it if it's there"],
+    ["`createElement()`", "Build a new element in JavaScript"],
+  ]}
+/>
+
+<SpotTheBug
+  id="bug-input-string"
+  bug={4}
+  prompt="The user types 2 and clicks Add, and the console shows 21. Click the buggy line."
+  explain="`input.value` is always a string, so `+ 1` joins text. Convert first: `Number(input.value) + 1`."
+>
+
+```js
+const input = document.querySelector("#qty");
+const button = document.querySelector("#add");
+button.addEventListener("click", () => {
+  const qty = input.value + 1;
+  console.log(qty);
+});
+```
+
+</SpotTheBug>
+
+<OrderLines
+  id="order-submit"
+  prompt="Order the lines to save a form without reloading the page."
+  explain="Find the form, listen for submit, and call `preventDefault()` first, before doing the work."
+>
+
+```js
+const form = document.querySelector("form");
+form.addEventListener("submit", (event) => {
+  event.preventDefault();
+  console.log("Saved");
+});
+```
+
+</OrderLines>
+
+<Choice
+  id="choice-safe-text"
+  q="A product review comes from a user. Which line shows it safely?"
+  options={["`el.innerHTML = review`", "`el.textContent = review`", "`document.write(review)`", "`el.outerHTML = review`"]}
+  answer={1}
+  explain="`textContent` always treats the value as plain text. The others parse it as HTML, so a review containing a script tag could run code on your page."
+/>
+
+</Practice>
+
 <Exercise
   id="cart-html"
   title="Render the cart as HTML"

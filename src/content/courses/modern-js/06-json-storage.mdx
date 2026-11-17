@@ -137,6 +137,75 @@ console.log(localStorage.getItem("cart"), localStorage.length);
 </Playground>
 </Concept>
 
+<GoDeeper title="Storage limits and when not to use localStorage">
+
+`localStorage` is simple, but it has limits worth knowing:
+
+- **About 5 MB per site**, and only strings. `setItem` throws when it's full, so wrap it in `try`/`catch`.
+- **It's synchronous**: big reads and writes block the page. Keep it small.
+- **Every script on the page can read it**, so never store passwords or tokens there.
+- It can be **unavailable** (some private modes, blocked cookies), so your app must still work without it.
+
+For bigger or structured data the browser has IndexedDB; for anything private, keep it on the server. This site saves your progress in `localStorage` with all of these protections.
+
+</GoDeeper>
+
+<Practice>
+
+<Predict
+  id="predict-storage"
+  answer={["string", "2", "empty"]}
+  explain="Storage always gives back text. After `JSON.parse` you have real objects again, so `qty + 1` is 2. A missing key gives `null`, and `??` replaces it."
+>
+
+```js
+const cart = [{ name: "Tea", qty: 1 }];
+localStorage.setItem("cart", JSON.stringify(cart));
+
+const raw = localStorage.getItem("cart");
+console.log(typeof raw);
+console.log(JSON.parse(raw)[0].qty + 1);
+console.log(localStorage.getItem("nope") ?? "empty");
+```
+
+</Predict>
+
+<FillBlanks
+  id="blanks-json"
+  prompt="Fill in the blanks to save the cart and load it back."
+  explain="`stringify` turns the array into text for storage, and `parse` turns the text back into an array."
+>
+
+```js
+const cart = [{ name: "Coffee" }];
+localStorage.setItem("cart", JSON.__[stringify]__(cart));
+
+const saved = JSON.__[parse]__(localStorage.getItem("cart"));
+console.log(saved[0].name);
+```
+
+</FillBlanks>
+
+<SortBuckets
+  id="buckets-json"
+  prompt="Sort each value: does it survive a trip through JSON unchanged?"
+  buckets={["Survives unchanged", "Lost or changed"]}
+  items={[
+    ["`\"Coffee\"`", 0],
+    ["`42`", 0],
+    ["`true`", 0],
+    ["`null`", 0],
+    ["`[1, 2]`", 0],
+    ["`undefined`", 1],
+    ["`() => 1`", 1],
+    ["`new Date()`", 1],
+    ["`NaN`", 1],
+  ]}
+  explain="JSON only has strings, numbers, booleans, null, arrays and objects. `undefined` and functions are dropped, dates become strings, and `NaN` becomes `null`."
+/>
+
+</Practice>
+
 <Exercise
   id="save-load-cart"
   title="Save and load the cart"
