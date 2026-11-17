@@ -1,5 +1,5 @@
 import { LIMITS, type Limits } from './limits';
-import { buildWorkerSource, type FetchMocks } from './prelude';
+import { buildWorkerSource, joinWithTests, type FetchMocks } from './prelude';
 import type { TestResultMessage, TestsDoneMessage } from './testApi';
 import { createBlobWorker } from './workerFactory';
 
@@ -156,7 +156,11 @@ export function runCode(code: string, options: RunOptions = {}): () => void {
   };
 
   const syntaxError =
-    findSyntaxError(code) ?? (testMode ? findSyntaxError(options.tests ?? '') : null);
+    findSyntaxError(code) ??
+    (testMode
+      ? (findSyntaxError(options.tests ?? '') ??
+        findSyntaxError(joinWithTests(code, options.tests ?? '')))
+      : null);
   if (syntaxError) {
     // Report asynchronously, so callers can store the cancel function first.
     queueMicrotask(() => {

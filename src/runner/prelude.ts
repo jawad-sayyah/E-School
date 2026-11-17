@@ -29,6 +29,15 @@ export const DEFAULT_FETCH_MOCKS: FetchMocks = {
   'POST /api/orders': { status: 201, body: { id: 1001, status: 'received' } },
 };
 
+/**
+ * The student's code followed by the tests in their own { } block: tests can call the
+ * student's functions, and test helpers (e.g. `const cart`) shadow the student's
+ * names instead of clashing with them.
+ */
+export function joinWithTests(code: string, tests: string): string {
+  return `${code}\n;\n{\n${tests}\n}`;
+}
+
 export interface SourceOptions {
   limits: Limits;
   fetchMocks?: FetchMocks;
@@ -196,8 +205,8 @@ ${
   // No "use strict": the student's code runs like a classic <script>.
   return `${prelude}
 (async function () {
-${code}
-${testMode ? `;\n${options.tests}\n` : ''}})()
+${testMode ? joinWithTests(code, options.tests ?? '') : code}
+})()
   .then(${onSuccess}, ${onFailure})
   .catch(__report)
   .finally(() => {

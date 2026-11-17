@@ -114,3 +114,12 @@ describe('mini test API (Vitest-shaped)', () => {
     expect(check.passed).toBe(true);
   });
 });
+
+describe('test scoping', () => {
+  test('test helpers can reuse names from the student code', async () => {
+    const code = 'const cart = [1];\nfunction size(c) { return c.length; }';
+    const tests = 'const cart = [1, 2, 3];\ntest("size", () => expect(size(cart)).toBe(3));';
+    const check = await checkExercise(code, tests, options);
+    expect(check.passed).toBe(true);
+  });
+});

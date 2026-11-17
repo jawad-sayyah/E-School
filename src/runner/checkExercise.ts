@@ -34,7 +34,8 @@ export async function checkExercise(
   else if (run.status === 'unavailable') problem = 'Tests can’t run in this browser.';
   else if (summary?.crashed)
     problem = `Your code crashed before the tests ran: ${firstError ?? 'unknown error'}`;
-  else if (!summary) problem = 'The tests didn’t finish.';
+  else if (!summary)
+    problem = firstError ? `The tests couldn’t run: ${firstError}` : 'The tests didn’t finish.';
 
   return {
     passed: !problem && counts.failed === 0 && counts.passed > 0,
