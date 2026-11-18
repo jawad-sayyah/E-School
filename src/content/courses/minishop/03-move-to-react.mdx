@@ -1,0 +1,464 @@
+---
+id: move-to-react
+title: "Step 3: Move to React"
+summary: Rebuild MiniShop's page as React components. A ProductList and a Cart get their data through props, and you write your first tests for them.
+minutes: 30
+tags: [MiniShop, project, React, components, props, JSX, lists, keys, Testing Library]
+---
+
+Time to leave `innerHTML` behind. In React you don't update the page, you **describe** it: a component is a function that takes data (props) and returns what the page should look like. When the data changes, React works out what to change in the DOM.
+
+This step splits the shop into two components:
+
+- **`ProductList`** gets the `products` and an `onAdd` function, and shows a list with an **Add** button per product.
+- **`Cart`** gets the cart `items`, and shows the lines and the total.
+
+The helpers in `cartUtils.js` come along unchanged: `formatPrice`, `cartTotal`, `cartCount` and `addToCart` are plain functions, and plain functions work the same in React. (`renderCart` built HTML strings; React doesn't need it any more, so nothing calls it.)
+
+<ProjectStep
+  id="move-to-react"
+  title="Write ProductList and Cart"
+  goal="The same shop, now made of two React components that get everything they show through props."
+  practice={[
+    ["Components and JSX", "/courses/react/components-jsx"],
+    ["Props", "/courses/react/props"],
+    ["Lists and keys", "/courses/react/lists-keys"],
+    ["Conditional rendering", "/courses/react/conditional"],
+  ]}
+  tasks={[
+    "In `ProductList.js`, render a heading **Products** and a `<ul>` with one `<li>` per product: name, price (with `formatPrice`) and an **Add** button.",
+    "Give every button ``aria-label={`Add ${product.name}`}`` and make it call `onAdd(product)`.",
+    "Use `product.id` as the `key` of each `<li>`.",
+    "In `Cart.js`, show a heading **Your cart**, one line per item like `Coffee beans × 2: $24.00`, or **Your cart is empty.** when there are no items.",
+    "Under the lines, show **Total: $32.00** using `cartTotal`.",
+  ]}
+  hints={[
+    "`{products.map((product) => (<li key={product.id}>…</li>))}` inside a `<ul>`. The button: ``<button aria-label={`Add ${product.name}`} onClick={() => onAdd(product)}>Add</button>``.",
+    "Choose between two things with a ternary: `{items.length === 0 ? <p>Your cart is empty.</p> : <ul>…</ul>}`.",
+    "Wrap each cart line's text in a `<span>`: `<span>{item.name} × {item.qty}: {formatPrice(item.price * item.qty)}</span>`. The total goes in `<p>Total: {formatPrice(cartTotal(items))}</p>`.",
+  ]}
+  explain={[
+    "Components get everything through props: `ProductList` doesn't know where products come from, and `Cart` doesn't know how items get added. That makes them easy to reuse and to test.",
+    "`onClick={() => onAdd(product)}` passes a function. Writing `onClick={onAdd(product)}` would call it during render instead.",
+    "The total is computed during render, so it can never disagree with the lines. There's no `update()` to forget any more.",
+  ]}
+>
+
+`App.js` already renders both components with a hard-coded cart. Build `ProductList` and `Cart` so the page shows the products and the cart again. (The Add buttons only log for now: real state is the next step.)
+
+```js starter file=/cartUtils.js
+export function formatPrice(amount) {
+  return "$" + amount.toFixed(2);
+}
+
+export function cartTotal(items) {
+  return items.reduce((sum, item) => sum + item.price * item.qty, 0);
+}
+
+export function cartCount(items) {
+  return items.reduce((sum, item) => sum + item.qty, 0);
+}
+
+export function addToCart(items, product) {
+  const existing = items.find((item) => item.id === product.id);
+  if (existing) {
+    return items.map((item) => (item.id === product.id ? { ...item, qty: item.qty + 1 } : item));
+  }
+  return [...items, { ...product, qty: 1 }];
+}
+
+export function renderCart(items) {
+  if (items.length === 0) return "<li>Your cart is empty.</li>";
+  return items
+    .map((item) => `<li>${item.name} × ${item.qty}: ${formatPrice(item.price * item.qty)}</li>`)
+    .join("");
+}
+```
+
+```js starter file=/products.js
+export const products = [
+  { id: 1, name: "Coffee beans", price: 12 },
+  { id: 2, name: "Green tea", price: 8 },
+  { id: 3, name: "Travel mug", price: 15 },
+];
+```
+
+```jsx starter file=/App.js
+import { products } from "./products";
+import ProductList from "./ProductList";
+import Cart from "./Cart";
+
+const cart = [
+  { id: 1, name: "Coffee beans", price: 12, qty: 2 },
+  { id: 2, name: "Green tea", price: 8, qty: 1 },
+];
+
+export default function App() {
+  return (
+    <main>
+      <h1>MiniShop</h1>
+      <ProductList products={products} onAdd={(product) => console.log("Add", product.name)} />
+      <Cart items={cart} />
+    </main>
+  );
+}
+```
+
+```jsx starter file=/ProductList.js
+import { formatPrice } from "./cartUtils";
+
+export default function ProductList({ products, onAdd }) {
+  // TODO: one <li> per product with its name, its price and an Add button
+  return <h2>Products</h2>;
+}
+```
+
+```jsx starter file=/Cart.js
+import { cartTotal, formatPrice } from "./cartUtils";
+
+export default function Cart({ items }) {
+  // TODO: one line per item (or "Your cart is empty."), then the total
+  return <h2>Your cart</h2>;
+}
+```
+
+```jsx tests file=/App.test.js
+import { fireEvent, render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import { vi } from "vitest";
+import App from "./App";
+import Cart from "./Cart";
+import ProductList from "./ProductList";
+import { products } from "./products";
+
+const items = [
+  { id: 1, name: "Coffee beans", price: 12, qty: 2 },
+  { id: 2, name: "Green tea", price: 8, qty: 1 },
+];
+
+test("ProductList shows every product with its price", () => {
+  render(<ProductList products={products} onAdd={vi.fn()} />);
+  expect(screen.getByRole("heading", { name: "Products" })).toBeInTheDocument();
+  expect(screen.getAllByRole("listitem")).toHaveLength(3);
+  expect(screen.getByText(/Travel mug/)).toHaveTextContent("Travel mug $15.00");
+});
+
+test("each Add button calls onAdd with its product", () => {
+  const onAdd = vi.fn();
+  render(<ProductList products={products} onAdd={onAdd} />);
+  fireEvent.click(screen.getByRole("button", { name: "Add Green tea" }));
+  expect(onAdd).toHaveBeenCalledWith(products[1]);
+});
+
+test("Cart shows one line per item and the total", () => {
+  render(<Cart items={items} />);
+  expect(screen.getByText("Coffee beans × 2: $24.00")).toBeInTheDocument();
+  expect(screen.getByText("Green tea × 1: $8.00")).toBeInTheDocument();
+  expect(screen.getByText("Total: $32.00")).toBeInTheDocument();
+});
+
+test("an empty Cart says so", () => {
+  render(<Cart items={[]} />);
+  expect(screen.getByText("Your cart is empty.")).toBeInTheDocument();
+  expect(screen.getByText("Total: $0.00")).toBeInTheDocument();
+});
+
+test("App shows both parts", () => {
+  render(<App />);
+  expect(screen.getByRole("heading", { name: "Products" })).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "Your cart" })).toBeInTheDocument();
+});
+```
+
+```jsx solution file=/ProductList.js
+import { formatPrice } from "./cartUtils";
+
+export default function ProductList({ products, onAdd }) {
+  return (
+    <section>
+      <h2>Products</h2>
+      <ul>
+        {products.map((product) => (
+          <li key={product.id}>
+            {product.name} {formatPrice(product.price)}{" "}
+            <button aria-label={`Add ${product.name}`} onClick={() => onAdd(product)}>
+              Add
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+```
+
+```jsx solution file=/Cart.js
+import { cartTotal, formatPrice } from "./cartUtils";
+
+export default function Cart({ items }) {
+  return (
+    <section>
+      <h2>Your cart</h2>
+      {items.length === 0 ? (
+        <p>Your cart is empty.</p>
+      ) : (
+        <ul>
+          {items.map((item) => (
+            <li key={item.id}>
+              <span>
+                {item.name} × {item.qty}: {formatPrice(item.price * item.qty)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p>Total: {formatPrice(cartTotal(items))}</p>
+    </section>
+  );
+}
+```
+
+</ProjectStep>
+
+<HowItWorks title="What React does with your JSX">
+
+`<Cart items={cart} />` doesn't create DOM nodes. It creates a small object, `{ type: Cart, props: { items: cart } }`. React calls `Cart(props)`, gets more of these objects back (a `section`, an `h2`, a `ul`…), and builds the real DOM from the whole tree once.
+
+On later renders React builds the new tree, compares it with the previous one, and changes only the DOM nodes that differ. That's why `key` matters in lists: it tells React which `<li>` is which item, so adding an item to the top doesn't make it rewrite every line.
+
+And text is always **escaped**: a product called `<img onerror=…>` shows up as that text, not as an image tag, unlike `innerHTML`.
+
+</HowItWorks>
+
+<Practice>
+
+<SpotTheBug
+  id="bug-onclick-call"
+  bug={6}
+  prompt="Opening the page logs 'Add' three times, and clicking does nothing. Click the line with the bug."
+  explain="`onClick={onAdd(product)}` calls `onAdd` while rendering and passes its return value (undefined) as the handler. Pass a function instead: `onClick={() => onAdd(product)}`."
+>
+
+```jsx
+function ProductList({ products, onAdd }) {
+  return (
+    <ul>
+      {products.map((product) => (
+        <li key={product.id}>
+          {product.name} <button onClick={onAdd(product)}>Add</button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+```
+
+</SpotTheBug>
+
+<MatchPairs
+  id="match-vanilla-react"
+  prompt="Match each vanilla-JS habit from steps 1 and 2 with what replaces it in React."
+  columns={["Vanilla JS", "React"]}
+  pairs={[
+    ["`items.map(...).join(\"\")` into `innerHTML`", "`{items.map((item) => <li key={item.id}>…</li>)}` in JSX"],
+    ["`addEventListener(\"click\", …)` on the list", "`onClick={() => onAdd(product)}` on each button"],
+    ["An `update()` that rewrites every part", "React re-renders the components when data changes"],
+    ["Escaping product names yourself", "JSX escapes text automatically"],
+  ]}
+/>
+
+</Practice>
+
+<ReactTestExercise
+  id="test-cart"
+  title="Test it: the Cart component"
+  hints={[
+    "Use an item with `qty: 2`, so a test can tell a line total ($24.00) from a unit price ($12.00).",
+    "Check the total with `screen.getByText(\"Total: $32.00\")`, for a cart where quantities matter.",
+    "Render `<Cart items={[]} />` and look for **Your cart is empty.**",
+  ]}
+>
+
+Write tests for `Cart`: each line shows `name × qty: line total`, the total adds up `price × qty`, and an empty cart says **Your cart is empty.** Your tests must pass on this `Cart` and fail on each hidden buggy version.
+
+```jsx code file=/Cart.js
+import { cartTotal, formatPrice } from "./cartUtils";
+
+export default function Cart({ items }) {
+  return (
+    <section>
+      <h2>Your cart</h2>
+      {items.length === 0 ? (
+        <p>Your cart is empty.</p>
+      ) : (
+        <ul>
+          {items.map((item) => (
+            <li key={item.id}>
+              <span>
+                {item.name} × {item.qty}: {formatPrice(item.price * item.qty)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p>Total: {formatPrice(cartTotal(items))}</p>
+    </section>
+  );
+}
+```
+
+```js code file=/cartUtils.js
+export function formatPrice(amount) {
+  return "$" + amount.toFixed(2);
+}
+
+export function cartTotal(items) {
+  return items.reduce((sum, item) => sum + item.price * item.qty, 0);
+}
+```
+
+```jsx starter file=/Cart.test.js
+import { render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import { expect, test } from "vitest";
+import Cart from "./Cart";
+
+test("shows the heading", () => {
+  render(<Cart items={[]} />);
+  expect(screen.getByRole("heading", { name: "Your cart" })).toBeInTheDocument();
+});
+```
+
+```jsx bug file=/Cart.js title="The total ignores quantities" hint="Use an item with qty 2 and check the total."
+import { formatPrice } from "./cartUtils";
+
+export default function Cart({ items }) {
+  const total = items.reduce((sum, item) => sum + item.price, 0);
+  return (
+    <section>
+      <h2>Your cart</h2>
+      {items.length === 0 ? (
+        <p>Your cart is empty.</p>
+      ) : (
+        <ul>
+          {items.map((item) => (
+            <li key={item.id}>
+              <span>
+                {item.name} × {item.qty}: {formatPrice(item.price * item.qty)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p>Total: {formatPrice(total)}</p>
+    </section>
+  );
+}
+```
+
+```jsx bug file=/Cart.js title="Lines show the unit price" hint="Check a whole line's text for an item with qty above 1."
+import { cartTotal, formatPrice } from "./cartUtils";
+
+export default function Cart({ items }) {
+  return (
+    <section>
+      <h2>Your cart</h2>
+      {items.length === 0 ? (
+        <p>Your cart is empty.</p>
+      ) : (
+        <ul>
+          {items.map((item) => (
+            <li key={item.id}>
+              <span>
+                {item.name} × {item.qty}: {formatPrice(item.price)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p>Total: {formatPrice(cartTotal(items))}</p>
+    </section>
+  );
+}
+```
+
+```jsx bug file=/Cart.js title="No empty-cart message" hint="Render an empty cart. What should it say?"
+import { cartTotal, formatPrice } from "./cartUtils";
+
+export default function Cart({ items }) {
+  return (
+    <section>
+      <h2>Your cart</h2>
+      <ul>
+        {items.map((item) => (
+          <li key={item.id}>
+            <span>
+              {item.name} × {item.qty}: {formatPrice(item.price * item.qty)}
+            </span>
+          </li>
+        ))}
+      </ul>
+      <p>Total: {formatPrice(cartTotal(items))}</p>
+    </section>
+  );
+}
+```
+
+```jsx solution file=/Cart.test.js
+import { render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import { expect, test } from "vitest";
+import Cart from "./Cart";
+
+const items = [
+  { id: 1, name: "Coffee beans", price: 12, qty: 2 },
+  { id: 2, name: "Green tea", price: 8, qty: 1 },
+];
+
+test("shows the heading", () => {
+  render(<Cart items={[]} />);
+  expect(screen.getByRole("heading", { name: "Your cart" })).toBeInTheDocument();
+});
+
+test("each line shows the name, the qty and the line total", () => {
+  render(<Cart items={items} />);
+  expect(screen.getByText("Coffee beans × 2: $24.00")).toBeInTheDocument();
+  expect(screen.getByText("Green tea × 1: $8.00")).toBeInTheDocument();
+});
+
+test("the total multiplies by the quantity", () => {
+  render(<Cart items={items} />);
+  expect(screen.getByText("Total: $32.00")).toBeInTheDocument();
+});
+
+test("an empty cart says so", () => {
+  render(<Cart items={[]} />);
+  expect(screen.getByText("Your cart is empty.")).toBeInTheDocument();
+  expect(screen.getByText("Total: $0.00")).toBeInTheDocument();
+});
+```
+
+</ReactTestExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "Where should the cart's total live?",
+      options: ["In its own variable that you update after every change", "Nowhere: compute it from the items during render", "In a global", "In the DOM"],
+      answer: 1,
+      explain: "Derived data is computed. It can't get out of sync with the items.",
+    },
+    {
+      q: "Why does each `<li>` need a `key`?",
+      options: ["For CSS", "So React can tell which item is which between renders", "Keys make the list sorted", "Only for accessibility"],
+      answer: 1,
+      explain: "With stable keys (like `product.id`), React matches old and new items correctly.",
+    },
+    {
+      q: "`ProductList` gets `onAdd` as a prop. Who decides what adding does?",
+      options: ["`ProductList`", "The parent that renders it (here, `App`)", "React", "The button"],
+      answer: 1,
+      explain: "The child reports the event; the parent owns the data and decides what to do. That's what makes `ProductList` reusable.",
+    },
+  ]}
+/>

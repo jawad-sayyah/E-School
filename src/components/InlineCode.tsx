@@ -1,4 +1,5 @@
-import type { ComponentProps } from 'react';
+import type { ComponentProps, ReactNode } from 'react';
+import { inlineParts } from '@/lib/inline';
 import { cn } from '@/lib/utils';
 
 export function InlineCode({ className, ...props }: ComponentProps<'code'>) {
@@ -13,16 +14,19 @@ export function InlineCode({ className, ...props }: ComponentProps<'code'>) {
   );
 }
 
-/** Renders a plain string, turning `backtick` parts into inline code (for quiz text). */
-export function TextWithCode({ text }: { text: string }) {
-  const parts = text.split(/(`[^`]+`)/g);
+/** Renders a plain string with inline code and bold (see `inlineParts`). */
+export function TextWithCode({ text }: { text: string }): ReactNode {
   return (
     <>
-      {parts.map((part, i) =>
-        part.startsWith('`') && part.endsWith('`') && part.length > 1 ? (
-          <InlineCode key={i}>{part.slice(1, -1)}</InlineCode>
+      {inlineParts(text).map((part, i) =>
+        part.kind === 'code' ? (
+          <InlineCode key={i}>{part.value}</InlineCode>
+        ) : part.kind === 'bold' ? (
+          <strong key={i} className="font-semibold text-foreground">
+            <TextWithCode text={part.value} />
+          </strong>
         ) : (
-          part
+          part.value
         ),
       )}
     </>

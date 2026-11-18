@@ -1,0 +1,1173 @@
+---
+id: routing
+title: "Step 10: Pages with React Router"
+summary: Turn MiniShop into a multi-page site with React Router - a home page, the product list, a page per product, the cart page and a 404 - all sharing one layout.
+minutes: 45
+tags: [MiniShop, project, React Router, routes, layout, Outlet, Link, NavLink, useParams, 404, createMemoryRouter]
+---
+
+A real shop has **pages**: a home page, a list, one page per product (so you can share a link to it), and a cart. With React Router, each URL maps to a component, and links change the URL without reloading the page. The cart survives page changes because `CartProvider` sits **above** the router.
+
+The new structure:
+
+| URL | Shows |
+| --- | --- |
+| `/` | `HomePage` |
+| `/products` | `ProductList`, each name linking to its page |
+| `/products/:id` | `ProductPage` for that id (or the 404 page for an unknown id) |
+| `/cart` | `Cart` |
+| anything else | `NotFoundPage` |
+
+All of them render inside `Layout`, which shows the `Header` (now with navigation links) and an `<Outlet />` where the current page goes.
+
+<ProjectStep
+  id="routing"
+  title="Add routes, links and the product page"
+  goal="Every URL shows the right page inside a shared layout; product names link to their own page, and unknown URLs show a 404."
+  practice={[
+    ["React Router", "/courses/react-ecosystem/react-router"],
+    ["Composition and children", "/courses/react/composition"],
+    ["Conditional rendering", "/courses/react/conditional"],
+  ]}
+  tasks={[
+    "In `routes.tsx`, add the child routes `products`, `products/:id`, `cart` and a catch-all `*` that shows `NotFoundPage`.",
+    "In `App.tsx`, create the router once with `useState(() => createBrowserRouter(routes))` and render `<RouterProvider router={router} />` inside the providers.",
+    "In `Header.tsx`, link the logo to `/`, and add `NavLink`s to **Products** and to the cart (keep the badge inside the cart link).",
+    "In `ProductList.tsx`, make the heading an `<h1>` and each product's name a `<Link>` to `/products/:id`. In `Cart.tsx`, make **Your cart** an `<h1>`.",
+    "Write `ProductPage`: read `id` with `useParams()`, find the product, show its name, price and an **Add to cart** button, or `NotFoundPage` when there's no such product.",
+  ]}
+  hints={[
+    "Routes are objects: `{ path: \"products/:id\", element: <ProductPage /> }`, and the catch-all is `{ path: \"*\", element: <NotFoundPage /> }`.",
+    "URL params are always strings: `products.find((p) => p.id === Number(id))`. Handle `status === \"pending\"` and `\"error\"` first, like `ProductList` does.",
+    "In `Header`: ``<NavLink to=\"/cart\">Cart <span aria-label={`Cart: ${count} items`}>🛒 {count}</span></NavLink>``. In `ProductList`: ``<Link to={`/products/${product.id}`}>{product.name}</Link>``.",
+  ]}
+  explain={[
+    "`CartProvider` wraps `RouterProvider`, so every page shares one cart, and moving between pages never resets it.",
+    "Child routes render in the parent's `<Outlet />`: the header is rendered once, in `Layout`, for every page.",
+    "`useParams()` gives strings, so `Number(id)` before comparing with the numeric `product.id`. An id that doesn't exist falls through to `NotFoundPage`.",
+  ]}
+>
+
+The pages are ready except `ProductPage`, and `routes.tsx` only knows the home page. Wire everything up.
+
+```tsx starter file=/routes.tsx
+import type { RouteObject } from "react-router";
+import Layout from "./Layout";
+import HomePage from "./pages/HomePage";
+import ProductPage from "./pages/ProductPage";
+import NotFoundPage from "./pages/NotFoundPage";
+import ProductList from "./ProductList";
+import Cart from "./Cart";
+
+export const routes: RouteObject[] = [
+  {
+    path: "/",
+    element: <Layout />,
+    children: [
+      { index: true, element: <HomePage /> },
+      // TODO: products, products/:id, cart, and a catch-all for the 404 page
+    ],
+  },
+];
+```
+
+```tsx starter file=/Layout.tsx
+import { Outlet } from "react-router";
+import Header from "./Header";
+
+export default function Layout() {
+  return (
+    <>
+      <Header />
+      <main>
+        <Outlet />
+      </main>
+    </>
+  );
+}
+```
+
+```tsx starter file=/pages/HomePage.tsx
+import { Link } from "react-router";
+
+export default function HomePage() {
+  return (
+    <section>
+      <h1>Welcome to MiniShop</h1>
+      <p>Fresh coffee, good tea, and a mug to drink them from.</p>
+      <Link to="/products">Browse the products</Link>
+    </section>
+  );
+}
+```
+
+```tsx starter file=/pages/NotFoundPage.tsx
+import { Link } from "react-router";
+
+export default function NotFoundPage() {
+  return (
+    <section>
+      <h1>Page not found</h1>
+      <p>There's nothing here. Maybe the link is old?</p>
+      <Link to="/">Back to the shop</Link>
+    </section>
+  );
+}
+```
+
+```tsx starter file=/pages/ProductPage.tsx
+import { Link, useParams } from "react-router";
+import { useCart } from "../CartContext";
+import { formatPrice } from "../cartUtils";
+import { useProducts } from "../useProducts";
+import NotFoundPage from "./NotFoundPage";
+
+export default function ProductPage() {
+  // TODO: read :id from the URL, find the product, and show it (or the 404 page)
+  return <h1>Product</h1>;
+}
+```
+
+```ts starter file=/types.ts
+export interface Product {
+  id: number;
+  name: string;
+  price: number;
+}
+
+export interface CartItem extends Product {
+  qty: number;
+}
+
+export type CartAction =
+  | { type: "add"; product: Product }
+  | { type: "remove"; id: number }
+  | { type: "setQty"; id: number; qty: number }
+  | { type: "clear" };
+```
+
+```ts starter file=/products.ts
+import type { Product } from "./types";
+
+export const products: Product[] = [
+  { id: 1, name: "Coffee beans", price: 12 },
+  { id: 2, name: "Green tea", price: 8 },
+  { id: 3, name: "Travel mug", price: 15 },
+];
+```
+
+```ts starter file=/cartUtils.ts
+import type { CartItem, Product } from "./types";
+
+export function formatPrice(amount: number): string {
+  return "$" + amount.toFixed(2);
+}
+
+export function cartTotal(items: CartItem[]): number {
+  return items.reduce((sum, item) => sum + item.price * item.qty, 0);
+}
+
+export function cartCount(items: CartItem[]): number {
+  return items.reduce((sum, item) => sum + item.qty, 0);
+}
+
+export function addToCart(items: CartItem[], product: Product): CartItem[] {
+  const existing = items.find((item) => item.id === product.id);
+  if (existing) {
+    return items.map((item) => (item.id === product.id ? { ...item, qty: item.qty + 1 } : item));
+  }
+  return [...items, { ...product, qty: 1 }];
+}
+```
+
+```ts starter file=/cartReducer.ts
+import { addToCart } from "./cartUtils";
+import type { CartAction, CartItem } from "./types";
+
+export function cartReducer(items: CartItem[], action: CartAction): CartItem[] {
+  switch (action.type) {
+    case "add":
+      return addToCart(items, action.product);
+    case "remove":
+      return items.filter((item) => item.id !== action.id);
+    case "setQty":
+      if (action.qty < 1) return items.filter((item) => item.id !== action.id);
+      return items.map((item) => (item.id === action.id ? { ...item, qty: action.qty } : item));
+    case "clear":
+      return [];
+    default: {
+      const unhandled: never = action;
+      throw new Error(`Unknown action: ${JSON.stringify(unhandled)}`);
+    }
+  }
+}
+```
+
+```ts starter file=/storage.ts
+import type { CartItem } from "./types";
+
+const KEY = "minishop-cart";
+
+export function loadCart(): CartItem[] {
+  try {
+    const saved: unknown = JSON.parse(localStorage.getItem(KEY) ?? "null");
+    return Array.isArray(saved) ? (saved as CartItem[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveCart(items: CartItem[]): void {
+  try {
+    localStorage.setItem(KEY, JSON.stringify(items));
+  } catch {
+    // Storage is full or blocked (private mode): the cart still works, it just isn't saved.
+  }
+}
+```
+
+```ts starter file=/api.ts
+import { products } from "./products";
+import type { Product } from "./types";
+
+// A pretend server: it answers after a short delay, like a real network request.
+export const api = {
+  fetchProducts(): Promise<Product[]> {
+    return new Promise((resolve) => setTimeout(() => resolve(products), 600));
+  },
+};
+```
+
+```ts starter file=/useProducts.ts
+import { useQuery } from "@tanstack/react-query";
+import { api } from "./api";
+
+export function useProducts() {
+  return useQuery({ queryKey: ["products"], queryFn: () => api.fetchProducts() });
+}
+```
+
+```tsx starter file=/CartContext.tsx
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useReducer,
+  type Dispatch,
+  type ReactNode,
+} from "react";
+import { cartReducer } from "./cartReducer";
+import { cartCount, cartTotal } from "./cartUtils";
+import { loadCart, saveCart } from "./storage";
+import type { CartAction, CartItem, Product } from "./types";
+
+interface CartContextValue {
+  items: CartItem[];
+  dispatch: Dispatch<CartAction>;
+}
+
+const CartContext = createContext<CartContextValue | null>(null);
+
+export function CartProvider({ children }: { children: ReactNode }) {
+  const [items, dispatch] = useReducer(cartReducer, undefined, loadCart);
+
+  useEffect(() => {
+    saveCart(items);
+  }, [items]);
+
+  return <CartContext value={{ items, dispatch }}>{children}</CartContext>;
+}
+
+export function useCart() {
+  const context = useContext(CartContext);
+  if (!context) throw new Error("useCart must be used inside <CartProvider>");
+  const { items, dispatch } = context;
+  return {
+    items,
+    count: cartCount(items),
+    total: cartTotal(items),
+    add: (product: Product) => dispatch({ type: "add", product }),
+    remove: (id: number) => dispatch({ type: "remove", id }),
+    setQty: (id: number, qty: number) => dispatch({ type: "setQty", id, qty }),
+    clear: () => dispatch({ type: "clear" }),
+  };
+}
+```
+
+```tsx starter file=/Header.tsx
+import { useCart } from "./CartContext";
+
+export default function Header() {
+  const { count } = useCart();
+  return (
+    <header>
+      <strong>MiniShop</strong> <span aria-label={`Cart: ${count} items`}>🛒 {count}</span>
+    </header>
+  );
+}
+```
+
+```tsx starter file=/ProductList.tsx
+import { useCart } from "./CartContext";
+import { formatPrice } from "./cartUtils";
+import { useProducts } from "./useProducts";
+
+export default function ProductList() {
+  const { add } = useCart();
+  const { status, data: products, refetch } = useProducts();
+
+  return (
+    <section>
+      <h2>Products</h2>
+      {status === "pending" && <p role="status">Loading products…</p>}
+      {status === "error" && (
+        <p role="alert">
+          Couldn't load the products. <button onClick={() => refetch()}>Try again</button>
+        </p>
+      )}
+      {status === "success" && (
+        <ul>
+          {products.map((product) => (
+            <li key={product.id}>
+              {product.name} {formatPrice(product.price)}{" "}
+              <button aria-label={`Add ${product.name}`} onClick={() => add(product)}>
+                Add
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+```
+
+```tsx starter file=/Cart.tsx
+import { useCart } from "./CartContext";
+import { formatPrice } from "./cartUtils";
+
+export default function Cart() {
+  const { items, total, setQty, remove, clear } = useCart();
+
+  return (
+    <section>
+      <h2>Your cart</h2>
+      {items.length === 0 ? (
+        <p>Your cart is empty.</p>
+      ) : (
+        <ul>
+          {items.map((item) => (
+            <li key={item.id}>
+              <span>
+                {item.name} × {item.qty}: {formatPrice(item.price * item.qty)}
+              </span>{" "}
+              <button
+                aria-label={`Decrease ${item.name}`}
+                onClick={() => setQty(item.id, item.qty - 1)}
+              >
+                −
+              </button>
+              <button
+                aria-label={`Increase ${item.name}`}
+                onClick={() => setQty(item.id, item.qty + 1)}
+              >
+                +
+              </button>
+              <button aria-label={`Remove ${item.name}`} onClick={() => remove(item.id)}>
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p>Total: {formatPrice(total)}</p>
+      {items.length > 0 && <button onClick={clear}>Clear cart</button>}
+    </section>
+  );
+}
+```
+
+```tsx starter file=/App.tsx
+import { useState } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { CartProvider } from "./CartContext";
+import Header from "./Header";
+import ProductList from "./ProductList";
+import Cart from "./Cart";
+
+export default function App() {
+  const [queryClient] = useState(
+    () => new QueryClient({ defaultOptions: { queries: { retry: false } } }),
+  );
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <CartProvider>
+        <Header />
+        <main>
+          <h1>MiniShop</h1>
+          <ProductList />
+          <Cart />
+        </main>
+      </CartProvider>
+    </QueryClientProvider>
+  );
+}
+```
+
+```tsx tests file=/routing.test.tsx
+import { fireEvent, render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { createMemoryRouter, RouterProvider } from "react-router";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import { CartProvider } from "./CartContext";
+import { api } from "./api";
+import { products } from "./products";
+import { routes } from "./routes";
+
+function renderAt(path: string) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const router = createMemoryRouter(routes, { initialEntries: [path] });
+  render(
+    <QueryClientProvider client={client}>
+      <CartProvider>
+        <RouterProvider router={router} />
+      </CartProvider>
+    </QueryClientProvider>,
+  );
+  return router;
+}
+
+beforeEach(() => {
+  localStorage.clear();
+  vi.spyOn(api, "fetchProducts").mockResolvedValue(products);
+});
+afterEach(() => vi.restoreAllMocks());
+
+test("/ shows the home page inside the layout", () => {
+  renderAt("/");
+  expect(screen.getByRole("heading", { name: "Welcome to MiniShop" })).toBeInTheDocument();
+  expect(screen.getByLabelText("Cart: 0 items")).toBeInTheDocument();
+});
+
+test("/products links every product to its own page", async () => {
+  renderAt("/products");
+  expect(screen.getByRole("heading", { level: 1, name: "Products" })).toBeInTheDocument();
+  const link = await screen.findByRole("link", { name: "Green tea" });
+  expect(link).toHaveAttribute("href", "/products/2");
+});
+
+test("/products/2 shows Green tea, and Add to cart updates the badge", async () => {
+  renderAt("/products/2");
+  expect(await screen.findByRole("heading", { name: "Green tea" })).toBeInTheDocument();
+  expect(screen.getByText("$8.00")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Add to cart" }));
+  expect(screen.getByLabelText("Cart: 1 items")).toBeInTheDocument();
+});
+
+test("an unknown product id shows the 404 page", async () => {
+  renderAt("/products/999");
+  expect(await screen.findByRole("heading", { name: "Page not found" })).toBeInTheDocument();
+});
+
+test("an unknown URL shows the 404 page", () => {
+  renderAt("/no/such/page");
+  expect(screen.getByRole("heading", { name: "Page not found" })).toBeInTheDocument();
+});
+
+test("/cart shows the cart", () => {
+  renderAt("/cart");
+  expect(screen.getByRole("heading", { level: 1, name: "Your cart" })).toBeInTheDocument();
+});
+
+test("header links change the page, and the cart survives it", async () => {
+  const router = renderAt("/products/1");
+  fireEvent.click(await screen.findByRole("button", { name: "Add to cart" }));
+  fireEvent.click(screen.getByRole("link", { name: /^Cart/ }));
+  expect(router.state.location.pathname).toBe("/cart");
+  expect(screen.getByText("Coffee beans × 1: $12.00")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("link", { name: "Products" }));
+  expect(router.state.location.pathname).toBe("/products");
+});
+```
+
+```tsx solution file=/routes.tsx
+import type { RouteObject } from "react-router";
+import Layout from "./Layout";
+import HomePage from "./pages/HomePage";
+import ProductPage from "./pages/ProductPage";
+import NotFoundPage from "./pages/NotFoundPage";
+import ProductList from "./ProductList";
+import Cart from "./Cart";
+
+export const routes: RouteObject[] = [
+  {
+    path: "/",
+    element: <Layout />,
+    children: [
+      { index: true, element: <HomePage /> },
+      { path: "products", element: <ProductList /> },
+      { path: "products/:id", element: <ProductPage /> },
+      { path: "cart", element: <Cart /> },
+      { path: "*", element: <NotFoundPage /> },
+    ],
+  },
+];
+```
+
+```tsx solution file=/pages/ProductPage.tsx
+import { Link, useParams } from "react-router";
+import { useCart } from "../CartContext";
+import { formatPrice } from "../cartUtils";
+import { useProducts } from "../useProducts";
+import NotFoundPage from "./NotFoundPage";
+
+export default function ProductPage() {
+  const { id } = useParams();
+  const { add } = useCart();
+  const { status, data: products } = useProducts();
+
+  if (status === "pending") return <p role="status">Loading the product…</p>;
+  if (status === "error") return <p role="alert">Couldn't load the product.</p>;
+
+  const product = products.find((p) => p.id === Number(id));
+  if (!product) return <NotFoundPage />;
+
+  return (
+    <article>
+      <h1>{product.name}</h1>
+      <p>{formatPrice(product.price)}</p>
+      <button onClick={() => add(product)}>Add to cart</button>
+      <p>
+        <Link to="/products">Back to all products</Link>
+      </p>
+    </article>
+  );
+}
+```
+
+```tsx solution file=/Header.tsx
+import { Link, NavLink } from "react-router";
+import { useCart } from "./CartContext";
+
+export default function Header() {
+  const { count } = useCart();
+  return (
+    <header>
+      <Link to="/">
+        <strong>MiniShop</strong>
+      </Link>
+      <nav aria-label="Main">
+        <NavLink to="/products">Products</NavLink>{" "}
+        <NavLink to="/cart">
+          Cart <span aria-label={`Cart: ${count} items`}>🛒 {count}</span>
+        </NavLink>
+      </nav>
+    </header>
+  );
+}
+```
+
+```tsx solution file=/ProductList.tsx
+import { Link } from "react-router";
+import { useCart } from "./CartContext";
+import { formatPrice } from "./cartUtils";
+import { useProducts } from "./useProducts";
+
+export default function ProductList() {
+  const { add } = useCart();
+  const { status, data: products, refetch } = useProducts();
+
+  return (
+    <section>
+      <h1>Products</h1>
+      {status === "pending" && <p role="status">Loading products…</p>}
+      {status === "error" && (
+        <p role="alert">
+          Couldn't load the products. <button onClick={() => refetch()}>Try again</button>
+        </p>
+      )}
+      {status === "success" && (
+        <ul>
+          {products.map((product) => (
+            <li key={product.id}>
+              <Link to={`/products/${product.id}`}>{product.name}</Link>{" "}
+              {formatPrice(product.price)}{" "}
+              <button aria-label={`Add ${product.name}`} onClick={() => add(product)}>
+                Add
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+```
+
+```tsx solution file=/Cart.tsx
+import { useCart } from "./CartContext";
+import { formatPrice } from "./cartUtils";
+
+export default function Cart() {
+  const { items, total, setQty, remove, clear } = useCart();
+
+  return (
+    <section>
+      <h1>Your cart</h1>
+      {items.length === 0 ? (
+        <p>Your cart is empty.</p>
+      ) : (
+        <ul>
+          {items.map((item) => (
+            <li key={item.id}>
+              <span>
+                {item.name} × {item.qty}: {formatPrice(item.price * item.qty)}
+              </span>{" "}
+              <button
+                aria-label={`Decrease ${item.name}`}
+                onClick={() => setQty(item.id, item.qty - 1)}
+              >
+                −
+              </button>
+              <button
+                aria-label={`Increase ${item.name}`}
+                onClick={() => setQty(item.id, item.qty + 1)}
+              >
+                +
+              </button>
+              <button aria-label={`Remove ${item.name}`} onClick={() => remove(item.id)}>
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p>Total: {formatPrice(total)}</p>
+      {items.length > 0 && <button onClick={clear}>Clear cart</button>}
+    </section>
+  );
+}
+```
+
+```tsx solution file=/App.tsx
+import { useState } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { createBrowserRouter, RouterProvider } from "react-router";
+import { CartProvider } from "./CartContext";
+import { routes } from "./routes";
+
+export default function App() {
+  const [queryClient] = useState(
+    () => new QueryClient({ defaultOptions: { queries: { retry: false } } }),
+  );
+  const [router] = useState(() => createBrowserRouter(routes));
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <CartProvider>
+        <RouterProvider router={router} />
+      </CartProvider>
+    </QueryClientProvider>
+  );
+}
+```
+
+</ProjectStep>
+
+<HowItWorks title="Why every URL needs the server's help">
+
+Click a `<Link>` and nothing is requested from the server: React Router calls `history.pushState` to change the address bar, matches the new URL against your routes, and renders the matching components. The browser's Back button fires `popstate`, and the router re-matches.
+
+But type `/products/2` straight into the address bar, or refresh on that page, and the **browser** asks the server for `/products/2`. A static host only has `index.html`, so it answers 404 before React even loads. The fix is a **rewrite** rule: "for any URL that isn't a real file, send `index.html`". Then React Router reads the URL and shows the right page. You'll set that up when you deploy, in step 14.
+
+</HowItWorks>
+
+<Practice>
+
+<MatchPairs
+  id="match-routes"
+  prompt="Match each URL with the page MiniShop shows."
+  columns={["URL", "Page"]}
+  pairs={[
+    ["`/`", "HomePage (the index route)"],
+    ["`/products/3`", "ProductPage for the Travel mug"],
+    ["`/products/42`", "NotFoundPage, rendered by ProductPage"],
+    ["`/checkout/now`", "NotFoundPage, from the `*` route"],
+    ["`/cart`", "Cart"],
+  ]}
+/>
+
+<Choice
+  id="choice-params-string"
+  q={"`useParams()` gives `{ id: \"2\" }`. Why does `products.find((p) => p.id === id)` find nothing (and TypeScript complain)?"}
+  options={["The product isn't loaded", "`id` is the string \"2\" and `p.id` is the number 2, and `===` doesn't convert", "`find` needs an index", "Params are lowercase"]}
+  answer={1}
+  explain="Everything in a URL is text. Convert first: `p.id === Number(id)`."
+/>
+
+<OrderLines
+  id="order-provider-nesting"
+  prompt="Order the lines of App's return so every page shares the cart and the server data."
+  explain="Providers wrap the router, so they live as long as the app, not as long as one page."
+>
+
+```tsx
+<QueryClientProvider client={queryClient}>
+  <CartProvider>
+    <RouterProvider router={router} />
+  </CartProvider>
+</QueryClientProvider>
+```
+
+</OrderLines>
+
+</Practice>
+
+<ReactTestExercise
+  id="test-product-page"
+  title="Test it: the product page"
+  hints={[
+    "`renderProduct(\"2\")` renders the page at `/products/2`. Check the heading is **Green tea**, not just that some heading exists.",
+    "Click **Add to cart** once, then check `screen.getByText(\"In cart: 1\")`.",
+    "`renderProduct(\"999\")`, then `await screen.findByRole(\"heading\", { name: \"Page not found\" })`.",
+  ]}
+>
+
+Test `ProductPage` with a memory router at `/products/:id`. The starter gives you `renderProduct(id)`, which mocks the server and shows the cart count under the page. Your tests must catch every buggy version.
+
+```tsx code file=/pages/ProductPage.tsx
+import { Link, useParams } from "react-router";
+import { useCart } from "../CartContext";
+import { formatPrice } from "../cartUtils";
+import { useProducts } from "../useProducts";
+import NotFoundPage from "./NotFoundPage";
+
+export default function ProductPage() {
+  const { id } = useParams();
+  const { add } = useCart();
+  const { status, data: products } = useProducts();
+
+  if (status === "pending") return <p role="status">Loading the product…</p>;
+  if (status === "error") return <p role="alert">Couldn't load the product.</p>;
+
+  const product = products.find((p) => p.id === Number(id));
+  if (!product) return <NotFoundPage />;
+
+  return (
+    <article>
+      <h1>{product.name}</h1>
+      <p>{formatPrice(product.price)}</p>
+      <button onClick={() => add(product)}>Add to cart</button>
+      <p>
+        <Link to="/products">Back to all products</Link>
+      </p>
+    </article>
+  );
+}
+```
+
+```tsx code file=/pages/NotFoundPage.tsx
+import { Link } from "react-router";
+
+export default function NotFoundPage() {
+  return (
+    <section>
+      <h1>Page not found</h1>
+      <p>There's nothing here. Maybe the link is old?</p>
+      <Link to="/">Back to the shop</Link>
+    </section>
+  );
+}
+```
+
+```tsx code file=/CartContext.tsx
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useReducer,
+  type Dispatch,
+  type ReactNode,
+} from "react";
+import { cartReducer } from "./cartReducer";
+import { cartCount, cartTotal } from "./cartUtils";
+import { loadCart, saveCart } from "./storage";
+import type { CartAction, CartItem, Product } from "./types";
+
+interface CartContextValue {
+  items: CartItem[];
+  dispatch: Dispatch<CartAction>;
+}
+
+const CartContext = createContext<CartContextValue | null>(null);
+
+export function CartProvider({ children }: { children: ReactNode }) {
+  const [items, dispatch] = useReducer(cartReducer, undefined, loadCart);
+
+  useEffect(() => {
+    saveCart(items);
+  }, [items]);
+
+  return <CartContext value={{ items, dispatch }}>{children}</CartContext>;
+}
+
+export function useCart() {
+  const context = useContext(CartContext);
+  if (!context) throw new Error("useCart must be used inside <CartProvider>");
+  const { items, dispatch } = context;
+  return {
+    items,
+    count: cartCount(items),
+    total: cartTotal(items),
+    add: (product: Product) => dispatch({ type: "add", product }),
+    remove: (id: number) => dispatch({ type: "remove", id }),
+    setQty: (id: number, qty: number) => dispatch({ type: "setQty", id, qty }),
+    clear: () => dispatch({ type: "clear" }),
+  };
+}
+```
+
+```ts code file=/cartReducer.ts
+import { addToCart } from "./cartUtils";
+import type { CartAction, CartItem } from "./types";
+
+export function cartReducer(items: CartItem[], action: CartAction): CartItem[] {
+  switch (action.type) {
+    case "add":
+      return addToCart(items, action.product);
+    case "remove":
+      return items.filter((item) => item.id !== action.id);
+    case "setQty":
+      if (action.qty < 1) return items.filter((item) => item.id !== action.id);
+      return items.map((item) => (item.id === action.id ? { ...item, qty: action.qty } : item));
+    case "clear":
+      return [];
+    default: {
+      const unhandled: never = action;
+      throw new Error(`Unknown action: ${JSON.stringify(unhandled)}`);
+    }
+  }
+}
+```
+
+```ts code file=/cartUtils.ts
+import type { CartItem, Product } from "./types";
+
+export function formatPrice(amount: number): string {
+  return "$" + amount.toFixed(2);
+}
+
+export function cartTotal(items: CartItem[]): number {
+  return items.reduce((sum, item) => sum + item.price * item.qty, 0);
+}
+
+export function cartCount(items: CartItem[]): number {
+  return items.reduce((sum, item) => sum + item.qty, 0);
+}
+
+export function addToCart(items: CartItem[], product: Product): CartItem[] {
+  const existing = items.find((item) => item.id === product.id);
+  if (existing) {
+    return items.map((item) => (item.id === product.id ? { ...item, qty: item.qty + 1 } : item));
+  }
+  return [...items, { ...product, qty: 1 }];
+}
+```
+
+```ts code file=/storage.ts
+import type { CartItem } from "./types";
+
+const KEY = "minishop-cart";
+
+export function loadCart(): CartItem[] {
+  try {
+    const saved: unknown = JSON.parse(localStorage.getItem(KEY) ?? "null");
+    return Array.isArray(saved) ? (saved as CartItem[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveCart(items: CartItem[]): void {
+  try {
+    localStorage.setItem(KEY, JSON.stringify(items));
+  } catch {
+    // Storage is full or blocked (private mode): the cart still works, it just isn't saved.
+  }
+}
+```
+
+```ts code file=/types.ts
+export interface Product {
+  id: number;
+  name: string;
+  price: number;
+}
+
+export interface CartItem extends Product {
+  qty: number;
+}
+
+export type CartAction =
+  | { type: "add"; product: Product }
+  | { type: "remove"; id: number }
+  | { type: "setQty"; id: number; qty: number }
+  | { type: "clear" };
+```
+
+```ts code file=/useProducts.ts
+import { useQuery } from "@tanstack/react-query";
+import { api } from "./api";
+
+export function useProducts() {
+  return useQuery({ queryKey: ["products"], queryFn: () => api.fetchProducts() });
+}
+```
+
+```ts code file=/api.ts
+import { products } from "./products";
+import type { Product } from "./types";
+
+// A pretend server: it answers after a short delay, like a real network request.
+export const api = {
+  fetchProducts(): Promise<Product[]> {
+    return new Promise((resolve) => setTimeout(() => resolve(products), 600));
+  },
+};
+```
+
+```ts code file=/products.ts
+import type { Product } from "./types";
+
+export const products: Product[] = [
+  { id: 1, name: "Coffee beans", price: 12 },
+  { id: 2, name: "Green tea", price: 8 },
+  { id: 3, name: "Travel mug", price: 15 },
+];
+```
+
+```tsx starter file=/ProductPage.test.tsx
+import { fireEvent, render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { createMemoryRouter, RouterProvider } from "react-router";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import ProductPage from "./pages/ProductPage";
+import { CartProvider, useCart } from "./CartContext";
+import { api } from "./api";
+import { products } from "./products";
+
+function CartCount() {
+  const { count } = useCart();
+  return <p>In cart: {count}</p>;
+}
+
+function renderProduct(id: string) {
+  vi.spyOn(api, "fetchProducts").mockResolvedValue(products);
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const router = createMemoryRouter(
+    [{ path: "/products/:id", element: <><ProductPage /><CartCount /></> }],
+    { initialEntries: [`/products/${id}`] },
+  );
+  render(
+    <QueryClientProvider client={client}>
+      <CartProvider>
+        <RouterProvider router={router} />
+      </CartProvider>
+    </QueryClientProvider>,
+  );
+}
+
+beforeEach(() => localStorage.clear());
+afterEach(() => vi.restoreAllMocks());
+
+test("shows a product", async () => {
+  renderProduct("1");
+  expect(await screen.findByRole("heading")).toBeInTheDocument();
+});
+```
+
+```tsx bug file=/pages/ProductPage.tsx title="Every id shows the first product" hint="Open product 2 and check the heading's name."
+import { Link, useParams } from "react-router";
+import { useCart } from "../CartContext";
+import { formatPrice } from "../cartUtils";
+import { useProducts } from "../useProducts";
+import NotFoundPage from "./NotFoundPage";
+
+export default function ProductPage() {
+  const { id } = useParams();
+  const { add } = useCart();
+  const { status, data: products } = useProducts();
+
+  if (status === "pending") return <p role="status">Loading the product…</p>;
+  if (status === "error") return <p role="alert">Couldn't load the product.</p>;
+
+  const product = id ? products[0] : undefined;
+  if (!product) return <NotFoundPage />;
+
+  return (
+    <article>
+      <h1>{product.name}</h1>
+      <p>{formatPrice(product.price)}</p>
+      <button onClick={() => add(product)}>Add to cart</button>
+      <p>
+        <Link to="/products">Back to all products</Link>
+      </p>
+    </article>
+  );
+}
+```
+
+```tsx bug file=/pages/ProductPage.tsx title="Unknown ids crash" hint="Open /products/999. It should show Page not found."
+import { Link, useParams } from "react-router";
+import { useCart } from "../CartContext";
+import { formatPrice } from "../cartUtils";
+import { useProducts } from "../useProducts";
+
+export default function ProductPage() {
+  const { id } = useParams();
+  const { add } = useCart();
+  const { status, data: products } = useProducts();
+
+  if (status === "pending") return <p role="status">Loading the product…</p>;
+  if (status === "error") return <p role="alert">Couldn't load the product.</p>;
+
+  const product = products.find((p) => p.id === Number(id))!;
+
+  return (
+    <article>
+      <h1>{product.name}</h1>
+      <p>{formatPrice(product.price)}</p>
+      <button onClick={() => add(product)}>Add to cart</button>
+      <p>
+        <Link to="/products">Back to all products</Link>
+      </p>
+    </article>
+  );
+}
+```
+
+```tsx bug file=/pages/ProductPage.tsx title="One click adds two" hint="Click Add to cart once and check the count is exactly 1."
+import { Link, useParams } from "react-router";
+import { useCart } from "../CartContext";
+import { formatPrice } from "../cartUtils";
+import { useProducts } from "../useProducts";
+import NotFoundPage from "./NotFoundPage";
+
+export default function ProductPage() {
+  const { id } = useParams();
+  const { add } = useCart();
+  const { status, data: products } = useProducts();
+
+  if (status === "pending") return <p role="status">Loading the product…</p>;
+  if (status === "error") return <p role="alert">Couldn't load the product.</p>;
+
+  const product = products.find((p) => p.id === Number(id));
+  if (!product) return <NotFoundPage />;
+
+  return (
+    <article>
+      <h1>{product.name}</h1>
+      <p>{formatPrice(product.price)}</p>
+      <button
+        onClick={() => {
+          add(product);
+          add(product);
+        }}
+      >
+        Add to cart
+      </button>
+      <p>
+        <Link to="/products">Back to all products</Link>
+      </p>
+    </article>
+  );
+}
+```
+
+```tsx solution file=/ProductPage.test.tsx
+import { fireEvent, render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { createMemoryRouter, RouterProvider } from "react-router";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import ProductPage from "./pages/ProductPage";
+import { CartProvider, useCart } from "./CartContext";
+import { api } from "./api";
+import { products } from "./products";
+
+function CartCount() {
+  const { count } = useCart();
+  return <p>In cart: {count}</p>;
+}
+
+function renderProduct(id: string) {
+  vi.spyOn(api, "fetchProducts").mockResolvedValue(products);
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const router = createMemoryRouter(
+    [{ path: "/products/:id", element: <><ProductPage /><CartCount /></> }],
+    { initialEntries: [`/products/${id}`] },
+  );
+  render(
+    <QueryClientProvider client={client}>
+      <CartProvider>
+        <RouterProvider router={router} />
+      </CartProvider>
+    </QueryClientProvider>,
+  );
+}
+
+beforeEach(() => localStorage.clear());
+afterEach(() => vi.restoreAllMocks());
+
+test("shows the product from the URL", async () => {
+  renderProduct("2");
+  expect(await screen.findByRole("heading", { name: "Green tea" })).toBeInTheDocument();
+  expect(screen.getByText("$8.00")).toBeInTheDocument();
+});
+
+test("Add to cart adds exactly one", async () => {
+  renderProduct("3");
+  fireEvent.click(await screen.findByRole("button", { name: "Add to cart" }));
+  expect(screen.getByText("In cart: 1")).toBeInTheDocument();
+});
+
+test("an unknown id shows the 404 page", async () => {
+  vi.spyOn(console, "error").mockImplementation(() => {});
+  renderProduct("999");
+  expect(await screen.findByRole("heading", { name: "Page not found" })).toBeInTheDocument();
+});
+```
+
+</ReactTestExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "Where does the current page render inside `Layout`?",
+      options: ["In `children`", "In `<Outlet />`", "In `<RouterProvider />`", "In the `Header`"],
+      answer: 1,
+      explain: "The parent route's element renders an `<Outlet />`, and the matching child route fills it.",
+    },
+    {
+      q: "Why is `CartProvider` outside `RouterProvider`, not inside one page?",
+      options: ["It's required by React Router", "So the cart lives as long as the app, and survives every page change", "To make links faster", "It doesn't matter"],
+      answer: 1,
+      explain: "Inside a page, the provider (and the cart) would unmount every time you left that page.",
+    },
+    {
+      q: "How do the tests start on a given URL?",
+      options: ["By setting `window.location`", "`createMemoryRouter(routes, { initialEntries: [\"/products/2\"] })`", "By clicking links from `/`", "They can't"],
+      answer: 1,
+      explain: "A memory router keeps its history in memory, so each test picks its own starting URL.",
+    },
+    {
+      q: "What does the `*` route do?",
+      options: ["Matches every URL before the others", "Matches any URL no other route matched, so it's the 404 page", "Redirects to `/`", "Loads all pages"],
+      answer: 1,
+      explain: "React Router ranks routes by how specific they are; `*` is the least specific, so it only wins when nothing else does.",
+    },
+  ]}
+/>

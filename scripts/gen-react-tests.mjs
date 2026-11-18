@@ -55,9 +55,19 @@ function checkImports(where, files) {
 
 function write(dir, files) {
   checkImports(path.basename(dir), files);
-  fs.mkdirSync(dir, { recursive: true });
+  // Windows and macOS disks ignore case: /Cart.js and /cart.js would overwrite each other.
+  const seen = new Map();
+  for (const file of Object.keys(files)) {
+    const key = file.toLowerCase();
+    if (seen.has(key)) {
+      throw new Error(`${path.basename(dir)}: ${seen.get(key)} and ${file} differ only in case`);
+    }
+    seen.set(key, file);
+  }
   for (const [file, code] of Object.entries(files)) {
-    fs.writeFileSync(path.join(dir, jsx(file).slice(1)), code);
+    const out = path.join(dir, jsx(file).slice(1));
+    fs.mkdirSync(path.dirname(out), { recursive: true });
+    fs.writeFileSync(out, code);
   }
 }
 
@@ -78,7 +88,7 @@ for (const course of fs.readdirSync(ROOT)) {
     const tree = parser.parse(fs.readFileSync(path.join(ROOT, course, file), 'utf8'));
     const lesson = file.replace(/\.mdx$/, '');
 
-    for (const ex of findAll(tree, ['ReactExercise', 'BuildUI'])) {
+    for (const ex of findAll(tree, ['ReactExercise', 'BuildUI', 'ProjectStep'])) {
       const blocks = (ex.children ?? []).filter((c) => c.type === 'code');
       const pick = (word) =>
         Object.fromEntries(
@@ -154,10 +164,10 @@ for (const course of fs.readdirSync(ROOT)) {
         playgrounds++;
         return;
       }
-      if (!files['/App.js']) return;
+      if (!files['/App.js'] && !files['/App.tsx']) return;
       write(dir, {
         ...files,
-        '/smoke.test.js': [
+        '/smoke.test.jsx': [
           "import { render } from '@testing-library/react';",
           "import App from './App';",
           '',

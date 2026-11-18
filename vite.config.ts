@@ -46,7 +46,7 @@ export default defineConfig({
         extends: true,
         test: {
           name: 'react-content',
-          include: ['test/react-exercises/**/*.test.jsx'],
+          include: ['test/react-exercises/**/*.test.{jsx,ts,tsx}'],
           globals: true,
         },
       },
@@ -56,7 +56,7 @@ export default defineConfig({
         extends: true,
         test: {
           name: 'react-bugs',
-          include: ['test/react-bugs/**/*.test.jsx'],
+          include: ['test/react-bugs/**/*.test.{jsx,ts,tsx}'],
           globals: true,
         },
       },

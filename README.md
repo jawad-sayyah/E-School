@@ -29,7 +29,7 @@ npm run dev          # http://localhost:5173
 | `npm run lint` | ESLint |
 | `npm run format` | Prettier |
 
-The first time you run the e2e tests, install the browser with `npx playwright install chromium`.
+The first time you run the e2e tests, install the browser with `npx playwright install chromium`. To run them against a dev server that is already running (no build first), use `npx playwright test -c playwright.dev.config.ts`.
 
 ## Project layout
 
@@ -154,7 +154,7 @@ function getTotal(cart) {
 
 ## React lessons (Sandpack)
 
-React code can't run in the worker, so React lessons use Sandpack components. Every fenced block inside them is a file; name it with `file=` (React files are `.js` with JSX inside, as in Sandpack's templates).
+React code can't run in the worker, so React lessons use Sandpack components. Every fenced block inside them is a file; name it with `file=` (React files are `.js` with JSX inside, as in Sandpack's templates). A project with an `/App.tsx` runs in Sandpack's `react-ts` template instead, so TypeScript files (`.ts`, `.tsx`, and `.test.tsx` tests) work too, and files can live in folders (`file=/pages/ProductPage.tsx`).
 
 | Component | Use |
 | --- | --- |
@@ -202,12 +202,32 @@ The student writes the tests. They must pass on the correct code **and** fail on
 
 - In fence metadata, use single quotes inside `title`/`hint` (escaped double quotes fail the content test).
 - React test files import from `"vitest"` (`import { expect, test, vi } from "vitest"`). In Sandpack, a hidden local `vitest` package re-exports Jest's globals (`VITEST_SHIM` in `src/components/react/sandboxFiles.ts`); the generated tests use the real Vitest. Use `fireEvent`, not user-event, and avoid `vi` APIs Jest lacks (`vi.stubGlobal`).
-- In Sandpack, hidden copies of the student's test file import each buggy version (`/check-N.test.js` → `/__bugs__/bug-N/…`), and every suite is re-run after each change.
+- In Sandpack, hidden copies of the student's test file import each buggy version (`/check-N.test.js` → `/__bugs__/bug-N/…`; the copies keep the test file's extension, so `.test.tsx` works), and every suite is re-run after each change. Hidden copies are only rewritten when their code really changes: a run that starts while another is still reporting makes Sandpack's test panel crash. If it crashes anyway, `PanelBoundary` keeps the lesson page alive and the sandbox is rebuilt with the student's latest code.
 - `npm test` checks every example: the content test runs worker exercises; `gen-react-tests` writes the React ones to `test/react-exercises` (example tests on the real component) and `test/react-bugs` (each buggy version, wrapped to pass only if a test fails).
+
+## The MiniShop project (track 4)
+
+The "Build a real website with React" track is one course, `minishop`, whose lessons are the project's steps (`src/content/courses/minishop/`). `/project` is its overview page.
+
+| Component | Use |
+| --- | --- |
+| `<ProjectStep id title goal practice tasks hints? explain?>` | A whole step: the **goal** (one sentence, with a "Preview the finished result" button that runs the solution live), **what you'll practice** (`practice={[["Props", "/courses/react/props"], …]}`), a **task** checklist (ticks are remembered in this browser), then the starter code in Sandpack with hints, hidden tests and the solution. Blocks as in `<ReactExercise>`. `explain` lists notes on the solution's key lines (`<ReactExercise>` takes it too). |
+| `<StepIntro goal practice tasks>` | The same top part, for steps whose code is checked another way (TypeScript, tests, deployment). |
+| `<ReactPlayground final>` | A step's finished code when it isn't a `ProjectStep` (the TypeScript step). |
+
+Rules the content test enforces:
+
+- **Each step starts from the previous step's finished code.** Every starter file of step N+1 that also exists in step N's final code (its last `ProjectStep`/`ReactExercise` starter + solution, or a `ReactPlayground final`) must be identical. A file the step changes for the student on purpose is marked `starter updated`.
+- From step 3 on, every step has a **Test it** task (`<ReactTestExercise>` or `<TestExercise>`).
+- Every TypeScript project in a step (the finished code, and each Test it's code plus example tests) **compiles** with the real compiler (`typeCheckProject` in `test/tsChecker.ts`).
+
+Copying a dozen unchanged files into the next step by hand is error-prone, so put a line `%%STARTER%%` where the starter blocks go and run `node scripts/minishop-starter.mjs <step.mdx> <previous-step.mdx>`. A Test it can list the step's own files with `%%CODE:/Cart.tsx,/cartUtils.ts%%` (run the script with the step's file twice).
+
+To check steps in real Sandpack (with the dev server running: `-c playwright.dev.config.ts`), `e2e/solutions.spec.ts` takes `LESSONS=minishop/routing` (the first exercise's solution passes; `lesson@2` for the second), `TESTS=minishop/checkout` (the example tests catch every bug) and `PREVIEWS="minishop/typescript@1=Coffee beans"` (a preview shows that text).
 
 ## Questions, depth and visualizers
 
-Every lesson mixes **at least 3 question types** (the content test enforces it). Put questions anywhere, or group them in `<Practice title="…">`, which shows a "3 of 5 done" bar. Each question needs an `id` that is unique in the lesson; progress, XP and badges are keyed by it.
+Every lesson mixes **at least 3 question types** (the content test enforces it). Strings in question props, hints and tasks may use `code`, ``code with a ` inside`` (double backticks, needed for template literals) and **bold**. Put questions anywhere, or group them in `<Practice title="…">`, which shows a "3 of 5 done" bar. Each question needs an `id` that is unique in the lesson; progress, XP and badges are keyed by it.
 
 | Component | Key props | Code inside |
 | --- | --- | --- |

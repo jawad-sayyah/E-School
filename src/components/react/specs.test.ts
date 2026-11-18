@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { describe, expect, test } from 'vitest';
 import {
+  checkFile,
   fileName,
   filesFrom,
   retarget,
@@ -84,6 +85,18 @@ describe('write-the-tests helpers', () => {
       'import Cart from "./Cart";\nimport { total } from \'./cartUtils.js\';\nimport x from "./Other";';
     expect(retarget(tests, ['/Cart.js', '/cartUtils.js'], 0)).toBe(
       'import Cart from "./__bugs__/bug-1/Cart";\nimport { total } from \'./__bugs__/bug-1/cartUtils\';\nimport x from "./Other";',
+    );
+  });
+
+  test("checkFile keeps the test file's extension, so TypeScript tests still parse", () => {
+    expect(checkFile(0)).toBe('/check-1.test.js');
+    expect(checkFile(1, '/useCart.test.tsx')).toBe('/check-2.test.tsx');
+    expect(checkFile(2, '/storage.test.ts')).toBe('/check-3.test.ts');
+  });
+
+  test('retarget handles files in folders', () => {
+    expect(retarget('import P from "./pages/ProductPage";', ['/pages/ProductPage.tsx'], 1)).toBe(
+      'import P from "./__bugs__/bug-2/pages/ProductPage";',
     );
   });
 

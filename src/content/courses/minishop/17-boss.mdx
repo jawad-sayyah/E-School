@@ -1,0 +1,459 @@
+---
+id: boss
+title: "Boss challenge: MiniShop's next release"
+summary: Ship four new MiniShop features - product search, typed coupons, a saved wishlist and a tested free-shipping banner - plus questions from the whole project. Defeat them all to unlock your certificate.
+minutes: 50
+kind: boss
+tags: [boss, challenge, MiniShop, project, search, TypeScript, discriminated unions, custom hooks, localStorage, testing, Testing Library]
+---
+
+The product team has a list for MiniShop's next release, and it's yours. Each challenge is a real feature, built with the tools from the project. Use hints, look back at the steps, try as often as you like. When every challenge is defeated, the track is complete and your certificate unlocks.
+
+<BossChallenge>
+
+<Exercise
+  id="boss-search"
+  title="Product search"
+  hints={[
+    "Normalize first: `const q = query.trim().toLowerCase();`, and return every product (sorted) when `q` is empty.",
+    "`products.filter((p) => p.name.toLowerCase().includes(q))`.",
+    "Sort a **copy** by price: `[...found].sort((a, b) => a.price - b.price)`, so the original list isn't changed.",
+  ]}
+>
+
+Write `searchProducts(products, query)` for the new search box. It ignores case and spaces around the query, matches any part of the name, returns the results from cheapest to most expensive, returns every product (sorted) for an empty query, and never changes the `products` array it was given.
+
+```js starter
+function searchProducts(products, query) {
+  return products.filter((p) => p.name.includes(query));
+}
+
+const products = [
+  { id: 3, name: "Travel mug", price: 15 },
+  { id: 1, name: "Coffee beans", price: 12 },
+  { id: 2, name: "Green tea", price: 8 },
+];
+console.log(searchProducts(products, " TEA "));
+```
+
+```js tests
+const products = [
+  { id: 3, name: "Travel mug", price: 15 },
+  { id: 1, name: "Coffee beans", price: 12 },
+  { id: 2, name: "Green tea", price: 8 },
+  { id: 4, name: "Tea strainer", price: 6 },
+];
+
+test("ignores case and surrounding spaces", () => {
+  expect(searchProducts(products, " TEA ").map((p) => p.name)).toEqual(["Tea strainer", "Green tea"]);
+});
+test("matches any part of the name", () => {
+  expect(searchProducts(products, "bean").map((p) => p.id)).toEqual([1]);
+});
+test("an empty query returns everything, cheapest first", () => {
+  expect(searchProducts(products, "  ").map((p) => p.id)).toEqual([4, 2, 1, 3]);
+});
+test("no match gives an empty list", () => {
+  expect(searchProducts(products, "cake")).toEqual([]);
+});
+test("never reorders the original array", () => {
+  searchProducts(products, "");
+  expect(products.map((p) => p.id)).toEqual([3, 1, 2, 4]);
+});
+```
+
+```js solution
+function searchProducts(products, query) {
+  const q = query.trim().toLowerCase();
+  const found = q ? products.filter((p) => p.name.toLowerCase().includes(q)) : products;
+  return [...found].sort((a, b) => a.price - b.price);
+}
+
+const products = [
+  { id: 3, name: "Travel mug", price: 15 },
+  { id: 1, name: "Coffee beans", price: 12 },
+  { id: 2, name: "Green tea", price: 8 },
+];
+console.log(searchProducts(products, " TEA "));
+```
+
+</Exercise>
+
+<TSExercise
+  id="boss-coupons"
+  title="Typed coupons"
+  hints={[
+    "`type Coupon = { kind: \"percent\"; percent: number } | { kind: \"fixed\"; amount: number } | { kind: \"freeShipping\" };`",
+    "Handle `null` first, then `switch (coupon.kind)`: percent is `subtotal * (1 - coupon.percent / 100) + shipping`, fixed is `Math.max(0, subtotal - coupon.amount) + shipping`, free shipping is just `subtotal`.",
+    "Finish with ``default: { const unhandled: never = coupon; throw new Error(`Unknown coupon: ${JSON.stringify(unhandled)}`); }``.",
+  ]}
+>
+
+Marketing wants three kinds of coupon: a **percent** off the products, a **fixed** amount off the products (never below zero), and **free shipping**. Model `Coupon` as a discriminated union, and write `orderTotal(subtotal, shipping, coupon)` (the coupon can be `null`). The `switch` must be exhaustive.
+
+```ts starter
+type Coupon = any;
+
+function orderTotal(subtotal: number, shipping: number, coupon: Coupon | null): number {
+  return subtotal + shipping;
+}
+```
+
+```ts types
+const total: number = orderTotal(40, 5, { kind: "percent", percent: 10 });
+orderTotal(40, 5, { kind: "fixed", amount: 10 });
+orderTotal(40, 5, { kind: "freeShipping" });
+orderTotal(40, 5, null);
+// @ts-expect-error there is no "bogo" coupon
+orderTotal(40, 5, { kind: "bogo" });
+// @ts-expect-error a percent coupon needs its percent
+orderTotal(40, 5, { kind: "percent" });
+// @ts-expect-error amounts are numbers
+orderTotal(40, 5, { kind: "fixed", amount: "10" });
+```
+
+```js tests
+test("no coupon: products plus shipping", () => {
+  expect(orderTotal(40, 5, null)).toBe(45);
+});
+test("percent off the products only", () => {
+  expect(orderTotal(40, 5, { kind: "percent", percent: 25 })).toBe(35);
+});
+test("fixed amount off, never below zero", () => {
+  expect(orderTotal(40, 5, { kind: "fixed", amount: 10 })).toBe(35);
+  expect(orderTotal(8, 5, { kind: "fixed", amount: 10 })).toBe(5);
+});
+test("free shipping", () => {
+  expect(orderTotal(40, 5, { kind: "freeShipping" })).toBe(40);
+});
+```
+
+```ts solution
+type Coupon =
+  | { kind: "percent"; percent: number }
+  | { kind: "fixed"; amount: number }
+  | { kind: "freeShipping" };
+
+function orderTotal(subtotal: number, shipping: number, coupon: Coupon | null): number {
+  if (coupon === null) return subtotal + shipping;
+  switch (coupon.kind) {
+    case "percent":
+      return subtotal * (1 - coupon.percent / 100) + shipping;
+    case "fixed":
+      return Math.max(0, subtotal - coupon.amount) + shipping;
+    case "freeShipping":
+      return subtotal;
+    default: {
+      const unhandled: never = coupon;
+      throw new Error(`Unknown coupon: ${JSON.stringify(unhandled)}`);
+    }
+  }
+}
+```
+
+</TSExercise>
+
+<ReactExercise
+  id="boss-wishlist"
+  title="A saved wishlist"
+  hints={[
+    "In `useWishlist`: `const [ids, setIds] = useState(loadIds);` (a lazy initializer) and `useEffect(() => { localStorage.setItem(KEY, JSON.stringify(ids)); }, [ids]);`.",
+    "`toggle(id)` uses an updater: `setIds((current) => current.includes(id) ? current.filter((x) => x !== id) : [...current, id])`.",
+    "The button: ``<button aria-pressed={saved} aria-label={`Save ${name}`} onClick={onToggle}>{saved ? \"♥ Saved\" : \"♡ Save\"}</button>``.",
+  ]}
+>
+
+Shoppers want to save products for later. Write the `useWishlist()` hook (it returns `{ ids, has, toggle }` and keeps the ids in localStorage under `minishop-wishlist`, ignoring broken saved data), and the `WishlistButton` component: a toggle button with `aria-pressed`, labelled `Save Green tea`, showing **♡ Save** or **♥ Saved**. `App` is done.
+
+```jsx starter file=/useWishlist.js
+import { useEffect, useState } from "react";
+
+const KEY = "minishop-wishlist";
+
+export function useWishlist() {
+  // TODO: the saved ids, loaded once and saved after every change
+  return { ids: [], has: () => false, toggle: () => {} };
+}
+```
+
+```jsx starter file=/WishlistButton.js
+export default function WishlistButton({ name, saved, onToggle }) {
+  // TODO: a toggle button with aria-pressed and the label "Save <name>"
+  return <button>♡ Save</button>;
+}
+```
+
+```jsx starter file=/App.js
+import { useWishlist } from "./useWishlist";
+import WishlistButton from "./WishlistButton";
+
+const products = [
+  { id: 1, name: "Coffee beans", price: 12 },
+  { id: 2, name: "Green tea", price: 8 },
+  { id: 3, name: "Travel mug", price: 15 },
+];
+
+export default function App() {
+  const { ids, has, toggle } = useWishlist();
+  return (
+    <main>
+      <h1>MiniShop</h1>
+      <p>Saved for later: {ids.length}</p>
+      <ul>
+        {products.map((product) => (
+          <li key={product.id}>
+            {product.name}{" "}
+            <WishlistButton
+              name={product.name}
+              saved={has(product.id)}
+              onToggle={() => toggle(product.id)}
+            />
+          </li>
+        ))}
+      </ul>
+    </main>
+  );
+}
+```
+
+```jsx tests file=/wishlist.test.js
+import { fireEvent, render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import App from "./App";
+
+beforeEach(() => localStorage.clear());
+
+const button = (name) => screen.getByRole("button", { name: `Save ${name}` });
+
+test("a button toggles between Save and Saved, with aria-pressed", () => {
+  render(<App />);
+  expect(button("Green tea")).toHaveAttribute("aria-pressed", "false");
+  expect(button("Green tea")).toHaveTextContent("♡ Save");
+  fireEvent.click(button("Green tea"));
+  expect(button("Green tea")).toHaveAttribute("aria-pressed", "true");
+  expect(button("Green tea")).toHaveTextContent("♥ Saved");
+  expect(screen.getByText("Saved for later: 1")).toBeInTheDocument();
+  fireEvent.click(button("Green tea"));
+  expect(screen.getByText("Saved for later: 0")).toBeInTheDocument();
+});
+
+test("each product is saved on its own", () => {
+  render(<App />);
+  fireEvent.click(button("Coffee beans"));
+  fireEvent.click(button("Travel mug"));
+  expect(button("Green tea")).toHaveAttribute("aria-pressed", "false");
+  expect(screen.getByText("Saved for later: 2")).toBeInTheDocument();
+});
+
+test("the wishlist survives a reload", () => {
+  const { unmount } = render(<App />);
+  fireEvent.click(button("Travel mug"));
+  unmount();
+  render(<App />);
+  expect(button("Travel mug")).toHaveAttribute("aria-pressed", "true");
+  expect(JSON.parse(localStorage.getItem("minishop-wishlist"))).toEqual([3]);
+});
+
+test("broken saved data gives an empty wishlist", () => {
+  localStorage.setItem("minishop-wishlist", "{oops");
+  render(<App />);
+  expect(screen.getByText("Saved for later: 0")).toBeInTheDocument();
+});
+```
+
+```jsx solution file=/useWishlist.js
+import { useEffect, useState } from "react";
+
+const KEY = "minishop-wishlist";
+
+function loadIds() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(KEY));
+    return Array.isArray(saved) ? saved : [];
+  } catch {
+    return [];
+  }
+}
+
+export function useWishlist() {
+  const [ids, setIds] = useState(loadIds);
+
+  useEffect(() => {
+    localStorage.setItem(KEY, JSON.stringify(ids));
+  }, [ids]);
+
+  return {
+    ids,
+    has: (id) => ids.includes(id),
+    toggle: (id) =>
+      setIds((current) =>
+        current.includes(id) ? current.filter((x) => x !== id) : [...current, id],
+      ),
+  };
+}
+```
+
+```jsx solution file=/WishlistButton.js
+export default function WishlistButton({ name, saved, onToggle }) {
+  return (
+    <button aria-pressed={saved} aria-label={`Save ${name}`} onClick={onToggle}>
+      {saved ? "♥ Saved" : "♡ Save"}
+    </button>
+  );
+}
+```
+
+</ReactExercise>
+
+<ReactTestExercise
+  id="boss-shipping-banner"
+  title="Test the free-shipping banner"
+  hints={[
+    "Test both sides of the limit: a total of `49.5`, exactly `50`, and more than `50`.",
+    "Check the exact text with two decimals: `Add $0.50 more for free shipping.`",
+    "An empty cart (`total={0}`) shows no banner at all: `container` should be empty, or `queryByText(/shipping/)` null.",
+  ]}
+>
+
+The cart page gets a banner: **Add $X.XX more for free shipping.** below $50, **You get free shipping!** from $50, and nothing for an empty cart. Write tests that pass on `FreeShippingBanner` and catch every buggy version.
+
+```jsx code file=/FreeShippingBanner.js
+const FREE_FROM = 50;
+
+export default function FreeShippingBanner({ total }) {
+  if (total === 0) return null;
+  if (total >= FREE_FROM) return <p role="status">You get free shipping!</p>;
+  return <p role="status">Add ${(FREE_FROM - total).toFixed(2)} more for free shipping.</p>;
+}
+```
+
+```jsx starter file=/FreeShippingBanner.test.js
+import { render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import { expect, test } from "vitest";
+import FreeShippingBanner from "./FreeShippingBanner";
+
+test("a big order ships free", () => {
+  render(<FreeShippingBanner total={80} />);
+  expect(screen.getByText("You get free shipping!")).toBeInTheDocument();
+});
+```
+
+```jsx bug file=/FreeShippingBanner.js title="Exactly $50 isn't free" hint="Render it with a total of exactly 50."
+const FREE_FROM = 50;
+
+export default function FreeShippingBanner({ total }) {
+  if (total === 0) return null;
+  if (total > FREE_FROM) return <p role="status">You get free shipping!</p>;
+  return <p role="status">Add ${(FREE_FROM - total).toFixed(2)} more for free shipping.</p>;
+}
+```
+
+```jsx bug file=/FreeShippingBanner.js title="The amount has no cents" hint="Use a total like 49.5 and check the exact text."
+const FREE_FROM = 50;
+
+export default function FreeShippingBanner({ total }) {
+  if (total === 0) return null;
+  if (total >= FREE_FROM) return <p role="status">You get free shipping!</p>;
+  return <p role="status">Add ${FREE_FROM - total} more for free shipping.</p>;
+}
+```
+
+```jsx bug file=/FreeShippingBanner.js title="An empty cart gets a banner" hint="Render it with a total of 0."
+const FREE_FROM = 50;
+
+export default function FreeShippingBanner({ total }) {
+  if (total >= FREE_FROM) return <p role="status">You get free shipping!</p>;
+  return <p role="status">Add ${(FREE_FROM - total).toFixed(2)} more for free shipping.</p>;
+}
+```
+
+```jsx solution file=/FreeShippingBanner.test.js
+import { render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import { expect, test } from "vitest";
+import FreeShippingBanner from "./FreeShippingBanner";
+
+test("a big order ships free", () => {
+  render(<FreeShippingBanner total={80} />);
+  expect(screen.getByText("You get free shipping!")).toBeInTheDocument();
+});
+
+test("exactly $50 ships free", () => {
+  render(<FreeShippingBanner total={50} />);
+  expect(screen.getByText("You get free shipping!")).toBeInTheDocument();
+});
+
+test("below $50 shows what's missing, with cents", () => {
+  render(<FreeShippingBanner total={49.5} />);
+  expect(screen.getByText("Add $0.50 more for free shipping.")).toBeInTheDocument();
+});
+
+test("an empty cart shows nothing", () => {
+  const { container } = render(<FreeShippingBanner total={0} />);
+  expect(container).toBeEmptyDOMElement();
+});
+```
+
+</ReactTestExercise>
+
+<SpotTheBug
+  id="boss-bug-provider"
+  bug={7}
+  prompt="Every time the user opens another page, the cart is empty again. Click the line that causes it."
+  explain="`CartProvider` sits inside one page's element, so it unmounts (and its cart is thrown away) whenever the route changes. Move it above `RouterProvider`, as in step 10."
+>
+
+```jsx
+const routes = [
+  {
+    path: "/",
+    element: <Layout />,
+    children: [
+      { index: true, element: <HomePage /> },
+      { path: "products", element: <CartProvider><ProductList /></CartProvider> },
+      { path: "cart", element: <Cart /> },
+    ],
+  },
+];
+```
+
+</SpotTheBug>
+
+<MatchPairs
+  id="boss-match"
+  prompt="Match each new feature with the MiniShop tool you'd build it with."
+  columns={["Feature", "Tool"]}
+  pairs={[
+    ["Remember the wishlist between visits", "A lazy `useState` initializer plus a saving `useEffect`"],
+    ["Show a product's reviews from the server, cached per product", "`useQuery({ queryKey: [\"reviews\", id] })`"],
+    ["A shareable URL for search results", "A route or search params with React Router"],
+    ["Reject an unknown coupon kind at compile time", "A discriminated union and a `never` check"],
+    ["Make sure the banner never says $0.00 more", "A Testing Library test at exactly $50"],
+  ]}
+/>
+
+</BossChallenge>
+
+<Quiz
+  questions={[
+    {
+      q: "Why does `searchProducts` sort a copy (`[...found].sort(…)`)?",
+      options: ["Copies sort faster", "`sort` changes the array it's called on, and the caller's product list must stay as it was", "`filter` can't be sorted", "To remove duplicates"],
+      answer: 1,
+      explain: "`sort` mutates. When `found` is the original `products` array (an empty query), sorting it directly would reorder the caller's data.",
+    },
+    {
+      q: "The wishlist button has `aria-pressed`. What does that tell a screen reader user?",
+      options: ["That it's a link", "That it's a toggle, and whether it's currently on", "That it's disabled", "Nothing"],
+      answer: 1,
+      explain: "A toggle button announces 'pressed' or 'not pressed', just like the ♥ shows it visually.",
+    },
+    {
+      q: "Which test catches the 'exactly $50 isn't free' bug?",
+      options: ["A test with total 80", "A test with total 50", "A test with total 0", "A snapshot test"],
+      answer: 1,
+      explain: "Boundaries are where off-by-one bugs live: always test the exact limit.",
+    },
+  ]}
+/>

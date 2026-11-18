@@ -55,7 +55,8 @@ export const TRACKS: TrackInfo[] = [
     tagline: 'Grow MiniShop into a deployed, tested, multi-page site.',
     description:
       'Step by step, from a vanilla-JS cart to routing, product pages, checkout with validation, data fetching, state management, tests and deployment to Vercel.',
-    courses: [],
+    courses: ['minishop'],
+    boss: { course: 'minishop', lesson: 'boss' },
     project: true,
     phase: 10,
   },

@@ -1,0 +1,305 @@
+---
+id: add-to-cart
+title: "Step 2: Add-to-cart buttons in vanilla JS"
+summary: Add buttons, handle clicks and update the page by hand. Feel the sync problem that React was invented to solve.
+minutes: 25
+tags: [MiniShop, project, vanilla JS, events, event delegation, immutability, DOM updates, sync problem]
+---
+
+A shop where you can't add anything isn't much of a shop. In this step every product gets an **Add** button. When it's clicked, the cart array changes, and then… nothing on the page changes, unless *you* go and update every place that shows the cart.
+
+That's the **sync problem**: the data and the page are two separate things, and keeping them in step is your job. There are only three places to update here (the list, the total and the badge in the header). Imagine thirty.
+
+<ProjectStep
+  id="add-to-cart"
+  title="Make the Add buttons work"
+  goal="Clicking Add puts the product in the cart (or raises its quantity), and the cart list, the total and the header badge all update."
+  practice={[
+    ["DOM events", "/courses/modern-js/dom-events"],
+    ["Spread and immutability", "/courses/modern-js/spread-rest"],
+    ["Array methods", "/courses/js-basics/arrays-methods"],
+  ]}
+  tasks={[
+    "In `cartUtils.js`, write `addToCart(items, product)`: a new product joins with `qty: 1`; one that's already there gets `qty + 1`.",
+    "Return a **new** array: never change `items` itself.",
+    "Write `cartCount(items)`, the sum of all quantities.",
+    "In `shop.js`, update the total and the badge after every click, not just the list.",
+    "Click around the preview: does every number agree after every click?",
+  ]}
+  hints={[
+    "Find the item first: `items.find((item) => item.id === product.id)`. If it exists, `map` over the items and replace that one with `{ ...item, qty: item.qty + 1 }`; otherwise return `[...items, { ...product, qty: 1 }]`.",
+    "`cartCount` is `cartTotal` without the price: `items.reduce((sum, item) => sum + item.qty, 0)`.",
+    "Write an `update()` function in `mountShop` that sets the list, the total and the badge, and call it after changing `cart`. Import `cartCount` at the top.",
+  ]}
+  explain={[
+    "`addToCart` never mutates: `map` and spread build a new array with a new object for the changed item, so the old cart is untouched.",
+    "One `update()` function refreshes everything that depends on the cart. Forget one line in it, and that part of the page silently shows old data.",
+    "The click listener sits on the whole product list (event delegation), and `closest(\"button\")` finds which button was clicked.",
+  ]}
+>
+
+The page now has products with **Add** buttons, and `shop.js` already adds to the cart and redraws the list. Write the two missing helpers in `cartUtils.js`, then make the total and the badge keep up.
+
+```js starter file=/cartUtils.js
+export function formatPrice(amount) {
+  return "$" + amount.toFixed(2);
+}
+
+export function cartTotal(items) {
+  return items.reduce((sum, item) => sum + item.price * item.qty, 0);
+}
+
+export function renderCart(items) {
+  if (items.length === 0) return "<li>Your cart is empty.</li>";
+  return items
+    .map((item) => `<li>${item.name} × ${item.qty}: ${formatPrice(item.price * item.qty)}</li>`)
+    .join("");
+}
+```
+
+```js starter file=/products.js
+export const products = [
+  { id: 1, name: "Coffee beans", price: 12 },
+  { id: 2, name: "Green tea", price: 8 },
+  { id: 3, name: "Travel mug", price: 15 },
+];
+```
+
+```js starter file=/shop.js
+import { products } from "./products";
+import { addToCart, cartTotal, formatPrice, renderCart } from "./cartUtils";
+
+export function mountShop(root) {
+  let cart = [];
+
+  root.innerHTML = `
+    <header>
+      <h1>MiniShop</h1>
+      <p>Cart: <span id="badge">0</span> items</p>
+    </header>
+    <h2>Products</h2>
+    <ul id="products">
+      ${products
+        .map(
+          (product) => `<li>${product.name} ${formatPrice(product.price)}
+            <button data-id="${product.id}" aria-label="Add ${product.name}">Add</button></li>`,
+        )
+        .join("")}
+    </ul>
+    <h2>Your cart</h2>
+    <ul id="cart">${renderCart(cart)}</ul>
+    <p id="total">Total: ${formatPrice(cartTotal(cart))}</p>
+  `;
+
+  root.querySelector("#products").addEventListener("click", (event) => {
+    const button = event.target.closest("button");
+    if (!button) return;
+    const product = products.find((p) => p.id === Number(button.dataset.id));
+    cart = addToCart(cart, product);
+    root.querySelector("#cart").innerHTML = renderCart(cart);
+    // TODO: the badge and the total still show the old cart
+  });
+}
+```
+
+```js starter updated file=/index.js
+import { mountShop } from "./shop";
+
+mountShop(document.getElementById("root"));
+```
+
+```js tests file=/shop.test.js
+import { addToCart, cartCount } from "./cartUtils";
+import { mountShop } from "./shop";
+
+const tea = { id: 2, name: "Green tea", price: 8 };
+
+test("addToCart adds a new product with qty 1", () => {
+  expect(addToCart([], tea)).toEqual([{ ...tea, qty: 1 }]);
+});
+
+test("addToCart raises the qty of a product that's already there", () => {
+  expect(addToCart([{ ...tea, qty: 1 }], tea)).toEqual([{ ...tea, qty: 2 }]);
+});
+
+test("addToCart returns a new array and leaves the old one alone", () => {
+  const before = [{ ...tea, qty: 1 }];
+  const after = addToCart(before, tea);
+  expect(after).not.toBe(before);
+  expect(before[0].qty).toBe(1);
+});
+
+test("cartCount adds up the quantities", () => {
+  expect(cartCount([{ ...tea, qty: 2 }, { id: 3, name: "Travel mug", price: 15, qty: 1 }])).toBe(3);
+  expect(cartCount([])).toBe(0);
+});
+
+function setup() {
+  const root = document.createElement("div");
+  document.body.innerHTML = "";
+  document.body.appendChild(root);
+  mountShop(root);
+  return root;
+}
+
+const add = (root, name) => root.querySelector(`button[aria-label="Add ${name}"]`).click();
+
+test("clicking Add updates the list, the total and the badge", () => {
+  const root = setup();
+  add(root, "Coffee beans");
+  add(root, "Coffee beans");
+  add(root, "Green tea");
+  const lines = [...root.querySelectorAll("#cart li")].map((li) => li.textContent);
+  expect(lines).toEqual(["Coffee beans × 2: $24.00", "Green tea × 1: $8.00"]);
+  expect(root.querySelector("#total").textContent).toBe("Total: $32.00");
+  expect(root.querySelector("#badge").textContent).toBe("3");
+});
+```
+
+```js solution file=/cartUtils.js
+export function formatPrice(amount) {
+  return "$" + amount.toFixed(2);
+}
+
+export function cartTotal(items) {
+  return items.reduce((sum, item) => sum + item.price * item.qty, 0);
+}
+
+export function cartCount(items) {
+  return items.reduce((sum, item) => sum + item.qty, 0);
+}
+
+export function addToCart(items, product) {
+  const existing = items.find((item) => item.id === product.id);
+  if (existing) {
+    return items.map((item) => (item.id === product.id ? { ...item, qty: item.qty + 1 } : item));
+  }
+  return [...items, { ...product, qty: 1 }];
+}
+
+export function renderCart(items) {
+  if (items.length === 0) return "<li>Your cart is empty.</li>";
+  return items
+    .map((item) => `<li>${item.name} × ${item.qty}: ${formatPrice(item.price * item.qty)}</li>`)
+    .join("");
+}
+```
+
+```js solution file=/shop.js
+import { products } from "./products";
+import { addToCart, cartCount, cartTotal, formatPrice, renderCart } from "./cartUtils";
+
+export function mountShop(root) {
+  let cart = [];
+
+  root.innerHTML = `
+    <header>
+      <h1>MiniShop</h1>
+      <p>Cart: <span id="badge">0</span> items</p>
+    </header>
+    <h2>Products</h2>
+    <ul id="products">
+      ${products
+        .map(
+          (product) => `<li>${product.name} ${formatPrice(product.price)}
+            <button data-id="${product.id}" aria-label="Add ${product.name}">Add</button></li>`,
+        )
+        .join("")}
+    </ul>
+    <h2>Your cart</h2>
+    <ul id="cart">${renderCart(cart)}</ul>
+    <p id="total">Total: ${formatPrice(cartTotal(cart))}</p>
+  `;
+
+  // Everything that shows the cart, in one place. Forget a line, and that part goes stale.
+  function update() {
+    root.querySelector("#cart").innerHTML = renderCart(cart);
+    root.querySelector("#total").textContent = `Total: ${formatPrice(cartTotal(cart))}`;
+    root.querySelector("#badge").textContent = String(cartCount(cart));
+  }
+
+  root.querySelector("#products").addEventListener("click", (event) => {
+    const button = event.target.closest("button");
+    if (!button) return;
+    const product = products.find((p) => p.id === Number(button.dataset.id));
+    cart = addToCart(cart, product);
+    update();
+  });
+}
+```
+
+</ProjectStep>
+
+<HowItWorks title="Why this doesn't scale">
+
+Count the places that must change when the cart changes: the list, the total and the badge. Now add what a real shop has: a mini-cart in the header, a "free shipping from $50" banner, disabled buttons for items at their stock limit, a checkout button that's hidden for an empty cart. Each one is another line in `update()`, and every new feature has to remember all of them.
+
+There's a second, sneakier problem: `update()` rewrites the cart list with `innerHTML`, so if the cart had a quantity `<input>` with focus, the focus is gone after every change.
+
+React flips the model. Instead of *"when X changes, go and change these five DOM nodes"*, you write *"given this data, the page looks like this"*, and React works out the DOM changes itself. That's the whole idea behind the next step.
+
+</HowItWorks>
+
+<Practice>
+
+<TraceState
+  id="trace-stale-badge"
+  track="what the badge shows if update() forgets the badge line"
+  steps={[
+    { action: "The page loads (empty cart)", answer: "0" },
+    { action: "Click Add on Coffee beans", answer: "0" },
+    { action: "Click Add on Coffee beans again", answer: "0" },
+    { action: "Click Add on Green tea", answer: "0" },
+  ]}
+  explain="The cart array has 3 items by the end, but nothing ever writes to the badge after the first render, so it shows 0 forever. The data is right and the page is wrong: that's the sync problem."
+  hint="Nothing changes on the page unless your code writes to it."
+/>
+
+<SortBuckets
+  id="buckets-mutate"
+  prompt="Does each line change the existing cart, or build a new one?"
+  buckets={["Builds a new cart", "Changes the existing cart"]}
+  items={[
+    ["`[...items, { ...product, qty: 1 }]`", 0],
+    ["`items.map((i) => i.id === id ? { ...i, qty: i.qty + 1 } : i)`", 0],
+    ["`items.filter((i) => i.id !== id)`", 0],
+    ["`items.push({ ...product, qty: 1 })`", 1],
+    ["`items.find((i) => i.id === id).qty++`", 1],
+    ["`items.splice(index, 1)`", 1],
+  ]}
+  explain="`map`, `filter` and spread always return new arrays. `push`, `splice` and changing a property of a found item modify what's already there. React relies on new arrays to notice changes, so build the habit now."
+/>
+
+<TrueFalse
+  id="tf-delegation"
+  statements={[
+    { text: "One click listener on the product list can handle every Add button inside it.", answer: true, explain: "Clicks bubble up from the button to the list. `event.target.closest(\"button\")` tells you which button it was." },
+    { text: "After `cart = addToCart(cart, product)`, the page shows the new cart automatically.", answer: false, explain: "Plain JavaScript has no link between a variable and the DOM. You have to write to the page yourself." },
+    { text: "Rewriting a list with `innerHTML` keeps the focus on an input that was inside it.", answer: false, explain: "The old elements are destroyed and new ones are created, so focus and typed text are lost." },
+  ]}
+/>
+
+</Practice>
+
+<Quiz
+  questions={[
+    {
+      q: "What is the sync problem?",
+      options: ["Two tabs fighting over localStorage", "Keeping every part of the page in step with the data, by hand", "Clicks arriving out of order", "A slow network"],
+      answer: 1,
+      explain: "The data changes in one place, and you must remember every DOM node that shows it.",
+    },
+    {
+      q: "Why does `addToCart` return a new array instead of pushing into the old one?",
+      options: ["`push` doesn't work on carts", "So the old cart stays as it was: easier to debug, undo and compare, and it's what React expects", "New arrays are faster", "To save memory"],
+      answer: 1,
+      explain: "Immutable updates make every change visible as a new value. React compares values to decide what to re-render.",
+    },
+    {
+      q: "How does React solve the sync problem?",
+      options: ["It reloads the page", "You describe what the page looks like for the current data, and React updates the DOM to match", "It watches every variable", "It uses innerHTML for you"],
+      answer: 1,
+      explain: "Your components are a function of the data. When the data (state) changes, React re-renders and patches only what changed.",
+    },
+  ]}
+/>

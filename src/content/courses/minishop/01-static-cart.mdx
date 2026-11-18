@@ -1,0 +1,216 @@
+---
+id: static-cart
+title: "Step 1: A static cart in vanilla JS"
+summary: Start MiniShop with plain JavaScript. Turn a hard-coded cart array into HTML with map and join, and show the total.
+minutes: 20
+tags: [MiniShop, project, vanilla JS, map, join, reduce, template literals, innerHTML, DOM]
+---
+
+Welcome to **MiniShop**. Over the next steps you'll grow one small shopping cart into a real, deployed website: React, state, a reducer, data fetching, context, TypeScript, routing, a validated checkout, tests and deployment. The code you finish in each step is the starter code of the next one.
+
+We start with no framework at all: an array of cart items, and plain JavaScript that turns it into HTML. It's the same thing React will do for us later, so it's worth seeing by hand first.
+
+<ProjectStep
+  id="static-cart"
+  title="Render the cart"
+  goal="Show a hard-coded cart as a list, one line per item with its line total, and the cart total underneath."
+  practice={[
+    ["Array methods: map and reduce", "/courses/js-basics/arrays-methods"],
+    ["Strings and template literals", "/courses/js-basics/strings"],
+    ["The DOM", "/courses/modern-js/dom-events"],
+  ]}
+  tasks={[
+    "In `cartUtils.js`, make `cartTotal(items)` add up `price × qty` for every item (use `reduce`).",
+    "Make `renderCart(items)` return one `<li>` per item, like `<li>Coffee beans × 2: $24.00</li>`.",
+    "Join the lines into **one string** with `join(\"\")`, so no commas appear on the page.",
+    "When the cart is empty, return `<li>Your cart is empty.</li>` instead.",
+    "Look at the preview: two lines and **Total: $32.00**.",
+  ]}
+  hints={[
+    "`items.reduce((sum, item) => sum + item.price * item.qty, 0)`: the `0` is the starting value, so an empty cart totals 0.",
+    "``items.map((item) => `<li>${item.name} × ${item.qty}: ${formatPrice(item.price * item.qty)}</li>`)`` gives an array of strings.",
+    "An array turned into a string gets commas between items. Add `.join(\"\")` after the `map`.",
+  ]}
+  explain={[
+    "`reduce` starts at `0` and adds each line total, so an empty cart is `0` instead of an error.",
+    "`map` turns every item into a string of HTML; `join(\"\")` glues them together without the commas you'd get from `String(array)`.",
+    "`index.js` puts the result into the page once, with `innerHTML`. Nothing updates it yet: that's the next step.",
+  ]}
+>
+
+`index.js` is ready: it calls your two functions and writes the HTML into the page. Fill in `cartUtils.js` so the cart shows up.
+
+```js starter file=/cartUtils.js
+export function formatPrice(amount) {
+  return "$" + amount.toFixed(2);
+}
+
+export function cartTotal(items) {
+  // TODO: add up price × qty for every item
+  return 0;
+}
+
+export function renderCart(items) {
+  // TODO: one <li> per item, joined into one string
+  return "";
+}
+```
+
+```js starter file=/index.js
+import { cartTotal, formatPrice, renderCart } from "./cartUtils";
+
+const cart = [
+  { id: 1, name: "Coffee beans", price: 12, qty: 2 },
+  { id: 2, name: "Green tea", price: 8, qty: 1 },
+];
+
+document.getElementById("root").innerHTML = `
+  <h1>MiniShop</h1>
+  <h2>Your cart</h2>
+  <ul id="cart">${renderCart(cart)}</ul>
+  <p id="total">Total: ${formatPrice(cartTotal(cart))}</p>
+`;
+```
+
+```js tests file=/cart.test.js
+import { cartTotal, renderCart } from "./cartUtils";
+
+const items = [
+  { id: 1, name: "Coffee beans", price: 12, qty: 2 },
+  { id: 2, name: "Green tea", price: 8, qty: 1 },
+];
+
+test("cartTotal adds price × qty for every item", () => {
+  expect(cartTotal(items)).toBe(32);
+});
+
+test("an empty cart totals 0", () => {
+  expect(cartTotal([])).toBe(0);
+});
+
+test("renderCart makes one <li> per item, with the line total", () => {
+  document.body.innerHTML = `<ul>${renderCart(items)}</ul>`;
+  const lines = [...document.querySelectorAll("li")].map((li) => li.textContent);
+  expect(lines).toEqual(["Coffee beans × 2: $24.00", "Green tea × 1: $8.00"]);
+});
+
+test("renderCart returns one string, with no commas between the lines", () => {
+  const html = renderCart(items);
+  expect(typeof html).toBe("string");
+  expect(html).not.toContain(",");
+});
+
+test("an empty cart says so", () => {
+  document.body.innerHTML = `<ul>${renderCart([])}</ul>`;
+  expect(document.querySelector("li").textContent).toBe("Your cart is empty.");
+});
+```
+
+```js solution file=/cartUtils.js
+export function formatPrice(amount) {
+  return "$" + amount.toFixed(2);
+}
+
+export function cartTotal(items) {
+  return items.reduce((sum, item) => sum + item.price * item.qty, 0);
+}
+
+export function renderCart(items) {
+  if (items.length === 0) return "<li>Your cart is empty.</li>";
+  return items
+    .map((item) => `<li>${item.name} × ${item.qty}: ${formatPrice(item.price * item.qty)}</li>`)
+    .join("");
+}
+```
+
+</ProjectStep>
+
+<HowItWorks title="What innerHTML really does">
+
+Setting `innerHTML` makes the browser **parse** your string as HTML, throw away everything that was inside the element, and build brand-new DOM nodes. It's fast to write, but it has two costs you'll meet soon:
+
+- Anything inside is destroyed and recreated, including focus, text a user was typing and event listeners on those elements.
+- The string is trusted as HTML. If a product name came from a user and contained `<img src=x onerror=…>`, it would run. (React escapes text for you, which is one more reason we'll switch to it.)
+
+For a static cart that's fine. The trouble starts when the cart **changes**, in the next step.
+
+</HowItWorks>
+
+<Practice>
+
+<Predict
+  id="predict-join"
+  answer={["<li>Tea</li>,<li>Mug</li>", "<li>Tea</li><li>Mug</li>"]}
+  explain={"Putting an array inside a template literal turns it into a string with commas between the items. `join(\"\")` uses an empty string as the separator instead."}
+>
+
+```js
+const names = ["Tea", "Mug"];
+const lines = names.map((name) => `<li>${name}</li>`);
+console.log(`${lines}`);
+console.log(lines.join(""));
+```
+
+</Predict>
+
+<SpotTheBug
+  id="bug-total-start"
+  bug={2}
+  prompt="An empty cart crashes this total. Click the line with the bug."
+  explain="Without a starting value, `reduce` uses the first item as the start, and an empty array has no first item: TypeError. Pass `0` as the second argument, which also makes the sum start from a number instead of an item object."
+>
+
+```js
+function cartTotal(items) {
+  return items.reduce((sum, item) => sum + item.price * item.qty);
+}
+```
+
+```js fixed
+function cartTotal(items) {
+  return items.reduce((sum, item) => sum + item.price * item.qty, 0);
+}
+console.log(cartTotal([]));
+```
+
+</SpotTheBug>
+
+<OrderLines
+  id="order-render"
+  prompt="Order the lines that build the cart's HTML and put it on the page."
+  explain="Start from the data, turn each item into a string, join them, then write the result into the page once."
+>
+
+```js
+const cart = [{ name: "Tea", price: 8, qty: 1 }];
+const lines = cart.map((item) => `<li>${item.name}</li>`);
+const html = lines.join("");
+document.getElementById("cart").innerHTML = html;
+```
+
+</OrderLines>
+
+</Practice>
+
+<Quiz
+  questions={[
+    {
+      q: "Why does `renderCart` end with `.join(\"\")`?",
+      options: ["To sort the lines", "To turn the array of strings into one string with nothing between the lines", "To remove empty items", "Because `innerHTML` needs an array"],
+      answer: 1,
+      explain: "Otherwise the array is converted with commas between the items, and the commas show up on the page.",
+    },
+    {
+      q: "Why is the total computed from the items instead of stored in its own variable?",
+      options: ["It's faster", "A stored total can get out of sync with the items; a computed one is always right", "Variables can't hold numbers", "`innerHTML` requires it"],
+      answer: 1,
+      explain: "Derived data should be derived. You'll see this rule again in React: don't put the total in state.",
+    },
+    {
+      q: "What happens to the cart list when the `cart` array changes later?",
+      options: ["The page updates automatically", "Nothing: the HTML was written once, so you'd have to update the DOM yourself", "The browser reloads", "An error is thrown"],
+      answer: 1,
+      explain: "Plain JavaScript has no link between your data and the page. Keeping them in sync by hand is the problem the next step makes you feel.",
+    },
+  ]}
+/>

@@ -1,0 +1,141 @@
+---
+id: whats-next
+title: "What's next: backend, accounts and payments"
+summary: What a real shop adds on top of MiniShop - a backend with a database, sign-in and accounts, and payments with Stripe - and the safety rules that come with each.
+minutes: 20
+tags: [MiniShop, project, backend, API, database, authentication, sessions, payments, Stripe, webhooks, security, Next.js]
+---
+
+MiniShop is a complete front end: pages, a cart that survives reloads, data fetching, a validated checkout, tests and a deployment. What it doesn't have is anything that must be **trusted**: the products and prices come from a pretend server, nobody signs in, and "Place order" charges no one.
+
+Those three things all live on a **server**, because the browser is the user's machine: anything that runs there can be read and changed by them. This page maps out each one, so you know what to learn next and what to watch out for.
+
+## A real backend
+
+Today `api.fetchProducts()` returns a constant after 600 ms. A real backend is a program on a server that answers requests like `GET /api/products` and `POST /api/orders`, and stores data in a **database**.
+
+```ts file=api/orders.ts
+// A serverless function on Vercel: runs on the server, never in the browser.
+import { checkoutSchema } from "../src/checkoutSchema";
+import { db } from "./db";
+
+export async function POST(request: Request) {
+  const result = checkoutSchema.safeParse(await request.json());
+  if (!result.success) return Response.json(result.error.issues, { status: 400 });
+
+  // Never trust prices sent by the browser: look them up again.
+  const order = await db.orders.create({ customer: result.data, items: await priceItems(result.data) });
+  return Response.json({ id: order.id }, { status: 201 });
+}
+```
+
+Two habits matter more than any framework:
+
+- **Validate again on the server.** The same Zod schema can run on both sides, but only the server's check counts, because anyone can send a request without your form.
+- **Recompute anything that matters.** The browser may send `{ id: 1, qty: 2 }`, but the price comes from the database, never from the request.
+
+Where to go: Vercel functions (or Netlify, Cloudflare Workers) for small APIs; **Next.js** or **React Router's framework mode** when you want the server and the React app in one project, with server-side rendering and React Server Components; a hosted Postgres (Neon, Supabase) for the database.
+
+## Accounts and sign-in
+
+Sign-in answers one question on every request: *who is this?* The usual answer is a **session**: after the user proves who they are (password, a magic link, or "Sign in with Google"), the server sets an `HttpOnly` cookie that the browser sends back with each request, and that JavaScript can't read.
+
+Don't build password storage yourself. Use a library or a service (Auth.js, Clerk, Supabase Auth, or your framework's built-in auth): they handle hashing, rate limits, email verification and account recovery, which are easy to get subtly wrong.
+
+In React, the signed-in user becomes one more piece of app-wide state, like the cart: a `useUser()` hook backed by context or by TanStack Query, and routes like `/account/orders` that redirect to `/sign-in` when there's no user. But hiding a page in React is only a convenience. The **server** must still check the session on every request for private data.
+
+## Payments
+
+The rule is short: **card numbers never touch your code.** Handling them yourself brings strict security rules (PCI DSS) and real risk. Payment providers solve this with a hosted payment page:
+
+1. The browser asks **your server** to start a payment.
+2. Your server creates a **Stripe Checkout Session** with the order's items and prices (looked up on the server, again), using a secret key that only the server knows.
+3. The browser is redirected to Stripe's page, where the customer pays.
+4. Stripe redirects back to `/checkout/success`, and separately calls your server's **webhook** to say the payment really succeeded. Only then do you mark the order as paid.
+
+Step 4 is the subtle one: the redirect back can be faked or never happen (a closed tab), so the webhook, signed by Stripe, is the source of truth.
+
+<HowItWorks title="Why the server is the source of truth">
+
+Everything you ship to the browser is a suggestion. A user can open DevTools and change the cart's prices in localStorage, edit the JavaScript, or skip the UI entirely and send requests with `curl`. None of that is a bug in your React code; it's how the web works.
+
+So a real shop splits the work. The browser does what makes the experience good: instant feedback, validation messages, a cart that survives reloads. The server does what makes the shop correct: checking every input again, computing prices, knowing who is signed in, and talking to the payment provider with secret keys. MiniShop is the first half, done properly. The second half is your next project.
+
+</HowItWorks>
+
+<Practice>
+
+<SortBuckets
+  id="buckets-client-server"
+  prompt="Where must each job run in a real shop?"
+  buckets={["Browser (React)", "Server only"]}
+  items={[
+    ["Showing a validation message while the user types", 0],
+    ["Keeping the cart in localStorage between visits", 0],
+    ["Computing the price the customer is charged", 1],
+    ["Checking that the user may see /account/orders data", 1],
+    ["Creating a Stripe Checkout Session with the secret key", 1],
+    ["Showing a skeleton while products load", 0],
+  ]}
+  explain="The browser is for the experience; anything that must be trusted (prices, permissions, secrets) runs on the server."
+/>
+
+<OrderLines
+  id="order-stripe"
+  prompt="Order the steps of a Stripe Checkout payment."
+  explain="Your server starts the session with server-side prices, Stripe takes the payment on its own page, and the signed webhook (not the redirect) confirms it."
+>
+
+```text
+The customer presses Place order, and the browser calls POST /api/checkout
+Your server looks up the prices and creates a Checkout Session with its secret key
+The browser is redirected to Stripe's hosted payment page
+The customer pays, and Stripe redirects back to /checkout/success
+Stripe calls your webhook, and your server marks the order as paid
+```
+
+</OrderLines>
+
+<MatchPairs
+  id="match-next-tools"
+  prompt="Match each need with a common tool."
+  columns={["Need", "Tool"]}
+  pairs={[
+    ["Server code next to the React app, with server rendering", "Next.js or React Router framework mode"],
+    ["A hosted relational database", "Postgres (Neon, Supabase)"],
+    ["Sign-in with sessions and social logins", "Auth.js, Clerk or Supabase Auth"],
+    ["Taking card payments without touching card numbers", "Stripe Checkout"],
+    ["Small API endpoints without managing servers", "Serverless functions (Vercel, Netlify)"],
+  ]}
+/>
+
+</Practice>
+
+<Quiz
+  questions={[
+    {
+      q: "The checkout form already validates with Zod. Why validate the order again on the server?",
+      options: ["It's faster", "Requests can be sent without the form, so only the server's check can be trusted", "Zod only works on servers", "To show nicer errors"],
+      answer: 1,
+      explain: "Browser validation is for the user's convenience; server validation is for correctness and safety.",
+    },
+    {
+      q: "Where does the price a customer pays come from?",
+      options: ["The cart in localStorage", "The request body", "The server, looked up from the database when the order is created", "The product page's HTML"],
+      answer: 2,
+      explain: "Anything from the browser can be edited. Prices are recomputed on the server.",
+    },
+    {
+      q: "Why is Stripe's webhook, not the redirect to /checkout/success, the proof of payment?",
+      options: ["Webhooks are faster", "The redirect can be faked or never happen; the webhook is signed by Stripe and sent server to server", "Redirects don't work on mobile", "It isn't; either is fine"],
+      answer: 1,
+      explain: "Verify the webhook's signature, then mark the order as paid.",
+    },
+    {
+      q: "Hiding `/account/orders` in React when no one is signed in is…",
+      options: ["Enough to protect the data", "A nice experience, but the server must still check the session before returning any data", "Against the rules of React Router", "Only needed on mobile"],
+      answer: 1,
+      explain: "Client-side checks are UX. Access control lives on the server.",
+    },
+  ]}
+/>

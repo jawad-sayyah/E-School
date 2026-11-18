@@ -67,6 +67,7 @@ export const COMPONENT_KINDS: Record<string, QuestionKind | 'quiz'> = {
   Exercise: 'write-code',
   ReactExercise: 'write-code',
   BuildUI: 'build-ui',
+  ProjectStep: 'write-code',
   TSExercise: 'write-code',
   TestExercise: 'write-tests',
   ReactTestExercise: 'write-tests',

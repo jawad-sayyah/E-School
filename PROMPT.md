@@ -457,7 +457,7 @@ It ends with a "What's next" page: a real backend, authentication and payments.
 **Phase 9 — Testing** ✅
 - The full Vitest-style mini test API, `<TestExercise>` (worker and Sandpack), the Testing course, the React track boss challenge and certificate.
 
-**Phase 10 — Build a real website with React**
+**Phase 10 — Build a real website with React** ✅
 - All MiniShop steps through deployment, with checks, "Test it" tasks and solutions.
 
 **Phase 11 — Polish**

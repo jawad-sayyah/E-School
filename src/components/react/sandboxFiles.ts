@@ -36,3 +36,8 @@ export const VITEST_SHIM: SandpackFiles = {
     hidden: true,
   },
 };
+
+/** TypeScript projects (an /App.tsx or /index.tsx) need the react-ts template, whose entry imports App.tsx. */
+export function reactTemplate(files: Record<string, string>): 'react' | 'react-ts' {
+  return '/App.tsx' in files || '/index.tsx' in files ? 'react-ts' : 'react';
+}

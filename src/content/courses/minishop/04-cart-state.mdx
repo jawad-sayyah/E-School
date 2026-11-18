@@ -1,0 +1,651 @@
+---
+id: cart-state
+title: "Step 4: A cart with state"
+summary: Give MiniShop a real cart with useState. Add and remove items, change quantities with + and −, and keep the total derived.
+minutes: 30
+tags: [MiniShop, project, useState, state, events, immutability, derived state, lifting state up]
+---
+
+The hard-coded cart in `App.js` has to go. A cart that changes is **state**: data that belongs to a component and makes React re-render when it changes. With state, the sync problem from step 2 disappears: you change the data, and React redraws everything that depends on it.
+
+The cart lives in `App`, because both `ProductList` (which adds) and `Cart` (which shows and changes) need it. That's **lifting state up**: the state sits in the closest common parent, and the children get the data and callbacks as props.
+
+<ProjectStep
+  id="cart-state"
+  title="Make the cart real"
+  goal="Add buttons fill the cart, each line has −, + and Remove buttons, and the total always matches."
+  practice={[
+    ["State with useState", "/courses/react/state"],
+    ["Events", "/courses/react/events"],
+    ["Lifting state up", "/courses/react/lifting-state"],
+    ["State is a snapshot", "/courses/hooks/state-snapshot"],
+  ]}
+  tasks={[
+    "In `App.js`, replace the hard-coded cart with `const [cart, setCart] = useState([])`.",
+    "Adding uses `addToCart` from `cartUtils.js`, through an updater: `setCart((items) => addToCart(items, product))`.",
+    "Give each cart line three buttons with these labels: `Decrease Coffee beans` (−), `Increase Coffee beans` (+) and `Remove Coffee beans` (Remove).",
+    "Wire them through two new props of `Cart`: `onChangeQty(id, qty)` and `onRemove(id)`. A quantity below 1 removes the line.",
+    "Don't put the total in state: `Cart` already computes it from the items.",
+  ]}
+  hints={[
+    "In `App`: `function add(product) { setCart((items) => addToCart(items, product)); }`, then `<ProductList products={products} onAdd={add} />`.",
+    "Changing a quantity: `items.map((item) => (item.id === id ? { ...item, qty } : item))`. Removing: `items.filter((item) => item.id !== id)`. If `qty < 1`, remove instead.",
+    "In `Cart`, after the line's `<span>`: ``<button aria-label={`Decrease ${item.name}`} onClick={() => onChangeQty(item.id, item.qty - 1)}>−</button>``, and the same idea for + and Remove.",
+  ]}
+  explain={[
+    "Every change goes through `setCart` with a **new** array, so React sees a new value and re-renders `App`, `ProductList` and `Cart`.",
+    "The updater form `setCart((items) => …)` always starts from the latest cart, even if two updates happen in the same click.",
+    "`Cart` doesn't own any state. It shows what it gets and reports clicks through `onChangeQty` and `onRemove`, so the cart logic stays in one place.",
+  ]}
+>
+
+The page renders, but the cart is a constant. Move it into state, and give `Cart` the buttons to change it.
+
+```js starter file=/cartUtils.js
+export function formatPrice(amount) {
+  return "$" + amount.toFixed(2);
+}
+
+export function cartTotal(items) {
+  return items.reduce((sum, item) => sum + item.price * item.qty, 0);
+}
+
+export function cartCount(items) {
+  return items.reduce((sum, item) => sum + item.qty, 0);
+}
+
+export function addToCart(items, product) {
+  const existing = items.find((item) => item.id === product.id);
+  if (existing) {
+    return items.map((item) => (item.id === product.id ? { ...item, qty: item.qty + 1 } : item));
+  }
+  return [...items, { ...product, qty: 1 }];
+}
+
+export function renderCart(items) {
+  if (items.length === 0) return "<li>Your cart is empty.</li>";
+  return items
+    .map((item) => `<li>${item.name} × ${item.qty}: ${formatPrice(item.price * item.qty)}</li>`)
+    .join("");
+}
+```
+
+```js starter file=/products.js
+export const products = [
+  { id: 1, name: "Coffee beans", price: 12 },
+  { id: 2, name: "Green tea", price: 8 },
+  { id: 3, name: "Travel mug", price: 15 },
+];
+```
+
+```jsx starter file=/App.js
+import { products } from "./products";
+import ProductList from "./ProductList";
+import Cart from "./Cart";
+
+const cart = [
+  { id: 1, name: "Coffee beans", price: 12, qty: 2 },
+  { id: 2, name: "Green tea", price: 8, qty: 1 },
+];
+
+export default function App() {
+  return (
+    <main>
+      <h1>MiniShop</h1>
+      <ProductList products={products} onAdd={(product) => console.log("Add", product.name)} />
+      <Cart items={cart} />
+    </main>
+  );
+}
+```
+
+```jsx starter file=/ProductList.js
+import { formatPrice } from "./cartUtils";
+
+export default function ProductList({ products, onAdd }) {
+  return (
+    <section>
+      <h2>Products</h2>
+      <ul>
+        {products.map((product) => (
+          <li key={product.id}>
+            {product.name} {formatPrice(product.price)}{" "}
+            <button aria-label={`Add ${product.name}`} onClick={() => onAdd(product)}>
+              Add
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+```
+
+```jsx starter file=/Cart.js
+import { cartTotal, formatPrice } from "./cartUtils";
+
+export default function Cart({ items }) {
+  return (
+    <section>
+      <h2>Your cart</h2>
+      {items.length === 0 ? (
+        <p>Your cart is empty.</p>
+      ) : (
+        <ul>
+          {items.map((item) => (
+            <li key={item.id}>
+              <span>
+                {item.name} × {item.qty}: {formatPrice(item.price * item.qty)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p>Total: {formatPrice(cartTotal(items))}</p>
+    </section>
+  );
+}
+```
+
+```jsx tests file=/App.test.js
+import { fireEvent, render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import App from "./App";
+
+const click = (name) => fireEvent.click(screen.getByRole("button", { name }));
+
+test("the cart starts empty", () => {
+  render(<App />);
+  expect(screen.getByText("Your cart is empty.")).toBeInTheDocument();
+  expect(screen.getByText("Total: $0.00")).toBeInTheDocument();
+});
+
+test("Add puts a product in the cart, and adding it again raises the qty", () => {
+  render(<App />);
+  click("Add Coffee beans");
+  expect(screen.getByText("Coffee beans × 1: $12.00")).toBeInTheDocument();
+  click("Add Coffee beans");
+  click("Add Green tea");
+  expect(screen.getByText("Coffee beans × 2: $24.00")).toBeInTheDocument();
+  expect(screen.getByText("Total: $32.00")).toBeInTheDocument();
+});
+
+test("+ and − change the quantity", () => {
+  render(<App />);
+  click("Add Green tea");
+  click("Increase Green tea");
+  click("Increase Green tea");
+  expect(screen.getByText("Green tea × 3: $24.00")).toBeInTheDocument();
+  click("Decrease Green tea");
+  expect(screen.getByText("Green tea × 2: $16.00")).toBeInTheDocument();
+});
+
+test("− at quantity 1 removes the line", () => {
+  render(<App />);
+  click("Add Travel mug");
+  click("Decrease Travel mug");
+  expect(screen.queryByText(/Travel mug ×/)).not.toBeInTheDocument();
+  expect(screen.getByText("Your cart is empty.")).toBeInTheDocument();
+});
+
+test("Remove takes out only that line", () => {
+  render(<App />);
+  click("Add Coffee beans");
+  click("Add Green tea");
+  click("Remove Coffee beans");
+  expect(screen.queryByText(/Coffee beans ×/)).not.toBeInTheDocument();
+  expect(screen.getByText("Green tea × 1: $8.00")).toBeInTheDocument();
+});
+```
+
+```jsx solution file=/App.js
+import { useState } from "react";
+import { products } from "./products";
+import { addToCart } from "./cartUtils";
+import ProductList from "./ProductList";
+import Cart from "./Cart";
+
+export default function App() {
+  const [cart, setCart] = useState([]);
+
+  function add(product) {
+    setCart((items) => addToCart(items, product));
+  }
+
+  function changeQty(id, qty) {
+    setCart((items) =>
+      qty < 1
+        ? items.filter((item) => item.id !== id)
+        : items.map((item) => (item.id === id ? { ...item, qty } : item)),
+    );
+  }
+
+  function remove(id) {
+    setCart((items) => items.filter((item) => item.id !== id));
+  }
+
+  return (
+    <main>
+      <h1>MiniShop</h1>
+      <ProductList products={products} onAdd={add} />
+      <Cart items={cart} onChangeQty={changeQty} onRemove={remove} />
+    </main>
+  );
+}
+```
+
+```jsx solution file=/Cart.js
+import { cartTotal, formatPrice } from "./cartUtils";
+
+export default function Cart({ items, onChangeQty, onRemove }) {
+  return (
+    <section>
+      <h2>Your cart</h2>
+      {items.length === 0 ? (
+        <p>Your cart is empty.</p>
+      ) : (
+        <ul>
+          {items.map((item) => (
+            <li key={item.id}>
+              <span>
+                {item.name} × {item.qty}: {formatPrice(item.price * item.qty)}
+              </span>{" "}
+              <button
+                aria-label={`Decrease ${item.name}`}
+                onClick={() => onChangeQty(item.id, item.qty - 1)}
+              >
+                −
+              </button>
+              <button
+                aria-label={`Increase ${item.name}`}
+                onClick={() => onChangeQty(item.id, item.qty + 1)}
+              >
+                +
+              </button>
+              <button aria-label={`Remove ${item.name}`} onClick={() => onRemove(item.id)}>
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p>Total: {formatPrice(cartTotal(items))}</p>
+    </section>
+  );
+}
+```
+
+</ProjectStep>
+
+<HowItWorks title="What happens when you click +">
+
+1. The button's handler calls `onChangeQty(2, 3)`, which is `App`'s `changeQty`.
+2. `setCart(updater)` doesn't change anything yet. It **queues** the update and asks React for a re-render.
+3. React calls `App()` again. This time `useState` runs the queued updater on the old cart and returns the new array.
+4. `App` returns new JSX with the new cart; `Cart` re-renders and computes the new total from it.
+5. React compares the new tree with the old one, and changes only the text of that line and of the total in the DOM.
+
+No `update()` function, nothing to forget: every part that depends on the cart is recomputed from it. That's the sync problem from step 2, solved.
+
+</HowItWorks>
+
+<Practice>
+
+<TraceState
+  id="trace-qty"
+  track="the Green tea line after each click (or 'gone')"
+  steps={[
+    { action: "Click Add Green tea", answer: "Green tea × 1: $8.00" },
+    { action: "Click Increase Green tea", answer: "Green tea × 2: $16.00" },
+    { action: "Click Add Green tea", answer: "Green tea × 3: $24.00" },
+    { action: "Click Decrease Green tea three times", answer: "gone" },
+  ]}
+  explain="Add and + both raise the quantity. Each − lowers it, and going below 1 removes the line."
+  hint="Start from an empty cart; Green tea costs $8."
+/>
+
+<SortBuckets
+  id="buckets-state-or-derived"
+  prompt="Should each value be state, or computed during render?"
+  buckets={["State", "Computed during render"]}
+  items={[
+    ["The cart's items", 0],
+    ["The cart's total", 1],
+    ["The number of items for a badge", 1],
+    ["Whether the cart is empty", 1],
+    ["What the user typed into a search box", 0],
+    ["The products that match the search", 1],
+  ]}
+  explain="State is the minimum that can't be computed from anything else. Totals, counts, emptiness and filtered lists are all derived from it, so they can never disagree."
+/>
+
+<Choice
+  id="choice-mutate-state"
+  q="`changeQty` does `items.find((i) => i.id === id).qty = qty; setCart(items);`. What happens?"
+  options={["It works", "The screen doesn't update: it's the same array, so React skips the re-render", "React throws an error", "The quantity doubles"]}
+  answer={1}
+  explain="React compares the new state with the old one using `Object.is`. Same array, no re-render. Build a new array with `map` instead."
+/>
+
+</Practice>
+
+<ReactTestExercise
+  id="test-cart-state"
+  title="Test it: the cart's buttons"
+  hints={[
+    "Write a tiny helper, `const click = (name) => fireEvent.click(screen.getByRole(\"button\", { name }))`, then test each button by its label.",
+    "One bug only shows with **two** different products in the cart: change or remove one, and check the other.",
+    "Press `Decrease …` on a line with qty 1: the line must be gone.",
+  ]}
+>
+
+Test `App`'s cart from the outside, like a user: click **Add**, **+**, **−** and **Remove**, then check the lines and the total. Your tests must pass on this app and catch every hidden buggy version of `App.js`.
+
+```jsx code file=/App.js
+import { useState } from "react";
+import { products } from "./products";
+import { addToCart } from "./cartUtils";
+import ProductList from "./ProductList";
+import Cart from "./Cart";
+
+export default function App() {
+  const [cart, setCart] = useState([]);
+
+  function add(product) {
+    setCart((items) => addToCart(items, product));
+  }
+
+  function changeQty(id, qty) {
+    setCart((items) =>
+      qty < 1
+        ? items.filter((item) => item.id !== id)
+        : items.map((item) => (item.id === id ? { ...item, qty } : item)),
+    );
+  }
+
+  function remove(id) {
+    setCart((items) => items.filter((item) => item.id !== id));
+  }
+
+  return (
+    <main>
+      <h1>MiniShop</h1>
+      <ProductList products={products} onAdd={add} />
+      <Cart items={cart} onChangeQty={changeQty} onRemove={remove} />
+    </main>
+  );
+}
+```
+
+```jsx code file=/Cart.js
+import { cartTotal, formatPrice } from "./cartUtils";
+
+export default function Cart({ items, onChangeQty, onRemove }) {
+  return (
+    <section>
+      <h2>Your cart</h2>
+      {items.length === 0 ? (
+        <p>Your cart is empty.</p>
+      ) : (
+        <ul>
+          {items.map((item) => (
+            <li key={item.id}>
+              <span>
+                {item.name} × {item.qty}: {formatPrice(item.price * item.qty)}
+              </span>{" "}
+              <button
+                aria-label={`Decrease ${item.name}`}
+                onClick={() => onChangeQty(item.id, item.qty - 1)}
+              >
+                −
+              </button>
+              <button
+                aria-label={`Increase ${item.name}`}
+                onClick={() => onChangeQty(item.id, item.qty + 1)}
+              >
+                +
+              </button>
+              <button aria-label={`Remove ${item.name}`} onClick={() => onRemove(item.id)}>
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p>Total: {formatPrice(cartTotal(items))}</p>
+    </section>
+  );
+}
+```
+
+```jsx code file=/ProductList.js
+import { formatPrice } from "./cartUtils";
+
+export default function ProductList({ products, onAdd }) {
+  return (
+    <section>
+      <h2>Products</h2>
+      <ul>
+        {products.map((product) => (
+          <li key={product.id}>
+            {product.name} {formatPrice(product.price)}{" "}
+            <button aria-label={`Add ${product.name}`} onClick={() => onAdd(product)}>
+              Add
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+```
+
+```js code file=/cartUtils.js
+export function formatPrice(amount) {
+  return "$" + amount.toFixed(2);
+}
+
+export function cartTotal(items) {
+  return items.reduce((sum, item) => sum + item.price * item.qty, 0);
+}
+
+export function addToCart(items, product) {
+  const existing = items.find((item) => item.id === product.id);
+  if (existing) {
+    return items.map((item) => (item.id === product.id ? { ...item, qty: item.qty + 1 } : item));
+  }
+  return [...items, { ...product, qty: 1 }];
+}
+```
+
+```js code file=/products.js
+export const products = [
+  { id: 1, name: "Coffee beans", price: 12 },
+  { id: 2, name: "Green tea", price: 8 },
+  { id: 3, name: "Travel mug", price: 15 },
+];
+```
+
+```jsx starter file=/App.test.js
+import { fireEvent, render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import { expect, test } from "vitest";
+import App from "./App";
+
+const click = (name) => fireEvent.click(screen.getByRole("button", { name }));
+
+test("Add puts a product in the cart", () => {
+  render(<App />);
+  click("Add Coffee beans");
+  expect(screen.getByText("Coffee beans × 1: $12.00")).toBeInTheDocument();
+});
+```
+
+```jsx bug file=/App.js title="− at qty 1 leaves a line with qty 0" hint="Press Decrease on a line with qty 1. Is the line gone?"
+import { useState } from "react";
+import { products } from "./products";
+import { addToCart } from "./cartUtils";
+import ProductList from "./ProductList";
+import Cart from "./Cart";
+
+export default function App() {
+  const [cart, setCart] = useState([]);
+
+  function add(product) {
+    setCart((items) => addToCart(items, product));
+  }
+
+  function changeQty(id, qty) {
+    setCart((items) => items.map((item) => (item.id === id ? { ...item, qty } : item)));
+  }
+
+  function remove(id) {
+    setCart((items) => items.filter((item) => item.id !== id));
+  }
+
+  return (
+    <main>
+      <h1>MiniShop</h1>
+      <ProductList products={products} onAdd={add} />
+      <Cart items={cart} onChangeQty={changeQty} onRemove={remove} />
+    </main>
+  );
+}
+```
+
+```jsx bug file=/App.js title="Remove empties the whole cart" hint="Put two different products in the cart, remove one, and check the other is still there."
+import { useState } from "react";
+import { products } from "./products";
+import { addToCart } from "./cartUtils";
+import ProductList from "./ProductList";
+import Cart from "./Cart";
+
+export default function App() {
+  const [cart, setCart] = useState([]);
+
+  function add(product) {
+    setCart((items) => addToCart(items, product));
+  }
+
+  function changeQty(id, qty) {
+    setCart((items) =>
+      qty < 1
+        ? items.filter((item) => item.id !== id)
+        : items.map((item) => (item.id === id ? { ...item, qty } : item)),
+    );
+  }
+
+  function remove() {
+    setCart([]);
+  }
+
+  return (
+    <main>
+      <h1>MiniShop</h1>
+      <ProductList products={products} onAdd={add} />
+      <Cart items={cart} onChangeQty={changeQty} onRemove={remove} />
+    </main>
+  );
+}
+```
+
+```jsx bug file=/App.js title="+ changes every line" hint="Use two products, press Increase on one, and check the other's qty."
+import { useState } from "react";
+import { products } from "./products";
+import { addToCart } from "./cartUtils";
+import ProductList from "./ProductList";
+import Cart from "./Cart";
+
+export default function App() {
+  const [cart, setCart] = useState([]);
+
+  function add(product) {
+    setCart((items) => addToCart(items, product));
+  }
+
+  function changeQty(id, qty) {
+    setCart((items) =>
+      qty < 1 ? items.filter((item) => item.id !== id) : items.map((item) => ({ ...item, qty })),
+    );
+  }
+
+  function remove(id) {
+    setCart((items) => items.filter((item) => item.id !== id));
+  }
+
+  return (
+    <main>
+      <h1>MiniShop</h1>
+      <ProductList products={products} onAdd={add} />
+      <Cart items={cart} onChangeQty={changeQty} onRemove={remove} />
+    </main>
+  );
+}
+```
+
+```jsx solution file=/App.test.js
+import { fireEvent, render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import { expect, test } from "vitest";
+import App from "./App";
+
+const click = (name) => fireEvent.click(screen.getByRole("button", { name }));
+
+test("Add puts a product in the cart", () => {
+  render(<App />);
+  click("Add Coffee beans");
+  expect(screen.getByText("Coffee beans × 1: $12.00")).toBeInTheDocument();
+});
+
+test("+ raises only that line's qty", () => {
+  render(<App />);
+  click("Add Coffee beans");
+  click("Add Green tea");
+  click("Increase Green tea");
+  expect(screen.getByText("Green tea × 2: $16.00")).toBeInTheDocument();
+  expect(screen.getByText("Coffee beans × 1: $12.00")).toBeInTheDocument();
+  expect(screen.getByText("Total: $28.00")).toBeInTheDocument();
+});
+
+test("− at qty 1 removes the line", () => {
+  render(<App />);
+  click("Add Travel mug");
+  click("Decrease Travel mug");
+  expect(screen.queryByText(/Travel mug ×/)).not.toBeInTheDocument();
+  expect(screen.getByText("Your cart is empty.")).toBeInTheDocument();
+});
+
+test("Remove takes out only that line", () => {
+  render(<App />);
+  click("Add Coffee beans");
+  click("Add Green tea");
+  click("Remove Coffee beans");
+  expect(screen.queryByText(/Coffee beans ×/)).not.toBeInTheDocument();
+  expect(screen.getByText("Green tea × 1: $8.00")).toBeInTheDocument();
+});
+```
+
+</ReactTestExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "Why does the cart state live in `App`, not in `Cart`?",
+      options: ["`Cart` can't use hooks", "Both `ProductList` and `Cart` need it, and `App` is their closest common parent", "State must always be at the top", "For performance"],
+      answer: 1,
+      explain: "Lifting state up: put it in the nearest component that contains everyone who reads or changes it.",
+    },
+    {
+      q: "Why use `setCart((items) => addToCart(items, product))` instead of `setCart(addToCart(cart, product))`?",
+      options: ["It's required by React", "The updater always starts from the latest state, even with several updates in one event", "It's faster", "To avoid a re-render"],
+      answer: 1,
+      explain: "`cart` is this render's snapshot. Two updates in one click would both start from the same old value; updaters chain correctly.",
+    },
+    {
+      q: "Where does the total come from?",
+      options: ["A `total` state updated in every handler", "It's computed from the items while `Cart` renders", "From the DOM", "From `localStorage`"],
+      answer: 1,
+      explain: "A second piece of state could disagree with the items. Computing it can't.",
+    },
+  ]}
+/>

@@ -1,0 +1,1557 @@
+---
+id: checkout
+title: "Step 11: Checkout with a validated form"
+summary: Build MiniShop's checkout - an order summary, a form validated with React Hook Form and Zod, an empty state, and a thank-you message that empties the cart.
+minutes: 45
+tags: [MiniShop, project, forms, React Hook Form, Zod, validation, z.infer, accessibility, aria-invalid, empty state]
+---
+
+The last big feature: taking the order. A checkout form looks simple, but it's where users make the most mistakes, so it has to explain each one clearly. Two libraries do the heavy lifting:
+
+- **Zod** describes what valid data looks like, once: `z.object({ name: …, email: z.email(…) })`. `z.infer` turns that schema into a TypeScript type, so the form's data is typed for free.
+- **React Hook Form** connects the inputs (`register`), runs the validation on submit (through `zodResolver`), and gives you `errors` to show next to each field.
+
+The page has three states: an **empty cart** (nothing to check out), the **form** with the order summary, and a **thank-you** message after the order is placed.
+
+<ProjectStep
+  id="checkout"
+  title="Build the checkout page"
+  goal="/checkout shows the order summary and a form; every invalid field explains itself, and a valid order says thank you and empties the cart."
+  practice={[
+    ["React Hook Form and Zod", "/courses/react-ecosystem/forms-rhf-zod"],
+    ["Forms in React", "/courses/react/forms"],
+    ["Accessibility", "/courses/react-ecosystem/accessibility"],
+  ]}
+  tasks={[
+    "Finish `checkoutSchema`: `email` (a valid email), `address` (at least 5 characters) and `zip` (exactly 5 digits), each with the message the tests expect.",
+    "With an empty cart, show **Your cart is empty.** and a link back to the products, not the form.",
+    "Show an **Order summary**: one line per item and the total.",
+    "Build the form with `useForm<CheckoutForm>({ resolver: zodResolver(checkoutSchema) })`: four labelled inputs (Name, Email, Address, ZIP code), each error in a `<p role=\"alert\">`, and a **Place order** button.",
+    "On a valid submit, empty the cart and show **Thanks, Ada! Your order is on its way.** Add the `checkout` route, and a **Checkout** link in the cart.",
+  ]}
+  hints={[
+    "`email: z.email(\"Enter a valid email\")`, `address: z.string().trim().min(5, \"Enter your street address\")`, `zip: z.string().regex(/^\\d{5}$/, \"A ZIP code has 5 digits\")`.",
+    "Each field: `<label htmlFor=\"email\">Email</label>`, `<input id=\"email\" type=\"email\" {...register(\"email\")} />`, then `{errors.email && <p role=\"alert\">{errors.email.message}</p>}`.",
+    "Keep the customer's name in state: `const [placedBy, setPlacedBy] = useState<string | null>(null)`. In the submit handler: `setPlacedBy(data.name); clear();`. Check `placedBy` before the empty-cart check, because the cart is empty right after ordering.",
+  ]}
+  explain={[
+    "One schema is both the validation rules and, through `z.infer`, the form's TypeScript type. They can't drift apart.",
+    "`handleSubmit(placeOrder)` only calls `placeOrder` when the whole schema passes; otherwise it fills `errors`.",
+    "`noValidate` turns off the browser's own bubbles, so every message comes from the schema and looks the same. `aria-invalid` and `role=\"alert\"` tell screen reader users which field is wrong.",
+  ]}
+>
+
+`CheckoutPage.tsx` has the beginning of the schema. Build the page, add its route, and link to it from the cart.
+
+```tsx starter file=/pages/CheckoutPage.tsx
+import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { Link } from "react-router";
+import { useCart } from "../CartContext";
+import { formatPrice } from "../cartUtils";
+
+const checkoutSchema = z.object({
+  name: z.string().trim().min(2, "Enter your full name"),
+  // TODO: email, address and a 5-digit zip
+});
+
+type CheckoutForm = z.infer<typeof checkoutSchema>;
+
+export default function CheckoutPage() {
+  // TODO: the empty state, the order summary, the form, and the thank-you message
+  return <h1>Checkout</h1>;
+}
+```
+
+```tsx starter file=/routes.tsx
+import type { RouteObject } from "react-router";
+import Layout from "./Layout";
+import HomePage from "./pages/HomePage";
+import ProductPage from "./pages/ProductPage";
+import NotFoundPage from "./pages/NotFoundPage";
+import ProductList from "./ProductList";
+import Cart from "./Cart";
+
+export const routes: RouteObject[] = [
+  {
+    path: "/",
+    element: <Layout />,
+    children: [
+      { index: true, element: <HomePage /> },
+      { path: "products", element: <ProductList /> },
+      { path: "products/:id", element: <ProductPage /> },
+      { path: "cart", element: <Cart /> },
+      { path: "*", element: <NotFoundPage /> },
+    ],
+  },
+];
+```
+
+```tsx starter file=/Layout.tsx
+import { Outlet } from "react-router";
+import Header from "./Header";
+
+export default function Layout() {
+  return (
+    <>
+      <Header />
+      <main>
+        <Outlet />
+      </main>
+    </>
+  );
+}
+```
+
+```tsx starter file=/pages/HomePage.tsx
+import { Link } from "react-router";
+
+export default function HomePage() {
+  return (
+    <section>
+      <h1>Welcome to MiniShop</h1>
+      <p>Fresh coffee, good tea, and a mug to drink them from.</p>
+      <Link to="/products">Browse the products</Link>
+    </section>
+  );
+}
+```
+
+```tsx starter file=/pages/NotFoundPage.tsx
+import { Link } from "react-router";
+
+export default function NotFoundPage() {
+  return (
+    <section>
+      <h1>Page not found</h1>
+      <p>There's nothing here. Maybe the link is old?</p>
+      <Link to="/">Back to the shop</Link>
+    </section>
+  );
+}
+```
+
+```tsx starter file=/pages/ProductPage.tsx
+import { Link, useParams } from "react-router";
+import { useCart } from "../CartContext";
+import { formatPrice } from "../cartUtils";
+import { useProducts } from "../useProducts";
+import NotFoundPage from "./NotFoundPage";
+
+export default function ProductPage() {
+  const { id } = useParams();
+  const { add } = useCart();
+  const { status, data: products } = useProducts();
+
+  if (status === "pending") return <p role="status">Loading the product…</p>;
+  if (status === "error") return <p role="alert">Couldn't load the product.</p>;
+
+  const product = products.find((p) => p.id === Number(id));
+  if (!product) return <NotFoundPage />;
+
+  return (
+    <article>
+      <h1>{product.name}</h1>
+      <p>{formatPrice(product.price)}</p>
+      <button onClick={() => add(product)}>Add to cart</button>
+      <p>
+        <Link to="/products">Back to all products</Link>
+      </p>
+    </article>
+  );
+}
+```
+
+```ts starter file=/types.ts
+export interface Product {
+  id: number;
+  name: string;
+  price: number;
+}
+
+export interface CartItem extends Product {
+  qty: number;
+}
+
+export type CartAction =
+  | { type: "add"; product: Product }
+  | { type: "remove"; id: number }
+  | { type: "setQty"; id: number; qty: number }
+  | { type: "clear" };
+```
+
+```ts starter file=/products.ts
+import type { Product } from "./types";
+
+export const products: Product[] = [
+  { id: 1, name: "Coffee beans", price: 12 },
+  { id: 2, name: "Green tea", price: 8 },
+  { id: 3, name: "Travel mug", price: 15 },
+];
+```
+
+```ts starter file=/cartUtils.ts
+import type { CartItem, Product } from "./types";
+
+export function formatPrice(amount: number): string {
+  return "$" + amount.toFixed(2);
+}
+
+export function cartTotal(items: CartItem[]): number {
+  return items.reduce((sum, item) => sum + item.price * item.qty, 0);
+}
+
+export function cartCount(items: CartItem[]): number {
+  return items.reduce((sum, item) => sum + item.qty, 0);
+}
+
+export function addToCart(items: CartItem[], product: Product): CartItem[] {
+  const existing = items.find((item) => item.id === product.id);
+  if (existing) {
+    return items.map((item) => (item.id === product.id ? { ...item, qty: item.qty + 1 } : item));
+  }
+  return [...items, { ...product, qty: 1 }];
+}
+```
+
+```ts starter file=/cartReducer.ts
+import { addToCart } from "./cartUtils";
+import type { CartAction, CartItem } from "./types";
+
+export function cartReducer(items: CartItem[], action: CartAction): CartItem[] {
+  switch (action.type) {
+    case "add":
+      return addToCart(items, action.product);
+    case "remove":
+      return items.filter((item) => item.id !== action.id);
+    case "setQty":
+      if (action.qty < 1) return items.filter((item) => item.id !== action.id);
+      return items.map((item) => (item.id === action.id ? { ...item, qty: action.qty } : item));
+    case "clear":
+      return [];
+    default: {
+      const unhandled: never = action;
+      throw new Error(`Unknown action: ${JSON.stringify(unhandled)}`);
+    }
+  }
+}
+```
+
+```ts starter file=/storage.ts
+import type { CartItem } from "./types";
+
+const KEY = "minishop-cart";
+
+export function loadCart(): CartItem[] {
+  try {
+    const saved: unknown = JSON.parse(localStorage.getItem(KEY) ?? "null");
+    return Array.isArray(saved) ? (saved as CartItem[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveCart(items: CartItem[]): void {
+  try {
+    localStorage.setItem(KEY, JSON.stringify(items));
+  } catch {
+    // Storage is full or blocked (private mode): the cart still works, it just isn't saved.
+  }
+}
+```
+
+```ts starter file=/api.ts
+import { products } from "./products";
+import type { Product } from "./types";
+
+// A pretend server: it answers after a short delay, like a real network request.
+export const api = {
+  fetchProducts(): Promise<Product[]> {
+    return new Promise((resolve) => setTimeout(() => resolve(products), 600));
+  },
+};
+```
+
+```ts starter file=/useProducts.ts
+import { useQuery } from "@tanstack/react-query";
+import { api } from "./api";
+
+export function useProducts() {
+  return useQuery({ queryKey: ["products"], queryFn: () => api.fetchProducts() });
+}
+```
+
+```tsx starter file=/CartContext.tsx
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useReducer,
+  type Dispatch,
+  type ReactNode,
+} from "react";
+import { cartReducer } from "./cartReducer";
+import { cartCount, cartTotal } from "./cartUtils";
+import { loadCart, saveCart } from "./storage";
+import type { CartAction, CartItem, Product } from "./types";
+
+interface CartContextValue {
+  items: CartItem[];
+  dispatch: Dispatch<CartAction>;
+}
+
+const CartContext = createContext<CartContextValue | null>(null);
+
+export function CartProvider({ children }: { children: ReactNode }) {
+  const [items, dispatch] = useReducer(cartReducer, undefined, loadCart);
+
+  useEffect(() => {
+    saveCart(items);
+  }, [items]);
+
+  return <CartContext value={{ items, dispatch }}>{children}</CartContext>;
+}
+
+export function useCart() {
+  const context = useContext(CartContext);
+  if (!context) throw new Error("useCart must be used inside <CartProvider>");
+  const { items, dispatch } = context;
+  return {
+    items,
+    count: cartCount(items),
+    total: cartTotal(items),
+    add: (product: Product) => dispatch({ type: "add", product }),
+    remove: (id: number) => dispatch({ type: "remove", id }),
+    setQty: (id: number, qty: number) => dispatch({ type: "setQty", id, qty }),
+    clear: () => dispatch({ type: "clear" }),
+  };
+}
+```
+
+```tsx starter file=/Header.tsx
+import { Link, NavLink } from "react-router";
+import { useCart } from "./CartContext";
+
+export default function Header() {
+  const { count } = useCart();
+  return (
+    <header>
+      <Link to="/">
+        <strong>MiniShop</strong>
+      </Link>
+      <nav aria-label="Main">
+        <NavLink to="/products">Products</NavLink>{" "}
+        <NavLink to="/cart">
+          Cart <span aria-label={`Cart: ${count} items`}>🛒 {count}</span>
+        </NavLink>
+      </nav>
+    </header>
+  );
+}
+```
+
+```tsx starter file=/ProductList.tsx
+import { Link } from "react-router";
+import { useCart } from "./CartContext";
+import { formatPrice } from "./cartUtils";
+import { useProducts } from "./useProducts";
+
+export default function ProductList() {
+  const { add } = useCart();
+  const { status, data: products, refetch } = useProducts();
+
+  return (
+    <section>
+      <h1>Products</h1>
+      {status === "pending" && <p role="status">Loading products…</p>}
+      {status === "error" && (
+        <p role="alert">
+          Couldn't load the products. <button onClick={() => refetch()}>Try again</button>
+        </p>
+      )}
+      {status === "success" && (
+        <ul>
+          {products.map((product) => (
+            <li key={product.id}>
+              <Link to={`/products/${product.id}`}>{product.name}</Link>{" "}
+              {formatPrice(product.price)}{" "}
+              <button aria-label={`Add ${product.name}`} onClick={() => add(product)}>
+                Add
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+```
+
+```tsx starter file=/Cart.tsx
+import { useCart } from "./CartContext";
+import { formatPrice } from "./cartUtils";
+
+export default function Cart() {
+  const { items, total, setQty, remove, clear } = useCart();
+
+  return (
+    <section>
+      <h1>Your cart</h1>
+      {items.length === 0 ? (
+        <p>Your cart is empty.</p>
+      ) : (
+        <ul>
+          {items.map((item) => (
+            <li key={item.id}>
+              <span>
+                {item.name} × {item.qty}: {formatPrice(item.price * item.qty)}
+              </span>{" "}
+              <button
+                aria-label={`Decrease ${item.name}`}
+                onClick={() => setQty(item.id, item.qty - 1)}
+              >
+                −
+              </button>
+              <button
+                aria-label={`Increase ${item.name}`}
+                onClick={() => setQty(item.id, item.qty + 1)}
+              >
+                +
+              </button>
+              <button aria-label={`Remove ${item.name}`} onClick={() => remove(item.id)}>
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p>Total: {formatPrice(total)}</p>
+      {items.length > 0 && <button onClick={clear}>Clear cart</button>}
+    </section>
+  );
+}
+```
+
+```tsx starter file=/App.tsx
+import { useState } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { createBrowserRouter, RouterProvider } from "react-router";
+import { CartProvider } from "./CartContext";
+import { routes } from "./routes";
+
+export default function App() {
+  const [queryClient] = useState(
+    () => new QueryClient({ defaultOptions: { queries: { retry: false } } }),
+  );
+  const [router] = useState(() => createBrowserRouter(routes));
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <CartProvider>
+        <RouterProvider router={router} />
+      </CartProvider>
+    </QueryClientProvider>
+  );
+}
+```
+
+```tsx tests file=/checkout.test.tsx
+import { fireEvent, render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { createMemoryRouter, RouterProvider } from "react-router";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import { CartProvider } from "./CartContext";
+import { api } from "./api";
+import { products } from "./products";
+import { routes } from "./routes";
+
+function renderAt(path: string) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const router = createMemoryRouter(routes, { initialEntries: [path] });
+  render(
+    <QueryClientProvider client={client}>
+      <CartProvider>
+        <RouterProvider router={router} />
+      </CartProvider>
+    </QueryClientProvider>,
+  );
+  return router;
+}
+
+const fillCart = () =>
+  localStorage.setItem(
+    "minishop-cart",
+    JSON.stringify([
+      { ...products[0], qty: 2 },
+      { ...products[1], qty: 1 },
+    ]),
+  );
+const type = (label: string, value: string) =>
+  fireEvent.change(screen.getByLabelText(label), { target: { value } });
+const submit = () => fireEvent.click(screen.getByRole("button", { name: "Place order" }));
+
+beforeEach(() => {
+  localStorage.clear();
+  vi.spyOn(api, "fetchProducts").mockResolvedValue(products);
+});
+afterEach(() => vi.restoreAllMocks());
+
+test("an empty cart shows the empty state instead of the form", () => {
+  renderAt("/checkout");
+  expect(screen.getByText("Your cart is empty.")).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Place order" })).not.toBeInTheDocument();
+});
+
+test("shows the order summary", () => {
+  fillCart();
+  renderAt("/checkout");
+  expect(screen.getByRole("heading", { name: "Order summary" })).toBeInTheDocument();
+  expect(screen.getByText("Coffee beans × 2: $24.00")).toBeInTheDocument();
+  expect(screen.getByText("Total: $32.00")).toBeInTheDocument();
+});
+
+test("an empty form explains every field", async () => {
+  fillCart();
+  renderAt("/checkout");
+  submit();
+  expect(await screen.findByText("Enter your full name")).toBeInTheDocument();
+  expect(screen.getByText("Enter a valid email")).toBeInTheDocument();
+  expect(screen.getByText("Enter your street address")).toBeInTheDocument();
+  expect(screen.getByText("A ZIP code has 5 digits")).toBeInTheDocument();
+  expect(screen.getByLabelText("Email")).toHaveAttribute("aria-invalid", "true");
+});
+
+test("a bad email and a bad zip are rejected", async () => {
+  fillCart();
+  renderAt("/checkout");
+  type("Name", "Ada Lovelace");
+  type("Email", "ada@");
+  type("Address", "12 Analytical Way");
+  type("ZIP code", "12A45");
+  submit();
+  expect(await screen.findByText("Enter a valid email")).toBeInTheDocument();
+  expect(screen.getByText("A ZIP code has 5 digits")).toBeInTheDocument();
+  expect(screen.queryByText(/Thanks/)).not.toBeInTheDocument();
+});
+
+test("a valid order says thank you and empties the cart", async () => {
+  fillCart();
+  renderAt("/checkout");
+  type("Name", "Ada Lovelace");
+  type("Email", "ada@example.com");
+  type("Address", "12 Analytical Way");
+  type("ZIP code", "12345");
+  submit();
+  expect(
+    await screen.findByText("Thanks, Ada Lovelace! Your order is on its way."),
+  ).toBeInTheDocument();
+  expect(screen.getByLabelText("Cart: 0 items")).toBeInTheDocument();
+});
+
+test("the cart links to the checkout", () => {
+  fillCart();
+  const router = renderAt("/cart");
+  fireEvent.click(screen.getByRole("link", { name: "Checkout" }));
+  expect(router.state.location.pathname).toBe("/checkout");
+});
+```
+
+```tsx solution file=/pages/CheckoutPage.tsx
+import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { Link } from "react-router";
+import { useCart } from "../CartContext";
+import { formatPrice } from "../cartUtils";
+
+const checkoutSchema = z.object({
+  name: z.string().trim().min(2, "Enter your full name"),
+  email: z.email("Enter a valid email"),
+  address: z.string().trim().min(5, "Enter your street address"),
+  zip: z.string().regex(/^\d{5}$/, "A ZIP code has 5 digits"),
+});
+
+type CheckoutForm = z.infer<typeof checkoutSchema>;
+
+export default function CheckoutPage() {
+  const { items, total, clear } = useCart();
+  const [placedBy, setPlacedBy] = useState<string | null>(null);
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<CheckoutForm>({ resolver: zodResolver(checkoutSchema) });
+
+  if (placedBy) {
+    return (
+      <section>
+        <h1>Thank you!</h1>
+        <p role="status">Thanks, {placedBy}! Your order is on its way.</p>
+        <Link to="/products">Keep shopping</Link>
+      </section>
+    );
+  }
+
+  if (items.length === 0) {
+    return (
+      <section>
+        <h1>Checkout</h1>
+        <p>Your cart is empty.</p>
+        <Link to="/products">Find something you like</Link>
+      </section>
+    );
+  }
+
+  function placeOrder(data: CheckoutForm) {
+    setPlacedBy(data.name);
+    clear();
+  }
+
+  return (
+    <section>
+      <h1>Checkout</h1>
+      <h2>Order summary</h2>
+      <ul>
+        {items.map((item) => (
+          <li key={item.id}>
+            {item.name} × {item.qty}: {formatPrice(item.price * item.qty)}
+          </li>
+        ))}
+      </ul>
+      <p>Total: {formatPrice(total)}</p>
+
+      <form onSubmit={handleSubmit(placeOrder)} noValidate>
+        <label htmlFor="name">Name</label>
+        <input
+          id="name"
+          autoComplete="name"
+          aria-invalid={errors.name ? "true" : "false"}
+          {...register("name")}
+        />
+        {errors.name && <p role="alert">{errors.name.message}</p>}
+
+        <label htmlFor="email">Email</label>
+        <input
+          id="email"
+          type="email"
+          autoComplete="email"
+          aria-invalid={errors.email ? "true" : "false"}
+          {...register("email")}
+        />
+        {errors.email && <p role="alert">{errors.email.message}</p>}
+
+        <label htmlFor="address">Address</label>
+        <input
+          id="address"
+          autoComplete="street-address"
+          aria-invalid={errors.address ? "true" : "false"}
+          {...register("address")}
+        />
+        {errors.address && <p role="alert">{errors.address.message}</p>}
+
+        <label htmlFor="zip">ZIP code</label>
+        <input
+          id="zip"
+          inputMode="numeric"
+          autoComplete="postal-code"
+          aria-invalid={errors.zip ? "true" : "false"}
+          {...register("zip")}
+        />
+        {errors.zip && <p role="alert">{errors.zip.message}</p>}
+
+        <button type="submit">Place order</button>
+      </form>
+    </section>
+  );
+}
+```
+
+```tsx solution file=/routes.tsx
+import type { RouteObject } from "react-router";
+import Layout from "./Layout";
+import HomePage from "./pages/HomePage";
+import ProductPage from "./pages/ProductPage";
+import CheckoutPage from "./pages/CheckoutPage";
+import NotFoundPage from "./pages/NotFoundPage";
+import ProductList from "./ProductList";
+import Cart from "./Cart";
+
+export const routes: RouteObject[] = [
+  {
+    path: "/",
+    element: <Layout />,
+    children: [
+      { index: true, element: <HomePage /> },
+      { path: "products", element: <ProductList /> },
+      { path: "products/:id", element: <ProductPage /> },
+      { path: "cart", element: <Cart /> },
+      { path: "checkout", element: <CheckoutPage /> },
+      { path: "*", element: <NotFoundPage /> },
+    ],
+  },
+];
+```
+
+```tsx solution file=/Cart.tsx
+import { Link } from "react-router";
+import { useCart } from "./CartContext";
+import { formatPrice } from "./cartUtils";
+
+export default function Cart() {
+  const { items, total, setQty, remove, clear } = useCart();
+
+  return (
+    <section>
+      <h1>Your cart</h1>
+      {items.length === 0 ? (
+        <p>Your cart is empty.</p>
+      ) : (
+        <ul>
+          {items.map((item) => (
+            <li key={item.id}>
+              <span>
+                {item.name} × {item.qty}: {formatPrice(item.price * item.qty)}
+              </span>{" "}
+              <button
+                aria-label={`Decrease ${item.name}`}
+                onClick={() => setQty(item.id, item.qty - 1)}
+              >
+                −
+              </button>
+              <button
+                aria-label={`Increase ${item.name}`}
+                onClick={() => setQty(item.id, item.qty + 1)}
+              >
+                +
+              </button>
+              <button aria-label={`Remove ${item.name}`} onClick={() => remove(item.id)}>
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p>Total: {formatPrice(total)}</p>
+      {items.length > 0 && (
+        <p>
+          <Link to="/checkout">Checkout</Link> <button onClick={clear}>Clear cart</button>
+        </p>
+      )}
+    </section>
+  );
+}
+```
+
+</ProjectStep>
+
+<HowItWorks title="What happens when you press Place order">
+
+1. The browser fires `submit` on the form. `handleSubmit` calls `event.preventDefault()`, so the page doesn't reload.
+2. React Hook Form reads every registered input. It doesn't keep them in React state while you type (inputs are **uncontrolled**), which is why typing doesn't re-render the whole page.
+3. `zodResolver` runs `checkoutSchema.safeParse(values)`. Zod checks every field and collects **all** the problems, not just the first.
+4. If there are problems, they become `errors` (one per field, with your messages), the component re-renders to show them, and the first invalid field gets focus. `placeOrder` is not called.
+5. If everything passes, `placeOrder` receives the **parsed** data. Thanks to `.trim()`, `"  Ada "` arrives as `"Ada"`, and its type is exactly `CheckoutForm`.
+
+A real shop would now `await` a request to its server, and the server would validate the same data again: anyone can bypass your form and send whatever they like.
+
+</HowItWorks>
+
+<Practice>
+
+<SortBuckets
+  id="buckets-zod"
+  prompt="Does checkoutSchema accept each value?"
+  buckets={["Accepted", "Rejected"]}
+  items={[
+    ["zip `\"02139\"`", 0],
+    ["zip `\"2139\"`", 1],
+    ["zip `\"12a45\"`", 1],
+    ["email `\"ada@example.com\"`", 0],
+    ["email `\"ada@\"`", 1],
+    ["name `\"  Al  \"` (trimmed to `\"Al\"`)", 0],
+    ["name `\" A \"` (trimmed to `\"A\"`)", 1],
+  ]}
+  explain="The zip must be exactly five digits (`^\\d{5}$`, so a leading 0 is fine). Names are trimmed before the length check, so spaces don't count."
+/>
+
+<FillBlanks
+  id="blanks-register"
+  prompt="Fill in the blanks to wire one field to React Hook Form and Zod."
+  explain="`register` connects the input; `errors.email?.message` is the message from the schema; `handleSubmit` only calls your function when everything is valid."
+>
+
+```tsx
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+
+const schema = z.object({ email: z.email("Enter a valid email") });
+type Form = z.__[infer]__<typeof schema>;
+
+export function EmailForm({ onDone }: { onDone: (email: string) => void }) {
+  const { register, handleSubmit, formState: { errors } } = useForm<Form>({
+    resolver: __[zodResolver]__(schema),
+  });
+  return (
+    <form onSubmit={__[handleSubmit]__((data) => onDone(data.email))}>
+      <input aria-label="Email" {...__[register]__("email")} />
+      {errors.email && <p role="alert">{errors.email.message}</p>}
+    </form>
+  );
+}
+```
+
+</FillBlanks>
+
+<TrueFalse
+  id="tf-checkout"
+  statements={[
+    { text: "Validating in the browser means the server can trust the order.", answer: false, explain: "Anyone can send a request without your form. The server must validate again; the browser check is for the user's convenience." },
+    { text: "`z.infer<typeof checkoutSchema>` keeps the form's TypeScript type in step with the rules.", answer: true, explain: "Change the schema and the type changes with it." },
+    { text: "The thank-you check must come before the empty-cart check.", answer: true, explain: "Placing the order empties the cart, so checking emptiness first would show 'Your cart is empty.' instead of the thanks." },
+  ]}
+/>
+
+</Practice>
+
+<ReactTestExercise
+  id="test-checkout"
+  title="Test it: the checkout"
+  hints={[
+    "Fill the cart before rendering: `localStorage.setItem(\"minishop-cart\", JSON.stringify([{ ...products[0], qty: 1 }]))`. Test the empty state with nothing in storage.",
+    "Type with `fireEvent.change(screen.getByLabelText(\"Email\"), { target: { value: \"ada@\" } })`, click **Place order**, and wait for messages with `findByText`.",
+    "After a valid order, check both the thank-you text and `In cart: 0`. Also try a zip made of letters, like `ABCDE`.",
+  ]}
+>
+
+Test `CheckoutPage`: the empty state, the error messages for a bad email and a bad zip, and a successful order that empties the cart. `renderCheckout()` renders the page at `/checkout` with the cart count under it. Your tests must catch every buggy version.
+
+```tsx code file=/pages/CheckoutPage.tsx
+import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { Link } from "react-router";
+import { useCart } from "../CartContext";
+import { formatPrice } from "../cartUtils";
+
+const checkoutSchema = z.object({
+  name: z.string().trim().min(2, "Enter your full name"),
+  email: z.email("Enter a valid email"),
+  address: z.string().trim().min(5, "Enter your street address"),
+  zip: z.string().regex(/^\d{5}$/, "A ZIP code has 5 digits"),
+});
+
+type CheckoutForm = z.infer<typeof checkoutSchema>;
+
+export default function CheckoutPage() {
+  const { items, total, clear } = useCart();
+  const [placedBy, setPlacedBy] = useState<string | null>(null);
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<CheckoutForm>({ resolver: zodResolver(checkoutSchema) });
+
+  if (placedBy) {
+    return (
+      <section>
+        <h1>Thank you!</h1>
+        <p role="status">Thanks, {placedBy}! Your order is on its way.</p>
+        <Link to="/products">Keep shopping</Link>
+      </section>
+    );
+  }
+
+  if (items.length === 0) {
+    return (
+      <section>
+        <h1>Checkout</h1>
+        <p>Your cart is empty.</p>
+        <Link to="/products">Find something you like</Link>
+      </section>
+    );
+  }
+
+  function placeOrder(data: CheckoutForm) {
+    setPlacedBy(data.name);
+    clear();
+  }
+
+  return (
+    <section>
+      <h1>Checkout</h1>
+      <h2>Order summary</h2>
+      <ul>
+        {items.map((item) => (
+          <li key={item.id}>
+            {item.name} × {item.qty}: {formatPrice(item.price * item.qty)}
+          </li>
+        ))}
+      </ul>
+      <p>Total: {formatPrice(total)}</p>
+
+      <form onSubmit={handleSubmit(placeOrder)} noValidate>
+        <label htmlFor="name">Name</label>
+        <input
+          id="name"
+          autoComplete="name"
+          aria-invalid={errors.name ? "true" : "false"}
+          {...register("name")}
+        />
+        {errors.name && <p role="alert">{errors.name.message}</p>}
+
+        <label htmlFor="email">Email</label>
+        <input
+          id="email"
+          type="email"
+          autoComplete="email"
+          aria-invalid={errors.email ? "true" : "false"}
+          {...register("email")}
+        />
+        {errors.email && <p role="alert">{errors.email.message}</p>}
+
+        <label htmlFor="address">Address</label>
+        <input
+          id="address"
+          autoComplete="street-address"
+          aria-invalid={errors.address ? "true" : "false"}
+          {...register("address")}
+        />
+        {errors.address && <p role="alert">{errors.address.message}</p>}
+
+        <label htmlFor="zip">ZIP code</label>
+        <input
+          id="zip"
+          inputMode="numeric"
+          autoComplete="postal-code"
+          aria-invalid={errors.zip ? "true" : "false"}
+          {...register("zip")}
+        />
+        {errors.zip && <p role="alert">{errors.zip.message}</p>}
+
+        <button type="submit">Place order</button>
+      </form>
+    </section>
+  );
+}
+```
+
+```tsx code file=/CartContext.tsx
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useReducer,
+  type Dispatch,
+  type ReactNode,
+} from "react";
+import { cartReducer } from "./cartReducer";
+import { cartCount, cartTotal } from "./cartUtils";
+import { loadCart, saveCart } from "./storage";
+import type { CartAction, CartItem, Product } from "./types";
+
+interface CartContextValue {
+  items: CartItem[];
+  dispatch: Dispatch<CartAction>;
+}
+
+const CartContext = createContext<CartContextValue | null>(null);
+
+export function CartProvider({ children }: { children: ReactNode }) {
+  const [items, dispatch] = useReducer(cartReducer, undefined, loadCart);
+
+  useEffect(() => {
+    saveCart(items);
+  }, [items]);
+
+  return <CartContext value={{ items, dispatch }}>{children}</CartContext>;
+}
+
+export function useCart() {
+  const context = useContext(CartContext);
+  if (!context) throw new Error("useCart must be used inside <CartProvider>");
+  const { items, dispatch } = context;
+  return {
+    items,
+    count: cartCount(items),
+    total: cartTotal(items),
+    add: (product: Product) => dispatch({ type: "add", product }),
+    remove: (id: number) => dispatch({ type: "remove", id }),
+    setQty: (id: number, qty: number) => dispatch({ type: "setQty", id, qty }),
+    clear: () => dispatch({ type: "clear" }),
+  };
+}
+```
+
+```ts code file=/cartReducer.ts
+import { addToCart } from "./cartUtils";
+import type { CartAction, CartItem } from "./types";
+
+export function cartReducer(items: CartItem[], action: CartAction): CartItem[] {
+  switch (action.type) {
+    case "add":
+      return addToCart(items, action.product);
+    case "remove":
+      return items.filter((item) => item.id !== action.id);
+    case "setQty":
+      if (action.qty < 1) return items.filter((item) => item.id !== action.id);
+      return items.map((item) => (item.id === action.id ? { ...item, qty: action.qty } : item));
+    case "clear":
+      return [];
+    default: {
+      const unhandled: never = action;
+      throw new Error(`Unknown action: ${JSON.stringify(unhandled)}`);
+    }
+  }
+}
+```
+
+```ts code file=/cartUtils.ts
+import type { CartItem, Product } from "./types";
+
+export function formatPrice(amount: number): string {
+  return "$" + amount.toFixed(2);
+}
+
+export function cartTotal(items: CartItem[]): number {
+  return items.reduce((sum, item) => sum + item.price * item.qty, 0);
+}
+
+export function cartCount(items: CartItem[]): number {
+  return items.reduce((sum, item) => sum + item.qty, 0);
+}
+
+export function addToCart(items: CartItem[], product: Product): CartItem[] {
+  const existing = items.find((item) => item.id === product.id);
+  if (existing) {
+    return items.map((item) => (item.id === product.id ? { ...item, qty: item.qty + 1 } : item));
+  }
+  return [...items, { ...product, qty: 1 }];
+}
+```
+
+```ts code file=/storage.ts
+import type { CartItem } from "./types";
+
+const KEY = "minishop-cart";
+
+export function loadCart(): CartItem[] {
+  try {
+    const saved: unknown = JSON.parse(localStorage.getItem(KEY) ?? "null");
+    return Array.isArray(saved) ? (saved as CartItem[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveCart(items: CartItem[]): void {
+  try {
+    localStorage.setItem(KEY, JSON.stringify(items));
+  } catch {
+    // Storage is full or blocked (private mode): the cart still works, it just isn't saved.
+  }
+}
+```
+
+```ts code file=/types.ts
+export interface Product {
+  id: number;
+  name: string;
+  price: number;
+}
+
+export interface CartItem extends Product {
+  qty: number;
+}
+
+export type CartAction =
+  | { type: "add"; product: Product }
+  | { type: "remove"; id: number }
+  | { type: "setQty"; id: number; qty: number }
+  | { type: "clear" };
+```
+
+```ts code file=/products.ts
+import type { Product } from "./types";
+
+export const products: Product[] = [
+  { id: 1, name: "Coffee beans", price: 12 },
+  { id: 2, name: "Green tea", price: 8 },
+  { id: 3, name: "Travel mug", price: 15 },
+];
+```
+
+```tsx starter file=/CheckoutPage.test.tsx
+import { fireEvent, render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import { createMemoryRouter, RouterProvider } from "react-router";
+import { beforeEach, expect, test } from "vitest";
+import CheckoutPage from "./pages/CheckoutPage";
+import { CartProvider, useCart } from "./CartContext";
+import { products } from "./products";
+
+function CartCount() {
+  const { count } = useCart();
+  return <p>In cart: {count}</p>;
+}
+
+function renderCheckout() {
+  const router = createMemoryRouter(
+    [{ path: "/checkout", element: <><CheckoutPage /><CartCount /></> }],
+    { initialEntries: ["/checkout"] },
+  );
+  render(
+    <CartProvider>
+      <RouterProvider router={router} />
+    </CartProvider>,
+  );
+}
+
+const type = (label: string, value: string) =>
+  fireEvent.change(screen.getByLabelText(label), { target: { value } });
+
+beforeEach(() => localStorage.clear());
+
+test("shows the form when the cart has items", () => {
+  localStorage.setItem("minishop-cart", JSON.stringify([{ ...products[0], qty: 1 }]));
+  renderCheckout();
+  expect(screen.getByRole("button", { name: "Place order" })).toBeInTheDocument();
+});
+```
+
+```tsx bug file=/pages/CheckoutPage.tsx title="Any email is accepted" hint="Type 'ada@' as the email and submit."
+import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { Link } from "react-router";
+import { useCart } from "../CartContext";
+import { formatPrice } from "../cartUtils";
+
+const checkoutSchema = z.object({
+  name: z.string().trim().min(2, "Enter your full name"),
+  email: z.string().min(1, "Enter a valid email"),
+  address: z.string().trim().min(5, "Enter your street address"),
+  zip: z.string().regex(/^\d{5}$/, "A ZIP code has 5 digits"),
+});
+
+type CheckoutForm = z.infer<typeof checkoutSchema>;
+
+export default function CheckoutPage() {
+  const { items, total, clear } = useCart();
+  const [placedBy, setPlacedBy] = useState<string | null>(null);
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<CheckoutForm>({ resolver: zodResolver(checkoutSchema) });
+
+  if (placedBy) {
+    return (
+      <section>
+        <h1>Thank you!</h1>
+        <p role="status">Thanks, {placedBy}! Your order is on its way.</p>
+        <Link to="/products">Keep shopping</Link>
+      </section>
+    );
+  }
+
+  if (items.length === 0) {
+    return (
+      <section>
+        <h1>Checkout</h1>
+        <p>Your cart is empty.</p>
+        <Link to="/products">Find something you like</Link>
+      </section>
+    );
+  }
+
+  function placeOrder(data: CheckoutForm) {
+    setPlacedBy(data.name);
+    clear();
+  }
+
+  return (
+    <section>
+      <h1>Checkout</h1>
+      <h2>Order summary</h2>
+      <ul>
+        {items.map((item) => (
+          <li key={item.id}>
+            {item.name} × {item.qty}: {formatPrice(item.price * item.qty)}
+          </li>
+        ))}
+      </ul>
+      <p>Total: {formatPrice(total)}</p>
+      <form onSubmit={handleSubmit(placeOrder)} noValidate>
+        <label htmlFor="name">Name</label>
+        <input id="name" {...register("name")} />
+        {errors.name && <p role="alert">{errors.name.message}</p>}
+        <label htmlFor="email">Email</label>
+        <input id="email" type="email" {...register("email")} />
+        {errors.email && <p role="alert">{errors.email.message}</p>}
+        <label htmlFor="address">Address</label>
+        <input id="address" {...register("address")} />
+        {errors.address && <p role="alert">{errors.address.message}</p>}
+        <label htmlFor="zip">ZIP code</label>
+        <input id="zip" {...register("zip")} />
+        {errors.zip && <p role="alert">{errors.zip.message}</p>}
+        <button type="submit">Place order</button>
+      </form>
+    </section>
+  );
+}
+```
+
+```tsx bug file=/pages/CheckoutPage.tsx title="The cart isn't emptied" hint="Place a valid order, then check the cart count."
+import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { Link } from "react-router";
+import { useCart } from "../CartContext";
+import { formatPrice } from "../cartUtils";
+
+const checkoutSchema = z.object({
+  name: z.string().trim().min(2, "Enter your full name"),
+  email: z.email("Enter a valid email"),
+  address: z.string().trim().min(5, "Enter your street address"),
+  zip: z.string().regex(/^\d{5}$/, "A ZIP code has 5 digits"),
+});
+
+type CheckoutForm = z.infer<typeof checkoutSchema>;
+
+export default function CheckoutPage() {
+  const { items, total } = useCart();
+  const [placedBy, setPlacedBy] = useState<string | null>(null);
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<CheckoutForm>({ resolver: zodResolver(checkoutSchema) });
+
+  if (placedBy) {
+    return (
+      <section>
+        <h1>Thank you!</h1>
+        <p role="status">Thanks, {placedBy}! Your order is on its way.</p>
+        <Link to="/products">Keep shopping</Link>
+      </section>
+    );
+  }
+
+  if (items.length === 0) {
+    return (
+      <section>
+        <h1>Checkout</h1>
+        <p>Your cart is empty.</p>
+        <Link to="/products">Find something you like</Link>
+      </section>
+    );
+  }
+
+  function placeOrder(data: CheckoutForm) {
+    setPlacedBy(data.name);
+  }
+
+  return (
+    <section>
+      <h1>Checkout</h1>
+      <h2>Order summary</h2>
+      <ul>
+        {items.map((item) => (
+          <li key={item.id}>
+            {item.name} × {item.qty}: {formatPrice(item.price * item.qty)}
+          </li>
+        ))}
+      </ul>
+      <p>Total: {formatPrice(total)}</p>
+      <form onSubmit={handleSubmit(placeOrder)} noValidate>
+        <label htmlFor="name">Name</label>
+        <input id="name" {...register("name")} />
+        {errors.name && <p role="alert">{errors.name.message}</p>}
+        <label htmlFor="email">Email</label>
+        <input id="email" type="email" {...register("email")} />
+        {errors.email && <p role="alert">{errors.email.message}</p>}
+        <label htmlFor="address">Address</label>
+        <input id="address" {...register("address")} />
+        {errors.address && <p role="alert">{errors.address.message}</p>}
+        <label htmlFor="zip">ZIP code</label>
+        <input id="zip" {...register("zip")} />
+        {errors.zip && <p role="alert">{errors.zip.message}</p>}
+        <button type="submit">Place order</button>
+      </form>
+    </section>
+  );
+}
+```
+
+```tsx bug file=/pages/CheckoutPage.tsx title="An empty cart still shows the form" hint="Render the checkout with nothing in the cart."
+import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { Link } from "react-router";
+import { useCart } from "../CartContext";
+import { formatPrice } from "../cartUtils";
+
+const checkoutSchema = z.object({
+  name: z.string().trim().min(2, "Enter your full name"),
+  email: z.email("Enter a valid email"),
+  address: z.string().trim().min(5, "Enter your street address"),
+  zip: z.string().regex(/^\d{5}$/, "A ZIP code has 5 digits"),
+});
+
+type CheckoutForm = z.infer<typeof checkoutSchema>;
+
+export default function CheckoutPage() {
+  const { items, total, clear } = useCart();
+  const [placedBy, setPlacedBy] = useState<string | null>(null);
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<CheckoutForm>({ resolver: zodResolver(checkoutSchema) });
+
+  if (placedBy) {
+    return (
+      <section>
+        <h1>Thank you!</h1>
+        <p role="status">Thanks, {placedBy}! Your order is on its way.</p>
+        <Link to="/products">Keep shopping</Link>
+      </section>
+    );
+  }
+
+  function placeOrder(data: CheckoutForm) {
+    setPlacedBy(data.name);
+    clear();
+  }
+
+  return (
+    <section>
+      <h1>Checkout</h1>
+      <h2>Order summary</h2>
+      <ul>
+        {items.map((item) => (
+          <li key={item.id}>
+            {item.name} × {item.qty}: {formatPrice(item.price * item.qty)}
+          </li>
+        ))}
+      </ul>
+      <p>Total: {formatPrice(total)}</p>
+      <form onSubmit={handleSubmit(placeOrder)} noValidate>
+        <label htmlFor="name">Name</label>
+        <input id="name" {...register("name")} />
+        {errors.name && <p role="alert">{errors.name.message}</p>}
+        <label htmlFor="email">Email</label>
+        <input id="email" type="email" {...register("email")} />
+        {errors.email && <p role="alert">{errors.email.message}</p>}
+        <label htmlFor="address">Address</label>
+        <input id="address" {...register("address")} />
+        {errors.address && <p role="alert">{errors.address.message}</p>}
+        <label htmlFor="zip">ZIP code</label>
+        <input id="zip" {...register("zip")} />
+        {errors.zip && <p role="alert">{errors.zip.message}</p>}
+        <button type="submit">Place order</button>
+      </form>
+    </section>
+  );
+}
+```
+
+```tsx bug file=/pages/CheckoutPage.tsx title="ZIP codes may contain letters" hint="Try ABCDE as the ZIP code."
+import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { Link } from "react-router";
+import { useCart } from "../CartContext";
+import { formatPrice } from "../cartUtils";
+
+const checkoutSchema = z.object({
+  name: z.string().trim().min(2, "Enter your full name"),
+  email: z.email("Enter a valid email"),
+  address: z.string().trim().min(5, "Enter your street address"),
+  zip: z.string().regex(/^\w{5}$/, "A ZIP code has 5 digits"),
+});
+
+type CheckoutForm = z.infer<typeof checkoutSchema>;
+
+export default function CheckoutPage() {
+  const { items, total, clear } = useCart();
+  const [placedBy, setPlacedBy] = useState<string | null>(null);
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<CheckoutForm>({ resolver: zodResolver(checkoutSchema) });
+
+  if (placedBy) {
+    return (
+      <section>
+        <h1>Thank you!</h1>
+        <p role="status">Thanks, {placedBy}! Your order is on its way.</p>
+        <Link to="/products">Keep shopping</Link>
+      </section>
+    );
+  }
+
+  if (items.length === 0) {
+    return (
+      <section>
+        <h1>Checkout</h1>
+        <p>Your cart is empty.</p>
+        <Link to="/products">Find something you like</Link>
+      </section>
+    );
+  }
+
+  function placeOrder(data: CheckoutForm) {
+    setPlacedBy(data.name);
+    clear();
+  }
+
+  return (
+    <section>
+      <h1>Checkout</h1>
+      <h2>Order summary</h2>
+      <ul>
+        {items.map((item) => (
+          <li key={item.id}>
+            {item.name} × {item.qty}: {formatPrice(item.price * item.qty)}
+          </li>
+        ))}
+      </ul>
+      <p>Total: {formatPrice(total)}</p>
+      <form onSubmit={handleSubmit(placeOrder)} noValidate>
+        <label htmlFor="name">Name</label>
+        <input id="name" {...register("name")} />
+        {errors.name && <p role="alert">{errors.name.message}</p>}
+        <label htmlFor="email">Email</label>
+        <input id="email" type="email" {...register("email")} />
+        {errors.email && <p role="alert">{errors.email.message}</p>}
+        <label htmlFor="address">Address</label>
+        <input id="address" {...register("address")} />
+        {errors.address && <p role="alert">{errors.address.message}</p>}
+        <label htmlFor="zip">ZIP code</label>
+        <input id="zip" {...register("zip")} />
+        {errors.zip && <p role="alert">{errors.zip.message}</p>}
+        <button type="submit">Place order</button>
+      </form>
+    </section>
+  );
+}
+```
+
+```tsx solution file=/CheckoutPage.test.tsx
+import { fireEvent, render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import { createMemoryRouter, RouterProvider } from "react-router";
+import { beforeEach, expect, test } from "vitest";
+import CheckoutPage from "./pages/CheckoutPage";
+import { CartProvider, useCart } from "./CartContext";
+import { products } from "./products";
+
+function CartCount() {
+  const { count } = useCart();
+  return <p>In cart: {count}</p>;
+}
+
+function renderCheckout() {
+  const router = createMemoryRouter(
+    [{ path: "/checkout", element: <><CheckoutPage /><CartCount /></> }],
+    { initialEntries: ["/checkout"] },
+  );
+  render(
+    <CartProvider>
+      <RouterProvider router={router} />
+    </CartProvider>,
+  );
+}
+
+const type = (label: string, value: string) =>
+  fireEvent.change(screen.getByLabelText(label), { target: { value } });
+const submit = () => fireEvent.click(screen.getByRole("button", { name: "Place order" }));
+const fillCart = () =>
+  localStorage.setItem("minishop-cart", JSON.stringify([{ ...products[0], qty: 1 }]));
+
+function fillForm(email: string, zip: string) {
+  type("Name", "Ada Lovelace");
+  type("Email", email);
+  type("Address", "12 Analytical Way");
+  type("ZIP code", zip);
+}
+
+beforeEach(() => localStorage.clear());
+
+test("an empty cart shows the empty state, not the form", () => {
+  renderCheckout();
+  expect(screen.getByText("Your cart is empty.")).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Place order" })).not.toBeInTheDocument();
+});
+
+test("a bad email is rejected", async () => {
+  fillCart();
+  renderCheckout();
+  fillForm("ada@", "12345");
+  submit();
+  expect(await screen.findByText("Enter a valid email")).toBeInTheDocument();
+  expect(screen.queryByText(/Thanks/)).not.toBeInTheDocument();
+});
+
+test("a zip with letters is rejected", async () => {
+  fillCart();
+  renderCheckout();
+  fillForm("ada@example.com", "ABCDE");
+  submit();
+  expect(await screen.findByText("A ZIP code has 5 digits")).toBeInTheDocument();
+});
+
+test("a valid order says thanks and empties the cart", async () => {
+  fillCart();
+  renderCheckout();
+  fillForm("ada@example.com", "12345");
+  submit();
+  expect(
+    await screen.findByText("Thanks, Ada Lovelace! Your order is on its way."),
+  ).toBeInTheDocument();
+  expect(screen.getByText("In cart: 0")).toBeInTheDocument();
+});
+```
+
+</ReactTestExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "What does `zodResolver(checkoutSchema)` do?",
+      options: ["Sends the form to a server", "Lets React Hook Form validate the form's values with the Zod schema", "Creates the inputs", "Types the component's props"],
+      answer: 1,
+      explain: "On submit, the resolver runs the schema and turns its problems into `errors`.",
+    },
+    {
+      q: "Why does each input have a `<label htmlFor>`?",
+      options: ["For styling", "So screen readers announce the field's name, clicking the label focuses the input, and tests can use `getByLabelText`", "React requires it", "To validate it"],
+      answer: 1,
+      explain: "Labels are the single most important thing in an accessible form.",
+    },
+    {
+      q: "Why keep `placedBy` in state instead of only clearing the cart?",
+      options: ["To send it to the server", "After `clear()` the cart is empty, so the page needs its own memory that an order was just placed", "React Hook Form needs it", "It's faster"],
+      answer: 1,
+      explain: "Otherwise the next render would show the empty-cart state instead of the thank-you message.",
+    },
+    {
+      q: "Your form validates every field. Does the server still need to validate the order?",
+      options: ["No, the form already did", "Yes: requests can be sent without your form, so the server can't trust them", "Only for emails", "Only in production"],
+      answer: 1,
+      explain: "Browser validation is for a good experience. Server validation is for safety.",
+    },
+  ]}
+/>

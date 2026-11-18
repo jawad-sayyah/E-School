@@ -24,8 +24,9 @@ export interface SpecSummary {
 }
 
 function collect(block: SpecDescribe, out: SpecTest[]) {
-  out.push(...Object.values(block.tests));
-  for (const child of Object.values(block.describes)) collect(child, out);
+  // Sandpack can report a file before its tests are known.
+  out.push(...Object.values(block.tests ?? {}));
+  for (const child of Object.values(block.describes ?? {})) collect(child, out);
 }
 
 /** Flattens Sandpack's nested spec results into counts and a list of tests. */
@@ -78,8 +79,12 @@ export function filesFrom(blocks: FileBlock[], word?: string): Record<string, st
 
 /* ── Write-the-tests exercises in Sandpack ───────────────────────────────── */
 
-/** Hidden test files: a copy of the student's tests per buggy version. */
-export const checkFile = (index: number) => `/check-${index + 1}.test.js`;
+/**
+ * Hidden test files: a copy of the student's tests per buggy version, with the same extension
+ * as the student's file (a .tsx test copied into a .js file would fail to parse).
+ */
+export const checkFile = (index: number, testFile = '/App.test.js') =>
+  `/check-${index + 1}.test.${/.([jt]sx?)$/.exec(testFile)?.[1] ?? 'js'}`;
 /** Where buggy version N of a file lives. */
 export const bugPath = (index: number, file: string) => `/__bugs__/bug-${index + 1}${file}`;
 

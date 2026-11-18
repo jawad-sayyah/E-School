@@ -1,0 +1,526 @@
+---
+id: persistence
+title: "Step 6: Save the cart"
+summary: Keep the cart when the page reloads. Load it from localStorage with a lazy initializer, and save it after every change with useEffect.
+minutes: 25
+tags: [MiniShop, project, useEffect, localStorage, JSON, lazy initializer, side effects, error handling]
+---
+
+Reload the preview from step 5 and the cart is gone. Real shops remember it. The browser gives you `localStorage`, a small key-value store that survives reloads, and React gives you two tools to connect it:
+
+- **Loading** happens once, when the cart state is created. `useReducer(reducer, initialArg, init)` calls `init` only on the first render: a *lazy initializer*.
+- **Saving** is a side effect: it talks to something outside React. Side effects that follow a render belong in `useEffect`, which runs after React has updated the screen.
+
+<ProjectStep
+  id="persistence"
+  title="Load and save the cart"
+  goal="Add a few products, reload the preview, and the cart is still there. A broken saved value never crashes the shop."
+  practice={[
+    ["JSON and localStorage", "/courses/modern-js/json-storage"],
+    ["useEffect", "/courses/hooks/use-effect"],
+    ["Effects in practice", "/courses/hooks/effects-in-practice"],
+    ["Errors and try/catch", "/courses/js-depth/errors"],
+  ]}
+  tasks={[
+    "In `storage.js`, make `saveCart(items)` store the cart as JSON under the key `minishop-cart`.",
+    "Make `loadCart()` read it back. Return `[]` when nothing is saved, when the value isn't an array, or when it isn't valid JSON.",
+    "In `App.js`, start the reducer from the saved cart: `useReducer(cartReducer, undefined, loadCart)`.",
+    "Save after every change with `useEffect(() => { saveCart(cart); }, [cart])`.",
+    "Add something, press the preview's refresh button, and check the cart is still there.",
+  ]}
+  hints={[
+    "`localStorage.setItem(KEY, JSON.stringify(items))` saves; `JSON.parse(localStorage.getItem(KEY))` loads. `getItem` returns `null` when the key doesn't exist, and `JSON.parse(null)` is `null`.",
+    "Wrap the parsing in `try { … } catch { return []; }`, and finish with `return Array.isArray(saved) ? saved : [];`.",
+    "Import `useEffect` next to `useReducer`, and `loadCart` and `saveCart` from `./storage`.",
+  ]}
+  explain={[
+    "The third argument of `useReducer` is called once, on the first render. Writing `useReducer(cartReducer, loadCart())` would read `localStorage` on every render and throw the result away.",
+    "The effect depends on `[cart]`, so it runs after the first render and after every change, and never in between.",
+    "`loadCart` trusts nothing: the saved value may be missing, from an older version of the shop, or edited by hand in DevTools.",
+  ]}
+>
+
+`storage.js` exists, but it doesn't save or load anything yet. Write it, then connect it to `App`.
+
+```js starter file=/cartUtils.js
+export function formatPrice(amount) {
+  return "$" + amount.toFixed(2);
+}
+
+export function cartTotal(items) {
+  return items.reduce((sum, item) => sum + item.price * item.qty, 0);
+}
+
+export function cartCount(items) {
+  return items.reduce((sum, item) => sum + item.qty, 0);
+}
+
+export function addToCart(items, product) {
+  const existing = items.find((item) => item.id === product.id);
+  if (existing) {
+    return items.map((item) => (item.id === product.id ? { ...item, qty: item.qty + 1 } : item));
+  }
+  return [...items, { ...product, qty: 1 }];
+}
+
+export function renderCart(items) {
+  if (items.length === 0) return "<li>Your cart is empty.</li>";
+  return items
+    .map((item) => `<li>${item.name} × ${item.qty}: ${formatPrice(item.price * item.qty)}</li>`)
+    .join("");
+}
+```
+
+```js starter file=/products.js
+export const products = [
+  { id: 1, name: "Coffee beans", price: 12 },
+  { id: 2, name: "Green tea", price: 8 },
+  { id: 3, name: "Travel mug", price: 15 },
+];
+```
+
+```js starter file=/cartReducer.js
+import { addToCart } from "./cartUtils";
+
+export function cartReducer(items, action) {
+  switch (action.type) {
+    case "add":
+      return addToCart(items, action.product);
+    case "remove":
+      return items.filter((item) => item.id !== action.id);
+    case "setQty":
+      if (action.qty < 1) return items.filter((item) => item.id !== action.id);
+      return items.map((item) => (item.id === action.id ? { ...item, qty: action.qty } : item));
+    case "clear":
+      return [];
+    default:
+      throw new Error(`Unknown action: ${action.type}`);
+  }
+}
+```
+
+```js starter file=/storage.js
+const KEY = "minishop-cart";
+
+export function loadCart() {
+  // TODO: read the saved cart; [] when there's none, or it's broken
+  return [];
+}
+
+export function saveCart(items) {
+  // TODO: save the cart as JSON under KEY
+}
+```
+
+```jsx starter file=/App.js
+import { useReducer } from "react";
+import { products } from "./products";
+import { cartReducer } from "./cartReducer";
+import ProductList from "./ProductList";
+import Cart from "./Cart";
+
+export default function App() {
+  const [cart, dispatch] = useReducer(cartReducer, []);
+
+  return (
+    <main>
+      <h1>MiniShop</h1>
+      <ProductList products={products} onAdd={(product) => dispatch({ type: "add", product })} />
+      <Cart
+        items={cart}
+        onChangeQty={(id, qty) => dispatch({ type: "setQty", id, qty })}
+        onRemove={(id) => dispatch({ type: "remove", id })}
+        onClear={() => dispatch({ type: "clear" })}
+      />
+    </main>
+  );
+}
+```
+
+```jsx starter file=/ProductList.js
+import { formatPrice } from "./cartUtils";
+
+export default function ProductList({ products, onAdd }) {
+  return (
+    <section>
+      <h2>Products</h2>
+      <ul>
+        {products.map((product) => (
+          <li key={product.id}>
+            {product.name} {formatPrice(product.price)}{" "}
+            <button aria-label={`Add ${product.name}`} onClick={() => onAdd(product)}>
+              Add
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+```
+
+```jsx starter file=/Cart.js
+import { cartTotal, formatPrice } from "./cartUtils";
+
+export default function Cart({ items, onChangeQty, onRemove, onClear }) {
+  return (
+    <section>
+      <h2>Your cart</h2>
+      {items.length === 0 ? (
+        <p>Your cart is empty.</p>
+      ) : (
+        <ul>
+          {items.map((item) => (
+            <li key={item.id}>
+              <span>
+                {item.name} × {item.qty}: {formatPrice(item.price * item.qty)}
+              </span>{" "}
+              <button
+                aria-label={`Decrease ${item.name}`}
+                onClick={() => onChangeQty(item.id, item.qty - 1)}
+              >
+                −
+              </button>
+              <button
+                aria-label={`Increase ${item.name}`}
+                onClick={() => onChangeQty(item.id, item.qty + 1)}
+              >
+                +
+              </button>
+              <button aria-label={`Remove ${item.name}`} onClick={() => onRemove(item.id)}>
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p>Total: {formatPrice(cartTotal(items))}</p>
+      {items.length > 0 && <button onClick={onClear}>Clear cart</button>}
+    </section>
+  );
+}
+```
+
+```jsx tests file=/storage.test.js
+import { fireEvent, render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import App from "./App";
+import { loadCart, saveCart } from "./storage";
+
+const tea = { id: 2, name: "Green tea", price: 8, qty: 2 };
+
+beforeEach(() => localStorage.clear());
+
+test("loadCart returns [] when nothing is saved", () => {
+  expect(loadCart()).toEqual([]);
+});
+
+test("saveCart stores JSON under minishop-cart, and loadCart reads it back", () => {
+  saveCart([tea]);
+  expect(JSON.parse(localStorage.getItem("minishop-cart"))).toEqual([tea]);
+  expect(loadCart()).toEqual([tea]);
+});
+
+test("broken or unexpected saved values give an empty cart", () => {
+  localStorage.setItem("minishop-cart", "{not json");
+  expect(loadCart()).toEqual([]);
+  localStorage.setItem("minishop-cart", JSON.stringify({ oops: true }));
+  expect(loadCart()).toEqual([]);
+});
+
+test("a saved cart shows on the first render", () => {
+  localStorage.setItem("minishop-cart", JSON.stringify([tea]));
+  render(<App />);
+  expect(screen.getByText("Green tea × 2: $16.00")).toBeInTheDocument();
+});
+
+test("the cart survives a reload", () => {
+  const { unmount } = render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "Add Travel mug" }));
+  fireEvent.click(screen.getByRole("button", { name: "Add Travel mug" }));
+  unmount();
+  render(<App />);
+  expect(screen.getByText("Travel mug × 2: $30.00")).toBeInTheDocument();
+});
+```
+
+```js solution file=/storage.js
+const KEY = "minishop-cart";
+
+export function loadCart() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(KEY));
+    return Array.isArray(saved) ? saved : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveCart(items) {
+  try {
+    localStorage.setItem(KEY, JSON.stringify(items));
+  } catch {
+    // Storage is full or blocked (private mode): the cart still works, it just isn't saved.
+  }
+}
+```
+
+```jsx solution file=/App.js
+import { useEffect, useReducer } from "react";
+import { products } from "./products";
+import { cartReducer } from "./cartReducer";
+import { loadCart, saveCart } from "./storage";
+import ProductList from "./ProductList";
+import Cart from "./Cart";
+
+export default function App() {
+  const [cart, dispatch] = useReducer(cartReducer, undefined, loadCart);
+
+  useEffect(() => {
+    saveCart(cart);
+  }, [cart]);
+
+  return (
+    <main>
+      <h1>MiniShop</h1>
+      <ProductList products={products} onAdd={(product) => dispatch({ type: "add", product })} />
+      <Cart
+        items={cart}
+        onChangeQty={(id, qty) => dispatch({ type: "setQty", id, qty })}
+        onRemove={(id) => dispatch({ type: "remove", id })}
+        onClear={() => dispatch({ type: "clear" })}
+      />
+    </main>
+  );
+}
+```
+
+</ProjectStep>
+
+<HowItWorks title="Why not save inside the reducer?">
+
+It's tempting to write `localStorage.setItem(…)` at the end of each `case`. Don't: a reducer must be **pure**. React may run it twice in development, run it during a render that ends up thrown away, or run several queued actions in a row. Each of those would write to storage at the wrong time.
+
+`useEffect` runs **after** React commits a render to the screen, with the cart that's actually showing. Its dependency array, `[cart]`, means "run again only when the cart is a different value". Thanks to immutable updates, every real change is a new array, so it always saves exactly what the user sees.
+
+The lazy initializer has the same logic in reverse: reading storage once, at the start, instead of in every render.
+
+</HowItWorks>
+
+<Practice>
+
+<Predict
+  id="predict-json-null"
+  answer={["null", "true", "[object Object]"]}
+  explain={"`getItem` returns `null` for a missing key, and `JSON.parse(null)` is `null` (not an error!), so `loadCart` must check for an array. `String(items)` doesn't make JSON: always use `JSON.stringify`."}
+>
+
+```js
+console.log(JSON.parse(null));
+console.log(Array.isArray(JSON.parse("[]")));
+console.log(String({ id: 1 }));
+```
+
+</Predict>
+
+<SpotTheBug
+  id="bug-effect-deps"
+  bug={4}
+  prompt="The cart is saved once, when the page opens, and never again. Click the line with the bug."
+  explain="An empty dependency array means 'only after the first render'. The effect uses `cart`, so it must list it: `[cart]`. Then it re-runs after every change."
+>
+
+```jsx
+const [cart, dispatch] = useReducer(cartReducer, undefined, loadCart);
+useEffect(() => {
+  saveCart(cart);
+}, []);
+```
+
+</SpotTheBug>
+
+<TrueFalse
+  id="tf-persistence"
+  statements={[
+    { text: "`useReducer(cartReducer, loadCart())` reads localStorage on every render.", answer: true, explain: "The call happens every time the component runs; React just ignores the result after the first render. Pass the function as the third argument instead." },
+    { text: "It's fine to call `localStorage.setItem` inside the reducer.", answer: false, explain: "Reducers must be pure. Side effects go in effects or event handlers." },
+    { text: "localStorage can throw, for example when it's full or blocked.", answer: true, explain: "That's why `saveCart` has a try/catch: a full storage shouldn't break the cart." },
+  ]}
+/>
+
+</Practice>
+
+<ReactTestExercise
+  id="test-storage"
+  title="Test it: storage.js"
+  hints={[
+    "Start every test from empty storage: `beforeEach(() => localStorage.clear())`.",
+    "Round trip: `saveCart(cart)`, then expect `loadCart()` to equal `cart`. Also check that nothing saved gives `[]`.",
+    "Put broken JSON in storage yourself: `localStorage.setItem(\"minishop-cart\", \"{oops\")`, then call `loadCart()`.",
+  ]}
+>
+
+Write tests for `loadCart` and `saveCart`. jsdom gives your tests a real `localStorage`. Your tests must pass on this file and catch every buggy version.
+
+```js code file=/storage.js
+const KEY = "minishop-cart";
+
+export function loadCart() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(KEY));
+    return Array.isArray(saved) ? saved : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveCart(items) {
+  try {
+    localStorage.setItem(KEY, JSON.stringify(items));
+  } catch {
+    // Storage is full or blocked (private mode): the cart still works, it just isn't saved.
+  }
+}
+```
+
+```js starter file=/storage.test.js
+import { beforeEach, expect, test } from "vitest";
+import { loadCart, saveCart } from "./storage";
+
+beforeEach(() => localStorage.clear());
+
+test("saveCart writes something", () => {
+  saveCart([{ id: 1, name: "Coffee beans", price: 12, qty: 1 }]);
+  expect(localStorage.getItem("minishop-cart")).not.toBeNull();
+});
+```
+
+```js bug file=/storage.js title="Saves without JSON" hint="Save a cart, then load it back. Do you get the same cart?"
+const KEY = "minishop-cart";
+
+export function loadCart() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(KEY));
+    return Array.isArray(saved) ? saved : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveCart(items) {
+  try {
+    localStorage.setItem(KEY, String(items));
+  } catch {
+    // ignore
+  }
+}
+```
+
+```js bug file=/storage.js title="Crashes on broken JSON" hint="Put invalid JSON under minishop-cart yourself, then call loadCart."
+const KEY = "minishop-cart";
+
+export function loadCart() {
+  const saved = JSON.parse(localStorage.getItem(KEY));
+  return Array.isArray(saved) ? saved : [];
+}
+
+export function saveCart(items) {
+  try {
+    localStorage.setItem(KEY, JSON.stringify(items));
+  } catch {
+    // ignore
+  }
+}
+```
+
+```js bug file=/storage.js title="Loads and saves under different keys" hint="A round trip (save, then load) catches it."
+export function loadCart() {
+  try {
+    const saved = JSON.parse(localStorage.getItem("cart"));
+    return Array.isArray(saved) ? saved : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveCart(items) {
+  try {
+    localStorage.setItem("minishop-cart", JSON.stringify(items));
+  } catch {
+    // ignore
+  }
+}
+```
+
+```js bug file=/storage.js title="Empty storage gives null" hint="Call loadCart with nothing saved. It should return an empty array."
+const KEY = "minishop-cart";
+
+export function loadCart() {
+  try {
+    return JSON.parse(localStorage.getItem(KEY));
+  } catch {
+    return [];
+  }
+}
+
+export function saveCart(items) {
+  try {
+    localStorage.setItem(KEY, JSON.stringify(items));
+  } catch {
+    // ignore
+  }
+}
+```
+
+```js solution file=/storage.test.js
+import { beforeEach, expect, test } from "vitest";
+import { loadCart, saveCart } from "./storage";
+
+const cart = [{ id: 1, name: "Coffee beans", price: 12, qty: 2 }];
+
+beforeEach(() => localStorage.clear());
+
+test("nothing saved gives an empty cart", () => {
+  expect(loadCart()).toEqual([]);
+});
+
+test("a saved cart loads back the same", () => {
+  saveCart(cart);
+  expect(loadCart()).toEqual(cart);
+});
+
+test("it's stored as JSON under minishop-cart", () => {
+  saveCart(cart);
+  expect(JSON.parse(localStorage.getItem("minishop-cart"))).toEqual(cart);
+});
+
+test("broken JSON gives an empty cart instead of a crash", () => {
+  localStorage.setItem("minishop-cart", "{oops");
+  expect(loadCart()).toEqual([]);
+});
+```
+
+</ReactTestExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "What does the third argument of `useReducer(cartReducer, undefined, loadCart)` do?",
+      options: ["Runs after every dispatch", "Computes the initial state once, on the first render", "Saves the state", "Resets the cart"],
+      answer: 1,
+      explain: "It's a lazy initializer: `loadCart(undefined)` runs once and its result is the starting cart.",
+    },
+    {
+      q: "When does `useEffect(() => saveCart(cart), [cart])` run?",
+      options: ["Before every render", "After the first render, and after every render where `cart` is a new value", "Only once", "Every second"],
+      answer: 1,
+      explain: "React compares each dependency with `Object.is`. A new cart array means the effect runs again.",
+    },
+    {
+      q: "Why does `loadCart` check `Array.isArray(saved)`?",
+      options: ["Arrays load faster", "The saved value could be missing (`null`), from an old version, or edited by hand", "JSON.parse always returns a string", "It doesn't need to"],
+      answer: 1,
+      explain: "Data from outside your code (storage, the network, users) must be checked before you trust it.",
+    },
+  ]}
+/>

@@ -1,0 +1,595 @@
+---
+id: cart-reducer
+title: "Step 5: Cart logic in a reducer"
+summary: Move every cart change into one cartReducer with add, remove, setQty and clear actions, use it with useReducer, and test it as a plain function.
+minutes: 30
+tags: [MiniShop, project, useReducer, reducer, actions, dispatch, pure functions, unit tests]
+---
+
+`App` now holds three functions that each change the cart in their own way. As the shop grows (a clear button, a discount, a "buy again"), that logic spreads further. A **reducer** collects all of it in one place:
+
+```js
+function cartReducer(items, action) {
+  // given the current cart and what happened, return the next cart
+}
+```
+
+Components stop saying *how* the cart changes. They **dispatch** what happened (`{ type: "add", product }`), and the reducer decides. Because a reducer is a plain function with no React inside, you can test it with nothing but inputs and outputs.
+
+<ProjectStep
+  id="cart-reducer"
+  title="Write cartReducer and use it"
+  goal="Every cart change goes through cartReducer, App uses useReducer, and the cart has a Clear cart button."
+  practice={[
+    ["useReducer", "/courses/hooks/use-reducer"],
+    ["Testing reducers", "/courses/testing/testing-reducers"],
+    ["Spread and immutability", "/courses/modern-js/spread-rest"],
+  ]}
+  tasks={[
+    "In `cartReducer.js`, handle `add` (with `action.product`), using `addToCart`.",
+    "Handle `remove` (`action.id`) and `setQty` (`action.id`, `action.qty`; below 1 removes the line).",
+    "Handle `clear`, which empties the cart. Unknown actions keep throwing.",
+    "In `App.js`, replace `useState` with `const [cart, dispatch] = useReducer(cartReducer, [])`, and dispatch actions from the props.",
+    "Give `Cart` an `onClear` prop and a **Clear cart** button, shown only when the cart isn't empty.",
+  ]}
+  hints={[
+    "One `case` per action type: `case \"add\": return addToCart(items, action.product);` and `case \"clear\": return [];`.",
+    "`setQty` is `changeQty` from step 4, reading `action.id` and `action.qty` instead of arguments.",
+    "In `App`: `onAdd={(product) => dispatch({ type: \"add\", product })}`. In `Cart`: `{items.length > 0 && <button onClick={onClear}>Clear cart</button>}`.",
+  ]}
+  explain={[
+    "The reducer is pure: same cart and action in, same cart out, no side effects. That's what makes it so easy to test.",
+    "Throwing on an unknown action turns a typo like `{ type: \"ad\" }` into a loud error instead of a silently ignored click.",
+    "`App` no longer knows how quantities or removal work; it only translates clicks into actions.",
+  ]}
+>
+
+The reducer file is ready for you, with only the error for unknown actions. Fill it in, then switch `App` over to it.
+
+```js starter file=/cartUtils.js
+export function formatPrice(amount) {
+  return "$" + amount.toFixed(2);
+}
+
+export function cartTotal(items) {
+  return items.reduce((sum, item) => sum + item.price * item.qty, 0);
+}
+
+export function cartCount(items) {
+  return items.reduce((sum, item) => sum + item.qty, 0);
+}
+
+export function addToCart(items, product) {
+  const existing = items.find((item) => item.id === product.id);
+  if (existing) {
+    return items.map((item) => (item.id === product.id ? { ...item, qty: item.qty + 1 } : item));
+  }
+  return [...items, { ...product, qty: 1 }];
+}
+
+export function renderCart(items) {
+  if (items.length === 0) return "<li>Your cart is empty.</li>";
+  return items
+    .map((item) => `<li>${item.name} × ${item.qty}: ${formatPrice(item.price * item.qty)}</li>`)
+    .join("");
+}
+```
+
+```js starter file=/products.js
+export const products = [
+  { id: 1, name: "Coffee beans", price: 12 },
+  { id: 2, name: "Green tea", price: 8 },
+  { id: 3, name: "Travel mug", price: 15 },
+];
+```
+
+```js starter file=/cartReducer.js
+import { addToCart } from "./cartUtils";
+
+export function cartReducer(items, action) {
+  switch (action.type) {
+    // TODO: handle "add", "remove", "setQty" and "clear"
+    default:
+      throw new Error(`Unknown action: ${action.type}`);
+  }
+}
+```
+
+```jsx starter file=/App.js
+import { useState } from "react";
+import { products } from "./products";
+import { addToCart } from "./cartUtils";
+import ProductList from "./ProductList";
+import Cart from "./Cart";
+
+export default function App() {
+  const [cart, setCart] = useState([]);
+
+  function add(product) {
+    setCart((items) => addToCart(items, product));
+  }
+
+  function changeQty(id, qty) {
+    setCart((items) =>
+      qty < 1
+        ? items.filter((item) => item.id !== id)
+        : items.map((item) => (item.id === id ? { ...item, qty } : item)),
+    );
+  }
+
+  function remove(id) {
+    setCart((items) => items.filter((item) => item.id !== id));
+  }
+
+  return (
+    <main>
+      <h1>MiniShop</h1>
+      <ProductList products={products} onAdd={add} />
+      <Cart items={cart} onChangeQty={changeQty} onRemove={remove} />
+    </main>
+  );
+}
+```
+
+```jsx starter file=/ProductList.js
+import { formatPrice } from "./cartUtils";
+
+export default function ProductList({ products, onAdd }) {
+  return (
+    <section>
+      <h2>Products</h2>
+      <ul>
+        {products.map((product) => (
+          <li key={product.id}>
+            {product.name} {formatPrice(product.price)}{" "}
+            <button aria-label={`Add ${product.name}`} onClick={() => onAdd(product)}>
+              Add
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+```
+
+```jsx starter file=/Cart.js
+import { cartTotal, formatPrice } from "./cartUtils";
+
+export default function Cart({ items, onChangeQty, onRemove }) {
+  return (
+    <section>
+      <h2>Your cart</h2>
+      {items.length === 0 ? (
+        <p>Your cart is empty.</p>
+      ) : (
+        <ul>
+          {items.map((item) => (
+            <li key={item.id}>
+              <span>
+                {item.name} × {item.qty}: {formatPrice(item.price * item.qty)}
+              </span>{" "}
+              <button
+                aria-label={`Decrease ${item.name}`}
+                onClick={() => onChangeQty(item.id, item.qty - 1)}
+              >
+                −
+              </button>
+              <button
+                aria-label={`Increase ${item.name}`}
+                onClick={() => onChangeQty(item.id, item.qty + 1)}
+              >
+                +
+              </button>
+              <button aria-label={`Remove ${item.name}`} onClick={() => onRemove(item.id)}>
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p>Total: {formatPrice(cartTotal(items))}</p>
+    </section>
+  );
+}
+```
+
+```jsx tests file=/cartReducer.test.js
+import { fireEvent, render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import App from "./App";
+import { cartReducer } from "./cartReducer";
+
+const tea = { id: 2, name: "Green tea", price: 8 };
+const mug = { id: 3, name: "Travel mug", price: 15 };
+
+test("add: a new product joins with qty 1, an existing one gets +1", () => {
+  const once = cartReducer([], { type: "add", product: tea });
+  expect(once).toEqual([{ ...tea, qty: 1 }]);
+  expect(cartReducer(once, { type: "add", product: tea })).toEqual([{ ...tea, qty: 2 }]);
+});
+
+test("remove takes out only that line", () => {
+  const items = [{ ...tea, qty: 1 }, { ...mug, qty: 2 }];
+  expect(cartReducer(items, { type: "remove", id: 2 })).toEqual([{ ...mug, qty: 2 }]);
+});
+
+test("setQty changes one line, and below 1 removes it", () => {
+  const items = [{ ...tea, qty: 1 }, { ...mug, qty: 2 }];
+  expect(cartReducer(items, { type: "setQty", id: 3, qty: 5 })).toEqual([{ ...tea, qty: 1 }, { ...mug, qty: 5 }]);
+  expect(cartReducer(items, { type: "setQty", id: 2, qty: 0 })).toEqual([{ ...mug, qty: 2 }]);
+});
+
+test("clear empties the cart", () => {
+  expect(cartReducer([{ ...tea, qty: 3 }], { type: "clear" })).toEqual([]);
+});
+
+test("the reducer never changes the old cart", () => {
+  const items = Object.freeze([Object.freeze({ ...tea, qty: 1 })]);
+  expect(() => cartReducer(items, { type: "add", product: tea })).not.toThrow();
+  expect(() => cartReducer(items, { type: "setQty", id: 2, qty: 4 })).not.toThrow();
+});
+
+test("an unknown action throws", () => {
+  expect(() => cartReducer([], { type: "oops" })).toThrow("Unknown action: oops");
+});
+
+test("the app still works, and Clear cart empties it", () => {
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "Add Green tea" }));
+  fireEvent.click(screen.getByRole("button", { name: "Increase Green tea" }));
+  expect(screen.getByText("Green tea × 2: $16.00")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Clear cart" }));
+  expect(screen.getByText("Your cart is empty.")).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Clear cart" })).not.toBeInTheDocument();
+});
+```
+
+```js solution file=/cartReducer.js
+import { addToCart } from "./cartUtils";
+
+export function cartReducer(items, action) {
+  switch (action.type) {
+    case "add":
+      return addToCart(items, action.product);
+    case "remove":
+      return items.filter((item) => item.id !== action.id);
+    case "setQty":
+      if (action.qty < 1) return items.filter((item) => item.id !== action.id);
+      return items.map((item) => (item.id === action.id ? { ...item, qty: action.qty } : item));
+    case "clear":
+      return [];
+    default:
+      throw new Error(`Unknown action: ${action.type}`);
+  }
+}
+```
+
+```jsx solution file=/App.js
+import { useReducer } from "react";
+import { products } from "./products";
+import { cartReducer } from "./cartReducer";
+import ProductList from "./ProductList";
+import Cart from "./Cart";
+
+export default function App() {
+  const [cart, dispatch] = useReducer(cartReducer, []);
+
+  return (
+    <main>
+      <h1>MiniShop</h1>
+      <ProductList products={products} onAdd={(product) => dispatch({ type: "add", product })} />
+      <Cart
+        items={cart}
+        onChangeQty={(id, qty) => dispatch({ type: "setQty", id, qty })}
+        onRemove={(id) => dispatch({ type: "remove", id })}
+        onClear={() => dispatch({ type: "clear" })}
+      />
+    </main>
+  );
+}
+```
+
+```jsx solution file=/Cart.js
+import { cartTotal, formatPrice } from "./cartUtils";
+
+export default function Cart({ items, onChangeQty, onRemove, onClear }) {
+  return (
+    <section>
+      <h2>Your cart</h2>
+      {items.length === 0 ? (
+        <p>Your cart is empty.</p>
+      ) : (
+        <ul>
+          {items.map((item) => (
+            <li key={item.id}>
+              <span>
+                {item.name} × {item.qty}: {formatPrice(item.price * item.qty)}
+              </span>{" "}
+              <button
+                aria-label={`Decrease ${item.name}`}
+                onClick={() => onChangeQty(item.id, item.qty - 1)}
+              >
+                −
+              </button>
+              <button
+                aria-label={`Increase ${item.name}`}
+                onClick={() => onChangeQty(item.id, item.qty + 1)}
+              >
+                +
+              </button>
+              <button aria-label={`Remove ${item.name}`} onClick={() => onRemove(item.id)}>
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p>Total: {formatPrice(cartTotal(items))}</p>
+      {items.length > 0 && <button onClick={onClear}>Clear cart</button>}
+    </section>
+  );
+}
+```
+
+</ProjectStep>
+
+<HowItWorks title="dispatch, step by step">
+
+`dispatch({ type: "setQty", id: 2, qty: 3 })` doesn't run your reducer straight away. React **queues** the action and schedules a re-render. During that render, `useReducer` takes the current cart and runs `cartReducer(cart, action)` for each queued action, in order, and the result becomes the new state.
+
+That has two consequences:
+
+- The reducer must be **pure**. React may call it more than once (StrictMode does it on purpose in development to catch impure reducers), so no `fetch`, no `localStorage`, no changing the old array.
+- `dispatch` itself never changes, so you can pass it down as deep as you like without causing re-renders. You'll use that in step 8, when the cart moves into context.
+
+</HowItWorks>
+
+<Practice>
+
+<FillBlanks
+  id="blanks-setqty"
+  prompt="Fill in the blanks of the setQty case so it never mutates and removes lines that drop below 1."
+  explain="`filter` drops the line, `map` builds a new array where only the matching item is replaced by a copy with the new qty."
+>
+
+```js
+function cartReducer(items, action) {
+  switch (action.type) {
+    case "setQty":
+      if (action.qty < 1) return items.__[filter]__((item) => item.id !== action.id);
+      return items.__[map]__((item) => (item.id === action.id ? { __[...item]__, qty: action.qty } : item));
+    default:
+      throw new Error(`Unknown action: ${action.type}`);
+  }
+}
+console.log(cartReducer([{ id: 1, qty: 1 }], { type: "setQty", id: 1, qty: 3 }));
+```
+
+</FillBlanks>
+
+<MatchPairs
+  id="match-actions"
+  prompt="Match each click with the action it dispatches."
+  columns={["Click", "Action"]}
+  pairs={[
+    ["Add on Green tea", "`{ type: \"add\", product: tea }`"],
+    ["+ on a line with qty 2", "`{ type: \"setQty\", id, qty: 3 }`"],
+    ["− on a line with qty 1", "`{ type: \"setQty\", id, qty: 0 }`"],
+    ["Remove", "`{ type: \"remove\", id }`"],
+    ["Clear cart", "`{ type: \"clear\" }`"],
+  ]}
+/>
+
+</Practice>
+
+<TestExercise
+  id="test-minishop-reducer"
+  title="Test it: cartReducer"
+  hints={[
+    "Cover every action, including `setQty` down to 0 and an action type that doesn't exist.",
+    "Freeze the old cart, `Object.freeze([Object.freeze({ ...tea, qty: 1 })])`, and check `add` doesn't throw: that catches the mutating bug.",
+    "Use a cart with **two** lines for `remove`, and check which one is left.",
+  ]}
+>
+
+Here's MiniShop's reducer in one file (with `addToCart` folded into the `add` case). Write tests that pass on it and catch every buggy version.
+
+```js code file=cartReducer.js
+function cartReducer(items, action) {
+  switch (action.type) {
+    case "add": {
+      const existing = items.find((item) => item.id === action.product.id);
+      if (existing) {
+        return items.map((item) =>
+          item.id === action.product.id ? { ...item, qty: item.qty + 1 } : item,
+        );
+      }
+      return [...items, { ...action.product, qty: 1 }];
+    }
+    case "remove":
+      return items.filter((item) => item.id !== action.id);
+    case "setQty":
+      if (action.qty < 1) return items.filter((item) => item.id !== action.id);
+      return items.map((item) => (item.id === action.id ? { ...item, qty: action.qty } : item));
+    case "clear":
+      return [];
+    default:
+      throw new Error(`Unknown action: ${action.type}`);
+  }
+}
+```
+
+```js starter
+const tea = { id: 2, name: "Green tea", price: 8 };
+
+test("add: a new product gets qty 1", () => {
+  expect(cartReducer([], { type: "add", product: tea })).toEqual([{ ...tea, qty: 1 }]);
+});
+```
+
+```js bug title="add mutates the old cart" hint="Freeze the old cart and add a product that's already in it."
+function cartReducer(items, action) {
+  switch (action.type) {
+    case "add": {
+      const existing = items.find((item) => item.id === action.product.id);
+      if (existing) {
+        existing.qty++;
+        return [...items];
+      }
+      return [...items, { ...action.product, qty: 1 }];
+    }
+    case "remove":
+      return items.filter((item) => item.id !== action.id);
+    case "setQty":
+      if (action.qty < 1) return items.filter((item) => item.id !== action.id);
+      return items.map((item) => (item.id === action.id ? { ...item, qty: action.qty } : item));
+    case "clear":
+      return [];
+    default:
+      throw new Error(`Unknown action: ${action.type}`);
+  }
+}
+```
+
+```js bug title="remove keeps only the removed line" hint="Remove one line from a cart with two, and check which one is left."
+function cartReducer(items, action) {
+  switch (action.type) {
+    case "add": {
+      const existing = items.find((item) => item.id === action.product.id);
+      if (existing) {
+        return items.map((item) =>
+          item.id === action.product.id ? { ...item, qty: item.qty + 1 } : item,
+        );
+      }
+      return [...items, { ...action.product, qty: 1 }];
+    }
+    case "remove":
+      return items.filter((item) => item.id === action.id);
+    case "setQty":
+      if (action.qty < 1) return items.filter((item) => item.id !== action.id);
+      return items.map((item) => (item.id === action.id ? { ...item, qty: action.qty } : item));
+    case "clear":
+      return [];
+    default:
+      throw new Error(`Unknown action: ${action.type}`);
+  }
+}
+```
+
+```js bug title="setQty 0 keeps the line" hint="Set a line's qty to 0. Is it gone?"
+function cartReducer(items, action) {
+  switch (action.type) {
+    case "add": {
+      const existing = items.find((item) => item.id === action.product.id);
+      if (existing) {
+        return items.map((item) =>
+          item.id === action.product.id ? { ...item, qty: item.qty + 1 } : item,
+        );
+      }
+      return [...items, { ...action.product, qty: 1 }];
+    }
+    case "remove":
+      return items.filter((item) => item.id !== action.id);
+    case "setQty":
+      return items.map((item) => (item.id === action.id ? { ...item, qty: action.qty } : item));
+    case "clear":
+      return [];
+    default:
+      throw new Error(`Unknown action: ${action.type}`);
+  }
+}
+```
+
+```js bug title="Unknown actions are ignored" hint="Dispatch a type that doesn't exist, like 'oops'. It should throw."
+function cartReducer(items, action) {
+  switch (action.type) {
+    case "add": {
+      const existing = items.find((item) => item.id === action.product.id);
+      if (existing) {
+        return items.map((item) =>
+          item.id === action.product.id ? { ...item, qty: item.qty + 1 } : item,
+        );
+      }
+      return [...items, { ...action.product, qty: 1 }];
+    }
+    case "remove":
+      return items.filter((item) => item.id !== action.id);
+    case "setQty":
+      if (action.qty < 1) return items.filter((item) => item.id !== action.id);
+      return items.map((item) => (item.id === action.id ? { ...item, qty: action.qty } : item));
+    case "clear":
+      return [];
+    default:
+      return items;
+  }
+}
+```
+
+```js solution
+const tea = { id: 2, name: "Green tea", price: 8 };
+const mug = { id: 3, name: "Travel mug", price: 15 };
+
+test("add: a new product gets qty 1", () => {
+  expect(cartReducer([], { type: "add", product: tea })).toEqual([{ ...tea, qty: 1 }]);
+});
+
+test("add: an existing product gets +1, without mutating", () => {
+  const items = Object.freeze([Object.freeze({ ...tea, qty: 1 })]);
+  expect(cartReducer(items, { type: "add", product: tea })).toEqual([{ ...tea, qty: 2 }]);
+  expect(items[0].qty).toBe(1);
+});
+
+test("remove keeps the other lines", () => {
+  const items = [{ ...tea, qty: 1 }, { ...mug, qty: 2 }];
+  expect(cartReducer(items, { type: "remove", id: 2 })).toEqual([{ ...mug, qty: 2 }]);
+});
+
+test("setQty changes the qty, and 0 removes the line", () => {
+  const items = [{ ...tea, qty: 1 }, { ...mug, qty: 2 }];
+  expect(cartReducer(items, { type: "setQty", id: 3, qty: 5 })).toEqual([
+    { ...tea, qty: 1 },
+    { ...mug, qty: 5 },
+  ]);
+  expect(cartReducer(items, { type: "setQty", id: 2, qty: 0 })).toEqual([{ ...mug, qty: 2 }]);
+});
+
+test("clear empties the cart", () => {
+  expect(cartReducer([{ ...tea, qty: 3 }], { type: "clear" })).toEqual([]);
+});
+
+test("an unknown action throws", () => {
+  expect(() => cartReducer([], { type: "oops" })).toThrow("Unknown action");
+});
+```
+
+</TestExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "What does a reducer return?",
+      options: ["Nothing; it changes the state in place", "The next state, computed from the current state and the action", "A promise", "JSX"],
+      answer: 1,
+      explain: "`(state, action) => nextState`, with no side effects.",
+    },
+    {
+      q: "Why is `cartReducer` easy to test?",
+      options: ["React tests it for you", "It's a plain function: call it with a cart and an action, and check what comes back", "It has no bugs", "It runs in the browser"],
+      answer: 1,
+      explain: "No rendering, no clicking, no mocks. Pure functions are the cheapest code to test.",
+    },
+    {
+      q: "Why does the reducer throw on unknown actions instead of returning the cart?",
+      options: ["React requires it", "A typo in an action type becomes a loud error instead of a click that silently does nothing", "It's faster", "To clear the cart"],
+      answer: 1,
+      explain: "Failing loudly makes the mistake easy to find. (In TypeScript, step 9 catches it even earlier.)",
+    },
+    {
+      q: "Where does `useReducer` keep the cart between renders?",
+      options: ["In a global variable", "Inside React, attached to the `App` component, just like `useState`", "In `localStorage`", "In the reducer"],
+      answer: 1,
+      explain: "`useState` is actually built on the same mechanism. Persisting it is the next step.",
+    },
+  ]}
+/>

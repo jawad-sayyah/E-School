@@ -40,11 +40,19 @@ interface ReactExerciseProps {
   id: string;
   title: string;
   hints?: string[];
+  /** Notes on the key lines of the solution, shown with it. */
+  explain?: string[];
   /** "write" (default), "fix" (the starter is broken) or "build" (match a target preview). */
   variant?: 'write' | 'fix' | 'build';
   height?: number;
   /** Task prose plus fenced blocks marked `starter`, `tests` and `solution` (each with file=…). */
   children?: ReactNode;
+}
+
+/** Highlighting language from a file name. */
+function langOfPath(path: string): string {
+  const ext = /\.(\w+)$/.exec(path)?.[1] ?? 'js';
+  return ext === 'js' ? 'jsx' : ext;
 }
 
 const LABELS = { write: 'Your turn', fix: 'Fix the bug', build: 'Build the UI' } as const;
@@ -57,6 +65,7 @@ export function ReactExercise({
   id,
   title,
   hints = [],
+  explain = [],
   variant = 'write',
   height,
   children,
@@ -231,8 +240,20 @@ export function ReactExercise({
           <div>
             <p className="text-sm font-semibold">Solution</p>
             {Object.entries(solution).map(([path, code]) => (
-              <CodeView key={path} code={code} file={path.slice(1)} lang="jsx" />
+              <CodeView key={path} code={code} file={path.slice(1)} lang={langOfPath(path)} />
             ))}
+            {explain.length > 0 && (
+              <div className="my-3">
+                <p className="text-sm font-semibold">Key lines</p>
+                <ul className="mt-1 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+                  {explain.map((note, i) => (
+                    <li key={i}>
+                      <TextWithCode text={note} />
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             <Button variant="outline" size="sm" onClick={() => load({ ...starter, ...solution })}>
               Put the solution in the editor
             </Button>

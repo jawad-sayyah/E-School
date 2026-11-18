@@ -1,0 +1,1067 @@
+---
+id: fetching
+title: "Step 7: Fetch the products"
+summary: Load MiniShop's products from a (pretend) server. Handle loading and error states with useEffect, then switch to TanStack Query and add a Try again button.
+minutes: 40
+tags: [MiniShop, project, fetching, useEffect, loading state, error state, race conditions, TanStack Query, useQuery, mocking]
+---
+
+Real shops don't ship their product list inside the JavaScript. It comes from a server, which takes time and sometimes fails. So the UI has three states, not one: **loading**, **error** and **success**.
+
+`api.js` is a pretend server: `api.fetchProducts()` returns a promise that resolves after 600 ms, just like `fetch` would. You'll use it twice:
+
+1. **By hand, with `useEffect`.** You'll see every moving part: state for the result, an effect to start the request, and a cleanup for when the component goes away.
+2. **With TanStack Query**, the library most React teams use for server data. It handles the same states, plus caching, retries and refetching, in one line.
+
+<ProjectStep
+  id="fetching"
+  title="Fetch with useEffect"
+  goal="The product list shows Loading products… while the request runs, then the products, or an error message if the request fails."
+  practice={[
+    ["Promises and async/await", "/courses/modern-js/async-await"],
+    ["Effects in practice: fetching", "/courses/hooks/effects-in-practice"],
+    ["Custom hooks", "/courses/hooks/custom-hooks"],
+    ["Mocking in tests", "/courses/testing/async-mocking"],
+  ]}
+  tasks={[
+    "In `useProducts.js`, keep `{ status, products }` in state, starting with `status: \"loading\"`.",
+    "In an effect that runs once, call `api.fetchProducts()`. On success set `status: \"success\"` and the products; on failure set `status: \"error\"`.",
+    "Return a cleanup that sets an `ignore` flag, so a late answer can't update an unmounted component.",
+    "In `ProductList.js`, call `useProducts()` and show `<p role=\"status\">Loading products…</p>`, `<p role=\"alert\">Couldn't load the products.</p>`, or the list.",
+    "`App` no longer passes `products` to `ProductList`: remove that prop and its import.",
+  ]}
+  hints={[
+    "`const [state, setState] = useState({ status: \"loading\", products: [] });` and `useEffect(() => { … }, [])`.",
+    "`api.fetchProducts().then((products) => { if (!ignore) setState({ status: \"success\", products }); }, () => { if (!ignore) setState({ status: \"error\", products: [] }); });`",
+    "In `ProductList`: `const { status, products } = useProducts();`, then `{status === \"loading\" && <p role=\"status\">Loading products…</p>}` and the same idea for the other two.",
+  ]}
+  explain={[
+    "One `status` field instead of separate `isLoading` and `error` booleans: the component can only be in one state at a time, so impossible combinations can't happen.",
+    "The `ignore` flag is the effect's cleanup. If the component unmounts before the answer arrives, the late `setState` is skipped.",
+    "Tests replace the network with `vi.spyOn(api, \"fetchProducts\").mockResolvedValue(products)`, so they're fast and can make the server fail on purpose.",
+  ]}
+>
+
+`api.js` and an empty `useProducts.js` are ready. Fetch the products and show each state. (To see the error state in the preview, change `resolve(products)` to `reject(new Error("down"))` in `api.js` for a moment.)
+
+```js starter file=/cartUtils.js
+export function formatPrice(amount) {
+  return "$" + amount.toFixed(2);
+}
+
+export function cartTotal(items) {
+  return items.reduce((sum, item) => sum + item.price * item.qty, 0);
+}
+
+export function cartCount(items) {
+  return items.reduce((sum, item) => sum + item.qty, 0);
+}
+
+export function addToCart(items, product) {
+  const existing = items.find((item) => item.id === product.id);
+  if (existing) {
+    return items.map((item) => (item.id === product.id ? { ...item, qty: item.qty + 1 } : item));
+  }
+  return [...items, { ...product, qty: 1 }];
+}
+
+export function renderCart(items) {
+  if (items.length === 0) return "<li>Your cart is empty.</li>";
+  return items
+    .map((item) => `<li>${item.name} × ${item.qty}: ${formatPrice(item.price * item.qty)}</li>`)
+    .join("");
+}
+```
+
+```js starter file=/products.js
+export const products = [
+  { id: 1, name: "Coffee beans", price: 12 },
+  { id: 2, name: "Green tea", price: 8 },
+  { id: 3, name: "Travel mug", price: 15 },
+];
+```
+
+```js starter file=/api.js
+import { products } from "./products";
+
+// A pretend server: it answers after a short delay, like a real network request.
+export const api = {
+  fetchProducts() {
+    return new Promise((resolve) => setTimeout(() => resolve(products), 600));
+  },
+};
+```
+
+```js starter file=/useProducts.js
+import { useEffect, useState } from "react";
+import { api } from "./api";
+
+export function useProducts() {
+  // TODO: fetch with api.fetchProducts() in an effect, and track loading, success and error
+  return { status: "loading", products: [] };
+}
+```
+
+```js starter file=/cartReducer.js
+import { addToCart } from "./cartUtils";
+
+export function cartReducer(items, action) {
+  switch (action.type) {
+    case "add":
+      return addToCart(items, action.product);
+    case "remove":
+      return items.filter((item) => item.id !== action.id);
+    case "setQty":
+      if (action.qty < 1) return items.filter((item) => item.id !== action.id);
+      return items.map((item) => (item.id === action.id ? { ...item, qty: action.qty } : item));
+    case "clear":
+      return [];
+    default:
+      throw new Error(`Unknown action: ${action.type}`);
+  }
+}
+```
+
+```js starter file=/storage.js
+const KEY = "minishop-cart";
+
+export function loadCart() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(KEY));
+    return Array.isArray(saved) ? saved : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveCart(items) {
+  try {
+    localStorage.setItem(KEY, JSON.stringify(items));
+  } catch {
+    // Storage is full or blocked (private mode): the cart still works, it just isn't saved.
+  }
+}
+```
+
+```jsx starter file=/App.js
+import { useEffect, useReducer } from "react";
+import { products } from "./products";
+import { cartReducer } from "./cartReducer";
+import { loadCart, saveCart } from "./storage";
+import ProductList from "./ProductList";
+import Cart from "./Cart";
+
+export default function App() {
+  const [cart, dispatch] = useReducer(cartReducer, undefined, loadCart);
+
+  useEffect(() => {
+    saveCart(cart);
+  }, [cart]);
+
+  return (
+    <main>
+      <h1>MiniShop</h1>
+      <ProductList products={products} onAdd={(product) => dispatch({ type: "add", product })} />
+      <Cart
+        items={cart}
+        onChangeQty={(id, qty) => dispatch({ type: "setQty", id, qty })}
+        onRemove={(id) => dispatch({ type: "remove", id })}
+        onClear={() => dispatch({ type: "clear" })}
+      />
+    </main>
+  );
+}
+```
+
+```jsx starter file=/ProductList.js
+import { formatPrice } from "./cartUtils";
+
+export default function ProductList({ products, onAdd }) {
+  return (
+    <section>
+      <h2>Products</h2>
+      <ul>
+        {products.map((product) => (
+          <li key={product.id}>
+            {product.name} {formatPrice(product.price)}{" "}
+            <button aria-label={`Add ${product.name}`} onClick={() => onAdd(product)}>
+              Add
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+```
+
+```jsx starter file=/Cart.js
+import { cartTotal, formatPrice } from "./cartUtils";
+
+export default function Cart({ items, onChangeQty, onRemove, onClear }) {
+  return (
+    <section>
+      <h2>Your cart</h2>
+      {items.length === 0 ? (
+        <p>Your cart is empty.</p>
+      ) : (
+        <ul>
+          {items.map((item) => (
+            <li key={item.id}>
+              <span>
+                {item.name} × {item.qty}: {formatPrice(item.price * item.qty)}
+              </span>{" "}
+              <button
+                aria-label={`Decrease ${item.name}`}
+                onClick={() => onChangeQty(item.id, item.qty - 1)}
+              >
+                −
+              </button>
+              <button
+                aria-label={`Increase ${item.name}`}
+                onClick={() => onChangeQty(item.id, item.qty + 1)}
+              >
+                +
+              </button>
+              <button aria-label={`Remove ${item.name}`} onClick={() => onRemove(item.id)}>
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p>Total: {formatPrice(cartTotal(items))}</p>
+      {items.length > 0 && <button onClick={onClear}>Clear cart</button>}
+    </section>
+  );
+}
+```
+
+```jsx tests file=/fetching.test.js
+import { fireEvent, render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import { vi } from "vitest";
+import App from "./App";
+import { api } from "./api";
+import { products } from "./products";
+
+beforeEach(() => localStorage.clear());
+afterEach(() => vi.restoreAllMocks());
+
+test("shows Loading products… and then the products", async () => {
+  vi.spyOn(api, "fetchProducts").mockResolvedValue(products);
+  render(<App />);
+  expect(screen.getByRole("status")).toHaveTextContent("Loading products…");
+  expect(await screen.findByRole("button", { name: "Add Green tea" })).toBeInTheDocument();
+  expect(screen.queryByRole("status")).not.toBeInTheDocument();
+});
+
+test("shows an error when the request fails", async () => {
+  vi.spyOn(api, "fetchProducts").mockRejectedValue(new Error("Server down"));
+  render(<App />);
+  expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't load the products.");
+  expect(screen.queryByRole("status")).not.toBeInTheDocument();
+});
+
+test("fetches once, and Add still works", async () => {
+  const fetchProducts = vi.spyOn(api, "fetchProducts").mockResolvedValue(products);
+  render(<App />);
+  fireEvent.click(await screen.findByRole("button", { name: "Add Coffee beans" }));
+  expect(screen.getByText("Coffee beans × 1: $12.00")).toBeInTheDocument();
+  expect(fetchProducts).toHaveBeenCalledTimes(1);
+});
+```
+
+```js solution file=/useProducts.js
+import { useEffect, useState } from "react";
+import { api } from "./api";
+
+export function useProducts() {
+  const [state, setState] = useState({ status: "loading", products: [] });
+
+  useEffect(() => {
+    let ignore = false;
+    api.fetchProducts().then(
+      (products) => {
+        if (!ignore) setState({ status: "success", products });
+      },
+      () => {
+        if (!ignore) setState({ status: "error", products: [] });
+      },
+    );
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  return state;
+}
+```
+
+```jsx solution file=/ProductList.js
+import { formatPrice } from "./cartUtils";
+import { useProducts } from "./useProducts";
+
+export default function ProductList({ onAdd }) {
+  const { status, products } = useProducts();
+
+  return (
+    <section>
+      <h2>Products</h2>
+      {status === "loading" && <p role="status">Loading products…</p>}
+      {status === "error" && <p role="alert">Couldn't load the products.</p>}
+      {status === "success" && (
+        <ul>
+          {products.map((product) => (
+            <li key={product.id}>
+              {product.name} {formatPrice(product.price)}{" "}
+              <button aria-label={`Add ${product.name}`} onClick={() => onAdd(product)}>
+                Add
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+```
+
+```jsx solution file=/App.js
+import { useEffect, useReducer } from "react";
+import { cartReducer } from "./cartReducer";
+import { loadCart, saveCart } from "./storage";
+import ProductList from "./ProductList";
+import Cart from "./Cart";
+
+export default function App() {
+  const [cart, dispatch] = useReducer(cartReducer, undefined, loadCart);
+
+  useEffect(() => {
+    saveCart(cart);
+  }, [cart]);
+
+  return (
+    <main>
+      <h1>MiniShop</h1>
+      <ProductList onAdd={(product) => dispatch({ type: "add", product })} />
+      <Cart
+        items={cart}
+        onChangeQty={(id, qty) => dispatch({ type: "setQty", id, qty })}
+        onRemove={(id) => dispatch({ type: "remove", id })}
+        onClear={() => dispatch({ type: "clear" })}
+      />
+    </main>
+  );
+}
+```
+
+</ProjectStep>
+
+<HowItWorks title="What the hand-written version doesn't do">
+
+Your `useProducts` works, but count what a real shop still needs:
+
+- **Caching.** Every component that calls `useProducts()` starts its own request. Open the product page, go back, and the list loads again from scratch.
+- **Retries and refetching.** A flaky network gets one chance. Coming back to the tab doesn't refresh stale prices.
+- **Deduplication.** Two components asking at the same moment make two requests.
+
+You could add all of it, and you'd have written a data-fetching library. TanStack Query is that library: it keeps server data in a shared cache keyed by `queryKey`, so every `useQuery({ queryKey: ["products"] })` in the app shares one request and one result.
+
+</HowItWorks>
+
+<ReactExercise
+  id="fetching-query"
+  title="Switch to TanStack Query, with Try again"
+  hints={[
+    "In `App`, create the client once: `const [queryClient] = useState(() => new QueryClient({ defaultOptions: { queries: { retry: false } } }));` and wrap everything in `<QueryClientProvider client={queryClient}>`.",
+    "`useProducts` becomes one line: `return useQuery({ queryKey: [\"products\"], queryFn: () => api.fetchProducts() });`.",
+    "In `ProductList`: `const { status, data: products, refetch } = useProducts();`. Loading is `status === \"pending\"`, and the button is `<button onClick={() => refetch()}>Try again</button>`.",
+  ]}
+  explain={[
+    "The `QueryClient` lives in `useState`, so it's created once per app and survives re-renders.",
+    "TanStack Query's statuses are `pending`, `error` and `success`, and the result is in `data`.",
+    "`retry: false` turns off the automatic retries, because the shop now offers a **Try again** button instead.",
+  ]}
+>
+
+Replace your hand-written `useProducts` with TanStack Query. While loading, show **Loading products…**; when it fails, show the error with a **Try again** button that calls `refetch()`.
+
+```js starter file=/cartUtils.js
+export function formatPrice(amount) {
+  return "$" + amount.toFixed(2);
+}
+
+export function cartTotal(items) {
+  return items.reduce((sum, item) => sum + item.price * item.qty, 0);
+}
+
+export function cartCount(items) {
+  return items.reduce((sum, item) => sum + item.qty, 0);
+}
+
+export function addToCart(items, product) {
+  const existing = items.find((item) => item.id === product.id);
+  if (existing) {
+    return items.map((item) => (item.id === product.id ? { ...item, qty: item.qty + 1 } : item));
+  }
+  return [...items, { ...product, qty: 1 }];
+}
+
+export function renderCart(items) {
+  if (items.length === 0) return "<li>Your cart is empty.</li>";
+  return items
+    .map((item) => `<li>${item.name} × ${item.qty}: ${formatPrice(item.price * item.qty)}</li>`)
+    .join("");
+}
+```
+
+```js starter file=/products.js
+export const products = [
+  { id: 1, name: "Coffee beans", price: 12 },
+  { id: 2, name: "Green tea", price: 8 },
+  { id: 3, name: "Travel mug", price: 15 },
+];
+```
+
+```js starter file=/api.js
+import { products } from "./products";
+
+// A pretend server: it answers after a short delay, like a real network request.
+export const api = {
+  fetchProducts() {
+    return new Promise((resolve) => setTimeout(() => resolve(products), 600));
+  },
+};
+```
+
+```js starter file=/useProducts.js
+import { useEffect, useState } from "react";
+import { api } from "./api";
+
+export function useProducts() {
+  const [state, setState] = useState({ status: "loading", products: [] });
+
+  useEffect(() => {
+    let ignore = false;
+    api.fetchProducts().then(
+      (products) => {
+        if (!ignore) setState({ status: "success", products });
+      },
+      () => {
+        if (!ignore) setState({ status: "error", products: [] });
+      },
+    );
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  return state;
+}
+```
+
+```js starter file=/cartReducer.js
+import { addToCart } from "./cartUtils";
+
+export function cartReducer(items, action) {
+  switch (action.type) {
+    case "add":
+      return addToCart(items, action.product);
+    case "remove":
+      return items.filter((item) => item.id !== action.id);
+    case "setQty":
+      if (action.qty < 1) return items.filter((item) => item.id !== action.id);
+      return items.map((item) => (item.id === action.id ? { ...item, qty: action.qty } : item));
+    case "clear":
+      return [];
+    default:
+      throw new Error(`Unknown action: ${action.type}`);
+  }
+}
+```
+
+```js starter file=/storage.js
+const KEY = "minishop-cart";
+
+export function loadCart() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(KEY));
+    return Array.isArray(saved) ? saved : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveCart(items) {
+  try {
+    localStorage.setItem(KEY, JSON.stringify(items));
+  } catch {
+    // Storage is full or blocked (private mode): the cart still works, it just isn't saved.
+  }
+}
+```
+
+```jsx starter file=/App.js
+import { useEffect, useReducer } from "react";
+import { cartReducer } from "./cartReducer";
+import { loadCart, saveCart } from "./storage";
+import ProductList from "./ProductList";
+import Cart from "./Cart";
+
+export default function App() {
+  const [cart, dispatch] = useReducer(cartReducer, undefined, loadCart);
+
+  useEffect(() => {
+    saveCart(cart);
+  }, [cart]);
+
+  return (
+    <main>
+      <h1>MiniShop</h1>
+      <ProductList onAdd={(product) => dispatch({ type: "add", product })} />
+      <Cart
+        items={cart}
+        onChangeQty={(id, qty) => dispatch({ type: "setQty", id, qty })}
+        onRemove={(id) => dispatch({ type: "remove", id })}
+        onClear={() => dispatch({ type: "clear" })}
+      />
+    </main>
+  );
+}
+```
+
+```jsx starter file=/ProductList.js
+import { formatPrice } from "./cartUtils";
+import { useProducts } from "./useProducts";
+
+export default function ProductList({ onAdd }) {
+  const { status, products } = useProducts();
+
+  return (
+    <section>
+      <h2>Products</h2>
+      {status === "loading" && <p role="status">Loading products…</p>}
+      {status === "error" && <p role="alert">Couldn't load the products.</p>}
+      {status === "success" && (
+        <ul>
+          {products.map((product) => (
+            <li key={product.id}>
+              {product.name} {formatPrice(product.price)}{" "}
+              <button aria-label={`Add ${product.name}`} onClick={() => onAdd(product)}>
+                Add
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+```
+
+```jsx starter file=/Cart.js
+import { cartTotal, formatPrice } from "./cartUtils";
+
+export default function Cart({ items, onChangeQty, onRemove, onClear }) {
+  return (
+    <section>
+      <h2>Your cart</h2>
+      {items.length === 0 ? (
+        <p>Your cart is empty.</p>
+      ) : (
+        <ul>
+          {items.map((item) => (
+            <li key={item.id}>
+              <span>
+                {item.name} × {item.qty}: {formatPrice(item.price * item.qty)}
+              </span>{" "}
+              <button
+                aria-label={`Decrease ${item.name}`}
+                onClick={() => onChangeQty(item.id, item.qty - 1)}
+              >
+                −
+              </button>
+              <button
+                aria-label={`Increase ${item.name}`}
+                onClick={() => onChangeQty(item.id, item.qty + 1)}
+              >
+                +
+              </button>
+              <button aria-label={`Remove ${item.name}`} onClick={() => onRemove(item.id)}>
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p>Total: {formatPrice(cartTotal(items))}</p>
+      {items.length > 0 && <button onClick={onClear}>Clear cart</button>}
+    </section>
+  );
+}
+```
+
+```jsx tests file=/query.test.js
+import { fireEvent, render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import { vi } from "vitest";
+import App from "./App";
+import { api } from "./api";
+import { products } from "./products";
+
+beforeEach(() => localStorage.clear());
+afterEach(() => vi.restoreAllMocks());
+
+test("shows Loading products… and then the products", async () => {
+  vi.spyOn(api, "fetchProducts").mockResolvedValue(products);
+  render(<App />);
+  expect(screen.getByRole("status")).toHaveTextContent("Loading products…");
+  expect(await screen.findByRole("button", { name: "Add Travel mug" })).toBeInTheDocument();
+});
+
+test("Try again fetches again after an error", async () => {
+  const fetchProducts = vi
+    .spyOn(api, "fetchProducts")
+    .mockRejectedValueOnce(new Error("Server down"))
+    .mockResolvedValue(products);
+  render(<App />);
+  expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't load the products.");
+  fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+  expect(await screen.findByRole("button", { name: "Add Green tea" })).toBeInTheDocument();
+  expect(fetchProducts).toHaveBeenCalledTimes(2);
+});
+
+test("Add still puts products in the cart", async () => {
+  vi.spyOn(api, "fetchProducts").mockResolvedValue(products);
+  render(<App />);
+  fireEvent.click(await screen.findByRole("button", { name: "Add Green tea" }));
+  expect(screen.getByText("Green tea × 1: $8.00")).toBeInTheDocument();
+});
+```
+
+```js solution file=/useProducts.js
+import { useQuery } from "@tanstack/react-query";
+import { api } from "./api";
+
+export function useProducts() {
+  return useQuery({ queryKey: ["products"], queryFn: () => api.fetchProducts() });
+}
+```
+
+```jsx solution file=/ProductList.js
+import { formatPrice } from "./cartUtils";
+import { useProducts } from "./useProducts";
+
+export default function ProductList({ onAdd }) {
+  const { status, data: products, refetch } = useProducts();
+
+  return (
+    <section>
+      <h2>Products</h2>
+      {status === "pending" && <p role="status">Loading products…</p>}
+      {status === "error" && (
+        <p role="alert">
+          Couldn't load the products. <button onClick={() => refetch()}>Try again</button>
+        </p>
+      )}
+      {status === "success" && (
+        <ul>
+          {products.map((product) => (
+            <li key={product.id}>
+              {product.name} {formatPrice(product.price)}{" "}
+              <button aria-label={`Add ${product.name}`} onClick={() => onAdd(product)}>
+                Add
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+```
+
+```jsx solution file=/App.js
+import { useEffect, useReducer, useState } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { cartReducer } from "./cartReducer";
+import { loadCart, saveCart } from "./storage";
+import ProductList from "./ProductList";
+import Cart from "./Cart";
+
+export default function App() {
+  const [queryClient] = useState(
+    () => new QueryClient({ defaultOptions: { queries: { retry: false } } }),
+  );
+  const [cart, dispatch] = useReducer(cartReducer, undefined, loadCart);
+
+  useEffect(() => {
+    saveCart(cart);
+  }, [cart]);
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <main>
+        <h1>MiniShop</h1>
+        <ProductList onAdd={(product) => dispatch({ type: "add", product })} />
+        <Cart
+          items={cart}
+          onChangeQty={(id, qty) => dispatch({ type: "setQty", id, qty })}
+          onRemove={(id) => dispatch({ type: "remove", id })}
+          onClear={() => dispatch({ type: "clear" })}
+        />
+      </main>
+    </QueryClientProvider>
+  );
+}
+```
+
+</ReactExercise>
+
+<Practice>
+
+<OrderLines
+  id="order-fetch-effect"
+  prompt="Order the lines of a fetching effect that ignores late answers."
+  explain="Set up the flag, start the request, check the flag before setting state, and return the cleanup that flips it."
+>
+
+```js
+useEffect(() => {
+  let ignore = false;
+  api.fetchProducts().then((products) => {
+    if (!ignore) setState({ status: "success", products });
+  });
+  return () => {
+    ignore = true;
+  };
+}, []);
+```
+
+</OrderLines>
+
+<MatchPairs
+  id="match-query-status"
+  prompt="Match each TanStack Query value with what it means."
+  columns={["Value", "Meaning"]}
+  pairs={[
+    ["`status === \"pending\"`", "No data yet; the first request is running"],
+    ["`status === \"error\"`", "The request failed (after any retries)"],
+    ["`data`", "The result of `queryFn`, once it succeeds"],
+    ["`refetch()`", "Runs `queryFn` again now"],
+    ["`queryKey: [\"products\"]`", "The cache entry every `useQuery` with that key shares"],
+  ]}
+/>
+
+</Practice>
+
+<ReactTestExercise
+  id="test-product-list-fetch"
+  title="Test it: ProductList's three states"
+  hints={[
+    "Each test controls the server: `vi.spyOn(api, \"fetchProducts\").mockResolvedValue(products)` or `.mockRejectedValue(new Error(\"down\"))`. Add `afterEach(() => vi.restoreAllMocks())`.",
+    "Use `await screen.findByRole(…)` for anything that appears after the request, and `getByRole(\"status\")` for the loading message right after `render`.",
+    "Click **Add** on a product that isn't the first one, and check `onAdd` was called with **that** product. For Try again, make the first call fail with `mockRejectedValueOnce`.",
+  ]}
+>
+
+Test `ProductList` with a mocked server: the loading message, the list, the error with **Try again**, and that **Add** reports the right product. `renderList` wraps it in a fresh `QueryClientProvider` for you. Your tests must pass here and catch every buggy version.
+
+```jsx code file=/ProductList.js
+import { formatPrice } from "./cartUtils";
+import { useProducts } from "./useProducts";
+
+export default function ProductList({ onAdd }) {
+  const { status, data: products, refetch } = useProducts();
+
+  return (
+    <section>
+      <h2>Products</h2>
+      {status === "pending" && <p role="status">Loading products…</p>}
+      {status === "error" && (
+        <p role="alert">
+          Couldn't load the products. <button onClick={() => refetch()}>Try again</button>
+        </p>
+      )}
+      {status === "success" && (
+        <ul>
+          {products.map((product) => (
+            <li key={product.id}>
+              {product.name} {formatPrice(product.price)}{" "}
+              <button aria-label={`Add ${product.name}`} onClick={() => onAdd(product)}>
+                Add
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+```
+
+```js code file=/useProducts.js
+import { useQuery } from "@tanstack/react-query";
+import { api } from "./api";
+
+export function useProducts() {
+  return useQuery({ queryKey: ["products"], queryFn: () => api.fetchProducts() });
+}
+```
+
+```js code file=/api.js
+import { products } from "./products";
+
+// A pretend server: it answers after a short delay, like a real network request.
+export const api = {
+  fetchProducts() {
+    return new Promise((resolve) => setTimeout(() => resolve(products), 600));
+  },
+};
+```
+
+```js code file=/products.js
+export const products = [
+  { id: 1, name: "Coffee beans", price: 12 },
+  { id: 2, name: "Green tea", price: 8 },
+  { id: 3, name: "Travel mug", price: 15 },
+];
+```
+
+```js code file=/cartUtils.js
+export function formatPrice(amount) {
+  return "$" + amount.toFixed(2);
+}
+```
+
+```jsx starter file=/ProductList.test.js
+import { render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { afterEach, expect, test, vi } from "vitest";
+import ProductList from "./ProductList";
+import { api } from "./api";
+import { products } from "./products";
+
+function renderList(onAdd = vi.fn()) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(
+    <QueryClientProvider client={client}>
+      <ProductList onAdd={onAdd} />
+    </QueryClientProvider>,
+  );
+  return onAdd;
+}
+
+afterEach(() => vi.restoreAllMocks());
+
+test("shows the products", async () => {
+  vi.spyOn(api, "fetchProducts").mockResolvedValue(products);
+  renderList();
+  expect(await screen.findByText(/Green tea/)).toBeInTheDocument();
+});
+```
+
+```jsx bug file=/ProductList.js title="No loading message" hint="Right after render, before the products arrive, look for the status message."
+import { formatPrice } from "./cartUtils";
+import { useProducts } from "./useProducts";
+
+export default function ProductList({ onAdd }) {
+  const { status, data: products, refetch } = useProducts();
+
+  return (
+    <section>
+      <h2>Products</h2>
+      {status === "error" && (
+        <p role="alert">
+          Couldn't load the products. <button onClick={() => refetch()}>Try again</button>
+        </p>
+      )}
+      {status === "success" && (
+        <ul>
+          {products.map((product) => (
+            <li key={product.id}>
+              {product.name} {formatPrice(product.price)}{" "}
+              <button aria-label={`Add ${product.name}`} onClick={() => onAdd(product)}>
+                Add
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+```
+
+```jsx bug file=/ProductList.js title="Errors show nothing" hint="Make fetchProducts reject, then look for the alert."
+import { formatPrice } from "./cartUtils";
+import { useProducts } from "./useProducts";
+
+export default function ProductList({ onAdd }) {
+  const { status, data: products } = useProducts();
+
+  return (
+    <section>
+      <h2>Products</h2>
+      {status === "pending" && <p role="status">Loading products…</p>}
+      {status === "success" && (
+        <ul>
+          {products.map((product) => (
+            <li key={product.id}>
+              {product.name} {formatPrice(product.price)}{" "}
+              <button aria-label={`Add ${product.name}`} onClick={() => onAdd(product)}>
+                Add
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+```
+
+```jsx bug file=/ProductList.js title="Every Add sends the first product" hint="Click Add on Green tea and check what onAdd received."
+import { formatPrice } from "./cartUtils";
+import { useProducts } from "./useProducts";
+
+export default function ProductList({ onAdd }) {
+  const { status, data: products, refetch } = useProducts();
+
+  return (
+    <section>
+      <h2>Products</h2>
+      {status === "pending" && <p role="status">Loading products…</p>}
+      {status === "error" && (
+        <p role="alert">
+          Couldn't load the products. <button onClick={() => refetch()}>Try again</button>
+        </p>
+      )}
+      {status === "success" && (
+        <ul>
+          {products.map((product) => (
+            <li key={product.id}>
+              {product.name} {formatPrice(product.price)}{" "}
+              <button aria-label={`Add ${product.name}`} onClick={() => onAdd(products[0])}>
+                Add
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+```
+
+```jsx bug file=/ProductList.js title="Try again does nothing" hint="Fail the first request with mockRejectedValueOnce, click Try again, and wait for the products."
+import { formatPrice } from "./cartUtils";
+import { useProducts } from "./useProducts";
+
+export default function ProductList({ onAdd }) {
+  const { status, data: products } = useProducts();
+
+  return (
+    <section>
+      <h2>Products</h2>
+      {status === "pending" && <p role="status">Loading products…</p>}
+      {status === "error" && (
+        <p role="alert">
+          Couldn't load the products. <button onClick={() => {}}>Try again</button>
+        </p>
+      )}
+      {status === "success" && (
+        <ul>
+          {products.map((product) => (
+            <li key={product.id}>
+              {product.name} {formatPrice(product.price)}{" "}
+              <button aria-label={`Add ${product.name}`} onClick={() => onAdd(product)}>
+                Add
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+```
+
+```jsx solution file=/ProductList.test.js
+import { fireEvent, render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { afterEach, expect, test, vi } from "vitest";
+import ProductList from "./ProductList";
+import { api } from "./api";
+import { products } from "./products";
+
+function renderList(onAdd = vi.fn()) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(
+    <QueryClientProvider client={client}>
+      <ProductList onAdd={onAdd} />
+    </QueryClientProvider>,
+  );
+  return onAdd;
+}
+
+afterEach(() => vi.restoreAllMocks());
+
+test("shows a loading message, then the products", async () => {
+  vi.spyOn(api, "fetchProducts").mockResolvedValue(products);
+  renderList();
+  expect(screen.getByRole("status")).toHaveTextContent("Loading products…");
+  expect(await screen.findByText(/Green tea/)).toBeInTheDocument();
+});
+
+test("Add reports the product that was clicked", async () => {
+  vi.spyOn(api, "fetchProducts").mockResolvedValue(products);
+  const onAdd = renderList();
+  fireEvent.click(await screen.findByRole("button", { name: "Add Green tea" }));
+  expect(onAdd).toHaveBeenCalledWith(products[1]);
+});
+
+test("a failed request shows an error, and Try again recovers", async () => {
+  vi.spyOn(api, "fetchProducts")
+    .mockRejectedValueOnce(new Error("down"))
+    .mockResolvedValue(products);
+  renderList();
+  expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't load the products.");
+  fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+  expect(await screen.findByText(/Travel mug/)).toBeInTheDocument();
+});
+```
+
+</ReactTestExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "Why does the hand-written effect use an `ignore` flag?",
+      options: ["To skip the first render", "So an answer that arrives after the component is gone (or a newer request started) doesn't update state", "To cache the result", "React requires it"],
+      answer: 1,
+      explain: "The cleanup flips the flag, and the late `.then` checks it before calling `setState`.",
+    },
+    {
+      q: "Why is the client created with `useState(() => new QueryClient())` instead of `new QueryClient()` in the body?",
+      options: ["It's shorter", "So the same client (and its cache) survives every re-render", "QueryClient is a hook", "To make it global"],
+      answer: 1,
+      explain: "A new client on each render would throw the cache away every time.",
+    },
+    {
+      q: "How do the tests avoid the real 600 ms server?",
+      options: ["They wait 600 ms", "`vi.spyOn(api, \"fetchProducts\")` replaces the method with a mock that resolves (or rejects) right away", "They delete api.js", "They can't"],
+      answer: 1,
+      explain: "Mocking the boundary keeps tests fast and lets them make the server fail on purpose.",
+    },
+    {
+      q: "What does `status === \"pending\"` mean in TanStack Query?",
+      options: ["The request failed", "There's no data yet", "The data is stale", "A mutation is running"],
+      answer: 1,
+      explain: "Pending means no data yet. (A background refetch with data already showing sets `isFetching` instead.)",
+    },
+  ]}
+/>

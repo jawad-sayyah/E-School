@@ -1,0 +1,1181 @@
+---
+id: polish
+title: "Step 12: Polish"
+summary: Make MiniShop feel finished - loading skeletons, error boundaries that keep the header when a page crashes, a skip link and page titles, and gentle animations that respect reduced motion.
+minutes: 40
+tags: [MiniShop, project, loading skeleton, error boundary, errorElement, useRouteError, accessibility, skip link, document title, animations, prefers-reduced-motion]
+---
+
+MiniShop works. This step is about how it **feels** when things are slow, broken, or used without a mouse. Four small upgrades, each one a habit of good teams:
+
+- **Skeletons instead of a spinner.** While products load, show grey placeholder rows in the shape of the list, so the page doesn't jump when the data arrives. Keep a text status for screen readers.
+- **Error boundaries.** If one page crashes, show a friendly message *inside* the layout, so the header and the cart still work. React Router's `errorElement` is an error boundary per route.
+- **Accessibility.** A "Skip to content" link for keyboard users, and a page `<title>` per product (React 19 moves `<title>` into the `<head>` for you).
+- **Animations that respect the user.** A short fade-in for list items and a shimmer on skeletons, switched off when the system asks for reduced motion.
+
+<ProjectStep
+  id="polish"
+  title="Skeletons, error boundaries and accessibility"
+  goal="Loading shows a skeleton, a crashing page shows a friendly error under the header, keyboard users can skip to the content, and product pages have their own title."
+  practice={[
+    ["Error boundaries", "/courses/how-react-works/error-boundaries"],
+    ["Accessibility", "/courses/react-ecosystem/accessibility"],
+    ["Document metadata in React 19", "/courses/react-19/metadata-and-more"],
+    ["Suspense and lazy", "/courses/how-react-works/suspense-lazy"],
+  ]}
+  tasks={[
+    "In `ProductList.tsx`, while pending, keep the `role=\"status\"` text (visually hidden) and show three `<li className=\"skeleton\" />` rows in an `aria-hidden` list.",
+    "Write `RouteError.tsx` with `useRouteError()`: a `role=\"alert\"` section, the heading **Something went wrong**, the error's message, and a link home.",
+    "In `routes.tsx`, wrap the pages in a pathless route with `errorElement: <RouteError />`, so a crashing page keeps the header. Keep one on the root route too.",
+    "In `Layout.tsx`, add a **Skip to content** link to `#main`, and give `<main>` the `id=\"main\"`.",
+    "In `ProductPage.tsx`, render ``<title>{`${product.name} · MiniShop`}</title>``. Then read `styles.css`: find the shimmer, the fade-in and the reduced-motion rule.",
+  ]}
+  hints={[
+    "Skeleton: `<p role=\"status\" className=\"visually-hidden\">Loading products…</p>` followed by `<ul className=\"skeleton-list\" aria-hidden=\"true\">{[1, 2, 3].map((n) => <li key={n} className=\"skeleton\" />)}</ul>`.",
+    "In `RouteError`: `const error = useRouteError();` then ``isRouteErrorResponse(error) ? `${error.status} ${error.statusText}` : error instanceof Error ? error.message : String(error)``.",
+    "A route without a `path` or `element` just renders its children: `{ errorElement: <RouteError />, children: [ …the pages… ] }` as the only child of the `/` route.",
+  ]}
+  explain={[
+    "The pathless route's `errorElement` replaces only the page, inside `Layout`'s `<Outlet />`, so the header, the badge and the navigation keep working.",
+    "`aria-hidden` hides the grey rows from screen readers, which hear the `role=\"status\"` text instead. Sighted users see the shape of the page; everyone knows it's loading.",
+    "React 19 hoists a `<title>` rendered anywhere into the document's `<head>`, and removes it when the component unmounts.",
+  ]}
+>
+
+`RouteError.tsx` and `styles.css` are new (the stylesheet is finished: read it). Wire up the rest.
+
+```tsx starter file=/RouteError.tsx
+import { isRouteErrorResponse, Link, useRouteError } from "react-router";
+
+export default function RouteError() {
+  // TODO: a friendly message, the error's details, and a way back home
+  return <h1>Something went wrong</h1>;
+}
+```
+
+```css starter file=/styles.css
+body {
+  margin: 0;
+  font-family: system-ui, sans-serif;
+  color: #1f2933;
+  background: #fafaf9;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+nav a {
+  margin-left: 0.75rem;
+}
+
+main {
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+:focus-visible {
+  outline: 3px solid #2563eb;
+  outline-offset: 2px;
+}
+
+/* Off screen until a keyboard user tabs to it */
+.skip-link {
+  position: absolute;
+  left: -999px;
+}
+.skip-link:focus {
+  left: 1rem;
+  top: 1rem;
+  padding: 0.5rem 0.75rem;
+  background: #fff;
+}
+
+/* Read by screen readers, invisible on screen */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.skeleton-list {
+  list-style: none;
+  padding: 0;
+}
+.skeleton {
+  height: 1.5rem;
+  margin: 0.5rem 0;
+  border-radius: 0.375rem;
+  background: linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.2s linear infinite;
+}
+@keyframes shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+li {
+  animation: fade-in 200ms ease-out;
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+/* The user asked their system for less motion: respect it */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+```
+
+```tsx starter file=/pages/CheckoutPage.tsx
+import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { Link } from "react-router";
+import { useCart } from "../CartContext";
+import { formatPrice } from "../cartUtils";
+
+const checkoutSchema = z.object({
+  name: z.string().trim().min(2, "Enter your full name"),
+  email: z.email("Enter a valid email"),
+  address: z.string().trim().min(5, "Enter your street address"),
+  zip: z.string().regex(/^\d{5}$/, "A ZIP code has 5 digits"),
+});
+
+type CheckoutForm = z.infer<typeof checkoutSchema>;
+
+export default function CheckoutPage() {
+  const { items, total, clear } = useCart();
+  const [placedBy, setPlacedBy] = useState<string | null>(null);
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<CheckoutForm>({ resolver: zodResolver(checkoutSchema) });
+
+  if (placedBy) {
+    return (
+      <section>
+        <h1>Thank you!</h1>
+        <p role="status">Thanks, {placedBy}! Your order is on its way.</p>
+        <Link to="/products">Keep shopping</Link>
+      </section>
+    );
+  }
+
+  if (items.length === 0) {
+    return (
+      <section>
+        <h1>Checkout</h1>
+        <p>Your cart is empty.</p>
+        <Link to="/products">Find something you like</Link>
+      </section>
+    );
+  }
+
+  function placeOrder(data: CheckoutForm) {
+    setPlacedBy(data.name);
+    clear();
+  }
+
+  return (
+    <section>
+      <h1>Checkout</h1>
+      <h2>Order summary</h2>
+      <ul>
+        {items.map((item) => (
+          <li key={item.id}>
+            {item.name} × {item.qty}: {formatPrice(item.price * item.qty)}
+          </li>
+        ))}
+      </ul>
+      <p>Total: {formatPrice(total)}</p>
+
+      <form onSubmit={handleSubmit(placeOrder)} noValidate>
+        <label htmlFor="name">Name</label>
+        <input
+          id="name"
+          autoComplete="name"
+          aria-invalid={errors.name ? "true" : "false"}
+          {...register("name")}
+        />
+        {errors.name && <p role="alert">{errors.name.message}</p>}
+
+        <label htmlFor="email">Email</label>
+        <input
+          id="email"
+          type="email"
+          autoComplete="email"
+          aria-invalid={errors.email ? "true" : "false"}
+          {...register("email")}
+        />
+        {errors.email && <p role="alert">{errors.email.message}</p>}
+
+        <label htmlFor="address">Address</label>
+        <input
+          id="address"
+          autoComplete="street-address"
+          aria-invalid={errors.address ? "true" : "false"}
+          {...register("address")}
+        />
+        {errors.address && <p role="alert">{errors.address.message}</p>}
+
+        <label htmlFor="zip">ZIP code</label>
+        <input
+          id="zip"
+          inputMode="numeric"
+          autoComplete="postal-code"
+          aria-invalid={errors.zip ? "true" : "false"}
+          {...register("zip")}
+        />
+        {errors.zip && <p role="alert">{errors.zip.message}</p>}
+
+        <button type="submit">Place order</button>
+      </form>
+    </section>
+  );
+}
+```
+
+```tsx starter file=/routes.tsx
+import type { RouteObject } from "react-router";
+import Layout from "./Layout";
+import HomePage from "./pages/HomePage";
+import ProductPage from "./pages/ProductPage";
+import CheckoutPage from "./pages/CheckoutPage";
+import NotFoundPage from "./pages/NotFoundPage";
+import ProductList from "./ProductList";
+import Cart from "./Cart";
+
+export const routes: RouteObject[] = [
+  {
+    path: "/",
+    element: <Layout />,
+    children: [
+      { index: true, element: <HomePage /> },
+      { path: "products", element: <ProductList /> },
+      { path: "products/:id", element: <ProductPage /> },
+      { path: "cart", element: <Cart /> },
+      { path: "checkout", element: <CheckoutPage /> },
+      { path: "*", element: <NotFoundPage /> },
+    ],
+  },
+];
+```
+
+```tsx starter file=/Layout.tsx
+import { Outlet } from "react-router";
+import Header from "./Header";
+
+export default function Layout() {
+  return (
+    <>
+      <Header />
+      <main>
+        <Outlet />
+      </main>
+    </>
+  );
+}
+```
+
+```tsx starter file=/pages/HomePage.tsx
+import { Link } from "react-router";
+
+export default function HomePage() {
+  return (
+    <section>
+      <h1>Welcome to MiniShop</h1>
+      <p>Fresh coffee, good tea, and a mug to drink them from.</p>
+      <Link to="/products">Browse the products</Link>
+    </section>
+  );
+}
+```
+
+```tsx starter file=/pages/NotFoundPage.tsx
+import { Link } from "react-router";
+
+export default function NotFoundPage() {
+  return (
+    <section>
+      <h1>Page not found</h1>
+      <p>There's nothing here. Maybe the link is old?</p>
+      <Link to="/">Back to the shop</Link>
+    </section>
+  );
+}
+```
+
+```tsx starter file=/pages/ProductPage.tsx
+import { Link, useParams } from "react-router";
+import { useCart } from "../CartContext";
+import { formatPrice } from "../cartUtils";
+import { useProducts } from "../useProducts";
+import NotFoundPage from "./NotFoundPage";
+
+export default function ProductPage() {
+  const { id } = useParams();
+  const { add } = useCart();
+  const { status, data: products } = useProducts();
+
+  if (status === "pending") return <p role="status">Loading the product…</p>;
+  if (status === "error") return <p role="alert">Couldn't load the product.</p>;
+
+  const product = products.find((p) => p.id === Number(id));
+  if (!product) return <NotFoundPage />;
+
+  return (
+    <article>
+      <h1>{product.name}</h1>
+      <p>{formatPrice(product.price)}</p>
+      <button onClick={() => add(product)}>Add to cart</button>
+      <p>
+        <Link to="/products">Back to all products</Link>
+      </p>
+    </article>
+  );
+}
+```
+
+```ts starter file=/types.ts
+export interface Product {
+  id: number;
+  name: string;
+  price: number;
+}
+
+export interface CartItem extends Product {
+  qty: number;
+}
+
+export type CartAction =
+  | { type: "add"; product: Product }
+  | { type: "remove"; id: number }
+  | { type: "setQty"; id: number; qty: number }
+  | { type: "clear" };
+```
+
+```ts starter file=/products.ts
+import type { Product } from "./types";
+
+export const products: Product[] = [
+  { id: 1, name: "Coffee beans", price: 12 },
+  { id: 2, name: "Green tea", price: 8 },
+  { id: 3, name: "Travel mug", price: 15 },
+];
+```
+
+```ts starter file=/cartUtils.ts
+import type { CartItem, Product } from "./types";
+
+export function formatPrice(amount: number): string {
+  return "$" + amount.toFixed(2);
+}
+
+export function cartTotal(items: CartItem[]): number {
+  return items.reduce((sum, item) => sum + item.price * item.qty, 0);
+}
+
+export function cartCount(items: CartItem[]): number {
+  return items.reduce((sum, item) => sum + item.qty, 0);
+}
+
+export function addToCart(items: CartItem[], product: Product): CartItem[] {
+  const existing = items.find((item) => item.id === product.id);
+  if (existing) {
+    return items.map((item) => (item.id === product.id ? { ...item, qty: item.qty + 1 } : item));
+  }
+  return [...items, { ...product, qty: 1 }];
+}
+```
+
+```ts starter file=/cartReducer.ts
+import { addToCart } from "./cartUtils";
+import type { CartAction, CartItem } from "./types";
+
+export function cartReducer(items: CartItem[], action: CartAction): CartItem[] {
+  switch (action.type) {
+    case "add":
+      return addToCart(items, action.product);
+    case "remove":
+      return items.filter((item) => item.id !== action.id);
+    case "setQty":
+      if (action.qty < 1) return items.filter((item) => item.id !== action.id);
+      return items.map((item) => (item.id === action.id ? { ...item, qty: action.qty } : item));
+    case "clear":
+      return [];
+    default: {
+      const unhandled: never = action;
+      throw new Error(`Unknown action: ${JSON.stringify(unhandled)}`);
+    }
+  }
+}
+```
+
+```ts starter file=/storage.ts
+import type { CartItem } from "./types";
+
+const KEY = "minishop-cart";
+
+export function loadCart(): CartItem[] {
+  try {
+    const saved: unknown = JSON.parse(localStorage.getItem(KEY) ?? "null");
+    return Array.isArray(saved) ? (saved as CartItem[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveCart(items: CartItem[]): void {
+  try {
+    localStorage.setItem(KEY, JSON.stringify(items));
+  } catch {
+    // Storage is full or blocked (private mode): the cart still works, it just isn't saved.
+  }
+}
+```
+
+```ts starter file=/api.ts
+import { products } from "./products";
+import type { Product } from "./types";
+
+// A pretend server: it answers after a short delay, like a real network request.
+export const api = {
+  fetchProducts(): Promise<Product[]> {
+    return new Promise((resolve) => setTimeout(() => resolve(products), 600));
+  },
+};
+```
+
+```ts starter file=/useProducts.ts
+import { useQuery } from "@tanstack/react-query";
+import { api } from "./api";
+
+export function useProducts() {
+  return useQuery({ queryKey: ["products"], queryFn: () => api.fetchProducts() });
+}
+```
+
+```tsx starter file=/CartContext.tsx
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useReducer,
+  type Dispatch,
+  type ReactNode,
+} from "react";
+import { cartReducer } from "./cartReducer";
+import { cartCount, cartTotal } from "./cartUtils";
+import { loadCart, saveCart } from "./storage";
+import type { CartAction, CartItem, Product } from "./types";
+
+interface CartContextValue {
+  items: CartItem[];
+  dispatch: Dispatch<CartAction>;
+}
+
+const CartContext = createContext<CartContextValue | null>(null);
+
+export function CartProvider({ children }: { children: ReactNode }) {
+  const [items, dispatch] = useReducer(cartReducer, undefined, loadCart);
+
+  useEffect(() => {
+    saveCart(items);
+  }, [items]);
+
+  return <CartContext value={{ items, dispatch }}>{children}</CartContext>;
+}
+
+export function useCart() {
+  const context = useContext(CartContext);
+  if (!context) throw new Error("useCart must be used inside <CartProvider>");
+  const { items, dispatch } = context;
+  return {
+    items,
+    count: cartCount(items),
+    total: cartTotal(items),
+    add: (product: Product) => dispatch({ type: "add", product }),
+    remove: (id: number) => dispatch({ type: "remove", id }),
+    setQty: (id: number, qty: number) => dispatch({ type: "setQty", id, qty }),
+    clear: () => dispatch({ type: "clear" }),
+  };
+}
+```
+
+```tsx starter file=/Header.tsx
+import { Link, NavLink } from "react-router";
+import { useCart } from "./CartContext";
+
+export default function Header() {
+  const { count } = useCart();
+  return (
+    <header>
+      <Link to="/">
+        <strong>MiniShop</strong>
+      </Link>
+      <nav aria-label="Main">
+        <NavLink to="/products">Products</NavLink>{" "}
+        <NavLink to="/cart">
+          Cart <span aria-label={`Cart: ${count} items`}>🛒 {count}</span>
+        </NavLink>
+      </nav>
+    </header>
+  );
+}
+```
+
+```tsx starter file=/ProductList.tsx
+import { Link } from "react-router";
+import { useCart } from "./CartContext";
+import { formatPrice } from "./cartUtils";
+import { useProducts } from "./useProducts";
+
+export default function ProductList() {
+  const { add } = useCart();
+  const { status, data: products, refetch } = useProducts();
+
+  return (
+    <section>
+      <h1>Products</h1>
+      {status === "pending" && <p role="status">Loading products…</p>}
+      {status === "error" && (
+        <p role="alert">
+          Couldn't load the products. <button onClick={() => refetch()}>Try again</button>
+        </p>
+      )}
+      {status === "success" && (
+        <ul>
+          {products.map((product) => (
+            <li key={product.id}>
+              <Link to={`/products/${product.id}`}>{product.name}</Link>{" "}
+              {formatPrice(product.price)}{" "}
+              <button aria-label={`Add ${product.name}`} onClick={() => add(product)}>
+                Add
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+```
+
+```tsx starter file=/Cart.tsx
+import { Link } from "react-router";
+import { useCart } from "./CartContext";
+import { formatPrice } from "./cartUtils";
+
+export default function Cart() {
+  const { items, total, setQty, remove, clear } = useCart();
+
+  return (
+    <section>
+      <h1>Your cart</h1>
+      {items.length === 0 ? (
+        <p>Your cart is empty.</p>
+      ) : (
+        <ul>
+          {items.map((item) => (
+            <li key={item.id}>
+              <span>
+                {item.name} × {item.qty}: {formatPrice(item.price * item.qty)}
+              </span>{" "}
+              <button
+                aria-label={`Decrease ${item.name}`}
+                onClick={() => setQty(item.id, item.qty - 1)}
+              >
+                −
+              </button>
+              <button
+                aria-label={`Increase ${item.name}`}
+                onClick={() => setQty(item.id, item.qty + 1)}
+              >
+                +
+              </button>
+              <button aria-label={`Remove ${item.name}`} onClick={() => remove(item.id)}>
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p>Total: {formatPrice(total)}</p>
+      {items.length > 0 && (
+        <p>
+          <Link to="/checkout">Checkout</Link> <button onClick={clear}>Clear cart</button>
+        </p>
+      )}
+    </section>
+  );
+}
+```
+
+```tsx starter file=/App.tsx
+import { useState } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { createBrowserRouter, RouterProvider } from "react-router";
+import { CartProvider } from "./CartContext";
+import { routes } from "./routes";
+
+export default function App() {
+  const [queryClient] = useState(
+    () => new QueryClient({ defaultOptions: { queries: { retry: false } } }),
+  );
+  const [router] = useState(() => createBrowserRouter(routes));
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <CartProvider>
+        <RouterProvider router={router} />
+      </CartProvider>
+    </QueryClientProvider>
+  );
+}
+```
+
+```tsx tests file=/polish.test.tsx
+import { render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { createMemoryRouter, RouterProvider } from "react-router";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import { CartProvider } from "./CartContext";
+import { api } from "./api";
+import { products } from "./products";
+import { routes } from "./routes";
+import type { Product } from "./types";
+
+function renderAt(path: string) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const router = createMemoryRouter(routes, { initialEntries: [path] });
+  render(
+    <QueryClientProvider client={client}>
+      <CartProvider>
+        <RouterProvider router={router} />
+      </CartProvider>
+    </QueryClientProvider>,
+  );
+}
+
+beforeEach(() => localStorage.clear());
+afterEach(() => vi.restoreAllMocks());
+
+test("while loading: a status for screen readers and three skeleton rows", () => {
+  vi.spyOn(api, "fetchProducts").mockReturnValue(new Promise<Product[]>(() => {}));
+  renderAt("/products");
+  expect(screen.getByRole("status")).toHaveTextContent("Loading products…");
+  const rows = document.querySelectorAll(".skeleton");
+  expect(rows).toHaveLength(3);
+  expect(rows[0].closest("ul")).toHaveAttribute("aria-hidden", "true");
+});
+
+test("a crashing page shows the error inside the layout", async () => {
+  vi.spyOn(console, "error").mockImplementation(() => {});
+  vi.spyOn(console, "warn").mockImplementation(() => {});
+  const broken = [{ id: 1, name: "Broken", price: undefined }] as unknown as Product[];
+  vi.spyOn(api, "fetchProducts").mockResolvedValue(broken);
+  renderAt("/products");
+  const alert = await screen.findByRole("alert");
+  expect(alert).toHaveTextContent("Something went wrong");
+  expect(screen.getByRole("link", { name: "Back to the home page" })).toHaveAttribute("href", "/");
+  expect(screen.getByLabelText("Cart: 0 items")).toBeInTheDocument();
+});
+
+test("keyboard users can skip to the content", () => {
+  vi.spyOn(api, "fetchProducts").mockResolvedValue(products);
+  renderAt("/");
+  expect(screen.getByRole("link", { name: "Skip to content" })).toHaveAttribute("href", "#main");
+  expect(screen.getByRole("main")).toHaveAttribute("id", "main");
+});
+
+test("a product page has its own title", async () => {
+  vi.spyOn(api, "fetchProducts").mockResolvedValue(products);
+  renderAt("/products/2");
+  await screen.findByRole("heading", { name: "Green tea" });
+  expect(document.title).toBe("Green tea · MiniShop");
+});
+```
+
+```tsx solution file=/RouteError.tsx
+import { isRouteErrorResponse, Link, useRouteError } from "react-router";
+
+export default function RouteError() {
+  const error = useRouteError();
+  const message = isRouteErrorResponse(error)
+    ? `${error.status} ${error.statusText}`
+    : error instanceof Error
+      ? error.message
+      : String(error);
+
+  return (
+    <section role="alert">
+      <h1>Something went wrong</h1>
+      <p>Sorry, this page crashed. The rest of the shop still works.</p>
+      <details>
+        <summary>Details</summary>
+        <pre>{message}</pre>
+      </details>
+      <Link to="/">Back to the home page</Link>
+    </section>
+  );
+}
+```
+
+```tsx solution file=/routes.tsx
+import type { RouteObject } from "react-router";
+import Layout from "./Layout";
+import RouteError from "./RouteError";
+import HomePage from "./pages/HomePage";
+import ProductPage from "./pages/ProductPage";
+import CheckoutPage from "./pages/CheckoutPage";
+import NotFoundPage from "./pages/NotFoundPage";
+import ProductList from "./ProductList";
+import Cart from "./Cart";
+
+export const routes: RouteObject[] = [
+  {
+    path: "/",
+    element: <Layout />,
+    // Last resort, if the layout itself crashes
+    errorElement: <RouteError />,
+    children: [
+      {
+        // A crashing page is replaced inside the layout, so the header keeps working
+        errorElement: <RouteError />,
+        children: [
+          { index: true, element: <HomePage /> },
+          { path: "products", element: <ProductList /> },
+          { path: "products/:id", element: <ProductPage /> },
+          { path: "cart", element: <Cart /> },
+          { path: "checkout", element: <CheckoutPage /> },
+          { path: "*", element: <NotFoundPage /> },
+        ],
+      },
+    ],
+  },
+];
+```
+
+```tsx solution file=/Layout.tsx
+import { Outlet } from "react-router";
+import Header from "./Header";
+
+export default function Layout() {
+  return (
+    <>
+      <a href="#main" className="skip-link">
+        Skip to content
+      </a>
+      <Header />
+      <main id="main" tabIndex={-1}>
+        <Outlet />
+      </main>
+    </>
+  );
+}
+```
+
+```tsx solution file=/ProductList.tsx
+import { Link } from "react-router";
+import { useCart } from "./CartContext";
+import { formatPrice } from "./cartUtils";
+import { useProducts } from "./useProducts";
+
+export default function ProductList() {
+  const { add } = useCart();
+  const { status, data: products, refetch } = useProducts();
+
+  return (
+    <section>
+      <h1>Products</h1>
+      {status === "pending" && (
+        <>
+          <p role="status" className="visually-hidden">
+            Loading products…
+          </p>
+          <ul className="skeleton-list" aria-hidden="true">
+            {[1, 2, 3].map((n) => (
+              <li key={n} className="skeleton" />
+            ))}
+          </ul>
+        </>
+      )}
+      {status === "error" && (
+        <p role="alert">
+          Couldn't load the products. <button onClick={() => refetch()}>Try again</button>
+        </p>
+      )}
+      {status === "success" && (
+        <ul>
+          {products.map((product) => (
+            <li key={product.id}>
+              <Link to={`/products/${product.id}`}>{product.name}</Link>{" "}
+              {formatPrice(product.price)}{" "}
+              <button aria-label={`Add ${product.name}`} onClick={() => add(product)}>
+                Add
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+```
+
+```tsx solution file=/pages/ProductPage.tsx
+import { Link, useParams } from "react-router";
+import { useCart } from "../CartContext";
+import { formatPrice } from "../cartUtils";
+import { useProducts } from "../useProducts";
+import NotFoundPage from "./NotFoundPage";
+
+export default function ProductPage() {
+  const { id } = useParams();
+  const { add } = useCart();
+  const { status, data: products } = useProducts();
+
+  if (status === "pending") return <p role="status">Loading the product…</p>;
+  if (status === "error") return <p role="alert">Couldn't load the product.</p>;
+
+  const product = products.find((p) => p.id === Number(id));
+  if (!product) return <NotFoundPage />;
+
+  return (
+    <article>
+      <title>{`${product.name} · MiniShop`}</title>
+      <h1>{product.name}</h1>
+      <p>{formatPrice(product.price)}</p>
+      <button onClick={() => add(product)}>Add to cart</button>
+      <p>
+        <Link to="/products">Back to all products</Link>
+      </p>
+    </article>
+  );
+}
+```
+
+</ProjectStep>
+
+<HowItWorks title="Where an error boundary catches">
+
+When a component throws during rendering, React walks **up** the tree to the nearest error boundary and renders its fallback instead of everything below it. Everything above the boundary stays on screen.
+
+So *where* you put the boundary decides what survives:
+
+- Only on the root route: the whole page, header included, is replaced by the error. The user loses the navigation.
+- On a pathless route around the pages: only the `<Outlet />` content is replaced. The header, the badge and the links still work, so the user can just go somewhere else.
+
+Error boundaries catch errors **while rendering** (and in loaders and actions, for React Router). They don't catch errors in event handlers or in a `setTimeout`; those you handle with `try/catch`, or by putting the error into state and rendering it.
+
+</HowItWorks>
+
+<Practice>
+
+<SortBuckets
+  id="buckets-error-boundary"
+  prompt="Would MiniShop's route errorElement catch each error?"
+  buckets={["Caught by the errorElement", "Not caught"]}
+  items={[
+    ["`ProductList` throws while rendering a product with no price", 0],
+    ["A route's loader throws a 404 response", 0],
+    ["An `onClick` handler throws", 1],
+    ["A `setTimeout` callback throws", 1],
+    ["`ProductPage` renders `product.name` of `undefined`", 0],
+  ]}
+  explain="Boundaries catch errors during rendering (plus, in React Router, loaders and actions). Event handlers and timers run outside rendering, so you handle those errors yourself."
+/>
+
+<CodeReview
+  id="review-loading"
+  answer={2}
+  prompt="Which loading state would you approve for the product list?"
+  reasons={[
+    "A blank area: the page jumps when the list appears, and screen reader users get no hint that anything is happening.",
+    "A spinner announced to no one: sighted users see motion, but the layout still jumps and there's no text for assistive technology.",
+    "Placeholder rows in the list's shape (hidden from screen readers) plus a status message they can hear: no jump, and everyone knows it's loading.",
+  ]}
+>
+
+```tsx
+{status === "pending" && null}
+```
+
+```tsx
+{status === "pending" && <div className="spinner" />}
+```
+
+```tsx
+{status === "pending" && (
+  <>
+    <p role="status" className="visually-hidden">Loading products…</p>
+    <ul className="skeleton-list" aria-hidden="true">
+      {[1, 2, 3].map((n) => <li key={n} className="skeleton" />)}
+    </ul>
+  </>
+)}
+```
+
+</CodeReview>
+
+<TrueFalse
+  id="tf-polish"
+  statements={[
+    { text: "`prefers-reduced-motion: reduce` means the user asked their system for less animation.", answer: true, explain: "Some people get dizzy or distracted from motion. Turning animations off for them is part of accessibility." },
+    { text: "`aria-hidden=\"true\"` on the skeleton list also hides it visually.", answer: false, explain: "It only hides it from assistive technology. That's what we want: sighted users see the placeholders, screen reader users hear the status text." },
+    { text: "In React 19, a `<title>` rendered inside a page component ends up in the document's `<head>`.", answer: true, explain: "React hoists `<title>`, `<meta>` and `<link>` for you." },
+  ]}
+/>
+
+</Practice>
+
+<ReactTestExercise
+  id="test-route-error"
+  title="Test it: the error page"
+  hints={[
+    "`renderCrash(() => { throw new Error(\"Kaboom\"); })` renders a page that throws. Check `findByRole(\"alert\")`, the heading and the exact text **Kaboom**.",
+    "Also throw something that isn't an `Error`, like `throw \"Out of stock\"`, and look for that text.",
+    "Check the link: `getByRole(\"link\", { name: \"Back to the home page\" })` with `href` `/`.",
+  ]}
+>
+
+Test `RouteError`. The starter's `renderCrash(fn)` renders a route whose page calls `fn` (and throws), with `RouteError` as its `errorElement`. Your tests must catch every buggy version.
+
+```tsx code file=/RouteError.tsx
+import { isRouteErrorResponse, Link, useRouteError } from "react-router";
+
+export default function RouteError() {
+  const error = useRouteError();
+  const message = isRouteErrorResponse(error)
+    ? `${error.status} ${error.statusText}`
+    : error instanceof Error
+      ? error.message
+      : String(error);
+
+  return (
+    <section role="alert">
+      <h1>Something went wrong</h1>
+      <p>Sorry, this page crashed. The rest of the shop still works.</p>
+      <details>
+        <summary>Details</summary>
+        <pre>{message}</pre>
+      </details>
+      <Link to="/">Back to the home page</Link>
+    </section>
+  );
+}
+```
+
+```tsx starter file=/RouteError.test.tsx
+import { render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import { createMemoryRouter, RouterProvider } from "react-router";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import RouteError from "./RouteError";
+
+function renderCrash(crash: () => void) {
+  function Page(): null {
+    crash();
+    return null;
+  }
+  const router = createMemoryRouter([{ path: "/", element: <Page />, errorElement: <RouteError /> }]);
+  render(<RouterProvider router={router} />);
+}
+
+beforeEach(() => {
+  // React and React Router log caught errors; keep the test output readable.
+  vi.spyOn(console, "error").mockImplementation(() => {});
+  vi.spyOn(console, "warn").mockImplementation(() => {});
+});
+afterEach(() => vi.restoreAllMocks());
+
+test("shows the heading", async () => {
+  renderCrash(() => {
+    throw new Error("Kaboom");
+  });
+  expect(await screen.findByRole("heading", { name: "Something went wrong" })).toBeInTheDocument();
+});
+```
+
+```tsx bug file=/RouteError.tsx title="Details show 'Error: Kaboom'" hint="Throw new Error('Kaboom') and look for the exact text Kaboom."
+import { isRouteErrorResponse, Link, useRouteError } from "react-router";
+
+export default function RouteError() {
+  const error = useRouteError();
+  const message = isRouteErrorResponse(error)
+    ? `${error.status} ${error.statusText}`
+    : String(error);
+
+  return (
+    <section role="alert">
+      <h1>Something went wrong</h1>
+      <p>Sorry, this page crashed. The rest of the shop still works.</p>
+      <details>
+        <summary>Details</summary>
+        <pre>{message}</pre>
+      </details>
+      <Link to="/">Back to the home page</Link>
+    </section>
+  );
+}
+```
+
+```tsx bug file=/RouteError.tsx title="Crashes when a string is thrown" hint="Throw a plain string, like 'Out of stock', and look for it."
+import { Link, useRouteError } from "react-router";
+
+export default function RouteError() {
+  const error = useRouteError() as Error;
+  const message = error.message.trim();
+
+  return (
+    <section role="alert">
+      <h1>Something went wrong</h1>
+      <p>Sorry, this page crashed. The rest of the shop still works.</p>
+      <details>
+        <summary>Details</summary>
+        <pre>{message}</pre>
+      </details>
+      <Link to="/">Back to the home page</Link>
+    </section>
+  );
+}
+```
+
+```tsx bug file=/RouteError.tsx title="No way back" hint="Look for the link to the home page."
+import { isRouteErrorResponse, useRouteError } from "react-router";
+
+export default function RouteError() {
+  const error = useRouteError();
+  const message = isRouteErrorResponse(error)
+    ? `${error.status} ${error.statusText}`
+    : error instanceof Error
+      ? error.message
+      : String(error);
+
+  return (
+    <section role="alert">
+      <h1>Something went wrong</h1>
+      <p>Sorry, this page crashed. The rest of the shop still works.</p>
+      <details>
+        <summary>Details</summary>
+        <pre>{message}</pre>
+      </details>
+    </section>
+  );
+}
+```
+
+```tsx bug file=/RouteError.tsx title="Not announced" hint="Find the error with getByRole('alert')."
+import { isRouteErrorResponse, Link, useRouteError } from "react-router";
+
+export default function RouteError() {
+  const error = useRouteError();
+  const message = isRouteErrorResponse(error)
+    ? `${error.status} ${error.statusText}`
+    : error instanceof Error
+      ? error.message
+      : String(error);
+
+  return (
+    <section>
+      <h1>Something went wrong</h1>
+      <p>Sorry, this page crashed. The rest of the shop still works.</p>
+      <details>
+        <summary>Details</summary>
+        <pre>{message}</pre>
+      </details>
+      <Link to="/">Back to the home page</Link>
+    </section>
+  );
+}
+```
+
+```tsx solution file=/RouteError.test.tsx
+import { render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import { createMemoryRouter, RouterProvider } from "react-router";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import RouteError from "./RouteError";
+
+function renderCrash(crash: () => void) {
+  function Page(): null {
+    crash();
+    return null;
+  }
+  const router = createMemoryRouter([{ path: "/", element: <Page />, errorElement: <RouteError /> }]);
+  render(<RouterProvider router={router} />);
+}
+
+beforeEach(() => {
+  vi.spyOn(console, "error").mockImplementation(() => {});
+  vi.spyOn(console, "warn").mockImplementation(() => {});
+});
+afterEach(() => vi.restoreAllMocks());
+
+test("an Error shows as an alert with its message and a way home", async () => {
+  renderCrash(() => {
+    throw new Error("Kaboom");
+  });
+  const alert = await screen.findByRole("alert");
+  expect(alert).toHaveTextContent("Something went wrong");
+  expect(screen.getByText("Kaboom")).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Back to the home page" })).toHaveAttribute("href", "/");
+});
+
+test("a thrown string is shown too", async () => {
+  renderCrash(() => {
+    throw "Out of stock";
+  });
+  expect(await screen.findByText("Out of stock")).toBeInTheDocument();
+});
+```
+
+</ReactTestExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "Why put an `errorElement` on a pathless route around the pages, not only on the root?",
+      options: ["Pathless routes are faster", "A crashing page is replaced inside the layout, so the header and cart keep working", "React Router requires two", "To catch event handler errors"],
+      answer: 1,
+      explain: "The boundary only replaces what's below it. Lower boundaries keep more of the app alive.",
+    },
+    {
+      q: "What do screen reader users hear while products load?",
+      options: ["Nothing", "The `role=\"status\"` text, Loading products…", "Every skeleton row", "A beep"],
+      answer: 1,
+      explain: "The skeleton is `aria-hidden`; the status region is announced instead.",
+    },
+    {
+      q: "What does the `prefers-reduced-motion` rule in `styles.css` do?",
+      options: ["Speeds up animations", "Turns animations and transitions off for users who asked for less motion", "Only affects mobile", "Disables CSS"],
+      answer: 1,
+      explain: "Motion is a nice touch for most people and a real problem for some. The media query lets them opt out.",
+    },
+  ]}
+/>

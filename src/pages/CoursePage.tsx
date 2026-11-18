@@ -1,15 +1,15 @@
 import { Link, useParams } from 'react-router';
-import { ArrowRightIcon, CheckIcon, ClockIcon } from 'lucide-react';
+import { ArrowRightIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { CourseChip } from '@/components/CourseCard';
+import { LessonList } from '@/components/LessonList';
 import { Crumbs } from '@/components/layout/Crumbs';
 import { COURSE_ACCENT, getCourse } from '@/content/courses';
 import { getCourseLessons } from '@/content/lessons';
 import { useProgress } from '@/progress/ProgressContext';
 import { computeCourseProgress, lessonKey } from '@/progress/ProgressStore';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
-import { cn } from '@/lib/utils';
 import NotFoundPage from './NotFoundPage';
 
 export default function CoursePage() {
@@ -80,52 +80,7 @@ export default function CoursePage() {
           </div>
 
           <h2 className="mb-4 font-heading text-xl font-bold">Lessons</h2>
-          <ol className="divide-y divide-border overflow-hidden rounded-xl border border-border">
-            {lessons.map((lesson, i) => {
-              const done = snapshot.lessons[lessonKey(course.id, lesson.id)]?.completed;
-              return (
-                <li key={lesson.id}>
-                  <Link
-                    to={`/courses/${course.id}/${lesson.id}`}
-                    className="flex items-start gap-4 p-4 transition-colors hover:bg-accent/50"
-                  >
-                    <span
-                      className={cn(
-                        'grid size-8 shrink-0 place-items-center rounded-full border font-mono text-xs',
-                        done
-                          ? 'border-success bg-success/10 text-success'
-                          : 'border-border text-faint',
-                      )}
-                    >
-                      {done ? <CheckIcon aria-label="Completed" className="size-4" /> : i + 1}
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="flex items-center gap-2 font-medium text-foreground">
-                        {lesson.title}
-                        {lesson.kind !== 'lesson' && (
-                          <span
-                            className={cn(
-                              'rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-wide uppercase',
-                              lesson.kind === 'boss'
-                                ? 'bg-danger/15 text-danger'
-                                : 'bg-syn-kw/15 text-syn-kw',
-                            )}
-                          >
-                            {lesson.kind === 'boss' ? 'Boss' : 'Review'}
-                          </span>
-                        )}
-                      </span>
-                      <span className="block text-sm text-muted-foreground">{lesson.summary}</span>
-                    </span>
-                    <span className="hidden shrink-0 items-center gap-1 text-xs text-faint sm:inline-flex">
-                      <ClockIcon aria-hidden className="size-3.5" />
-                      {lesson.minutes} min
-                    </span>
-                  </Link>
-                </li>
-              );
-            })}
-          </ol>
+          <LessonList courseId={course.id} lessons={lessons} />
         </>
       )}
     </main>

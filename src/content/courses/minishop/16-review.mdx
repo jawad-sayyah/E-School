@@ -1,0 +1,124 @@
+---
+id: review
+title: "Review: building MiniShop"
+summary: Mixed questions on the whole project - from the vanilla-JS sync problem to state, reducers, effects, fetching, context, TypeScript, routing, forms, tests and deployment.
+minutes: 15
+kind: review
+tags: [review, MiniShop, project, state, useReducer, useEffect, TanStack Query, context, TypeScript, React Router, React Hook Form, Zod, testing, deploy]
+---
+
+The whole MiniShop project in one review, before the boss challenge. Each question names the step to look back at.
+
+<Practice title="From the cart to the checkout">
+
+<MatchPairs
+  id="match-review-steps"
+  prompt="Match each problem MiniShop ran into with the step that solved it."
+  columns={["Problem", "Solution"]}
+  pairs={[
+    ["The badge and the total went stale after a click (step 2)", "State, so React re-renders everything that depends on the cart (step 4)"],
+    ["Cart logic was spread over three handlers (step 4)", "One `cartReducer` with actions (step 5)"],
+    ["A reload emptied the cart (step 5)", "A lazy initializer plus a saving effect (step 6)"],
+    ["The header needed the cart without prop drilling (step 8)", "`CartProvider` and `useCart()` (step 8)"],
+    ["`dispatch({ type: \"ad\" })` failed only at run time (step 8)", "A `CartAction` union in TypeScript (step 9)"],
+    ["Refreshing `/products/2` gave a 404 on the host (step 10)", "A rewrite to `index.html` in `vercel.json` (step 14)"],
+  ]}
+/>
+
+<TraceState
+  id="trace-review-cart"
+  track="the cart's count after each action (dispatched in order)"
+  steps={[
+    { action: "`{ type: \"add\", product: tea }`", answer: "1" },
+    { action: "`{ type: \"add\", product: tea }`", answer: "2" },
+    { action: "`{ type: \"add\", product: mug }`", answer: "3" },
+    { action: "`{ type: \"setQty\", id: tea.id, qty: 0 }`", answer: "1" },
+    { action: "`{ type: \"clear\" }`", answer: "0" },
+  ]}
+  explain="Adding an existing product raises its qty; setQty to 0 removes the whole tea line (2 items); clear empties the cart."
+  hint="count adds up every line's qty."
+/>
+
+<SpotTheBug
+  id="bug-review-minishop"
+  bug={[4, 5]}
+  prompt="After placing an order, the page says 'Your cart is empty.' instead of thanking the customer. Click the lines that cause it."
+  explain="The empty-cart check runs first, and `clear()` has just emptied the cart, so the thank-you branch is never reached. Check `placedBy` before `items.length` (step 11)."
+>
+
+```jsx
+function CheckoutPage() {
+  const { items, clear } = useCart();
+  const [placedBy, setPlacedBy] = useState(null);
+  if (items.length === 0) {
+    return <p>Your cart is empty.</p>;
+  }
+  if (placedBy) {
+    return <p>Thanks, {placedBy}! Your order is on its way.</p>;
+  }
+  return <CheckoutForm onOrder={(name) => { setPlacedBy(name); clear(); }} />;
+}
+```
+
+</SpotTheBug>
+
+<SortBuckets
+  id="buckets-review-where"
+  prompt="Where does each piece of MiniShop live?"
+  buckets={["CartContext", "TanStack Query", "Component state or a form"]}
+  items={[
+    ["The cart's items", 0],
+    ["The product list from the server", 1],
+    ["What the user typed into the checkout form", 2],
+    ["`add`, `remove` and `setQty`", 0],
+    ["Whether the products are still loading", 1],
+    ["Who just placed an order (`placedBy`)", 2],
+  ]}
+  explain="App-wide client state goes in context, server data in the query cache, and local UI state stays in the component that owns it."
+/>
+
+<TrueFalse
+  id="tf-review-minishop"
+  statements={[
+    { text: "MiniShop's total is stored in state next to the items.", answer: false, explain: "It's always computed from the items (steps 4 and 8), so it can never disagree with them." },
+    { text: "Tests replace `api.fetchProducts` so they're fast and can make the server fail on purpose.", answer: true, explain: "`vi.spyOn(api, \"fetchProducts\").mockRejectedValue(…)` tests the error state in milliseconds (step 7)." },
+    { text: "A `VITE_` environment variable is a safe place for a secret key.", answer: false, explain: "Its value is baked into the public JavaScript bundle (step 14)." },
+  ]}
+/>
+
+</Practice>
+
+<Quiz
+  questions={[
+    {
+      q: "Step 2's `update()` function had to refresh the list, the total and the badge. What replaced it in React?",
+      options: ["A bigger update function", "Rendering from state: change the cart, and React re-renders everything that reads it", "`innerHTML`", "An event bus"],
+      answer: 1,
+      explain: "You describe the page for the current data; React syncs the DOM.",
+    },
+    {
+      q: "Why does `CartProvider` wrap `RouterProvider`?",
+      options: ["React Router requires it", "So the cart lives as long as the app and survives every page change", "To make routes faster", "It doesn't matter"],
+      answer: 1,
+      explain: "A provider inside one page would unmount (and lose the cart) when you left that page.",
+    },
+    {
+      q: "What does `const unhandled: never = action` give MiniShop's reducer?",
+      options: ["Faster dispatch", "A compile error if a new action is added without a case", "Run-time validation of actions", "Nothing"],
+      answer: 1,
+      explain: "Exhaustiveness checking (step 9).",
+    },
+    {
+      q: "Which test would catch a broken SPA rewrite on Vercel?",
+      options: ["A cartReducer unit test", "A Testing Library test of ProductPage", "A Playwright test that opens /products/1 directly on the deployed site", "A jest-axe test"],
+      answer: 2,
+      explain: "Only an end-to-end test against the real host exercises its rewrites.",
+    },
+    {
+      q: "Where must the final price of an order be computed in a real shop?",
+      options: ["In `cartTotal` in the browser", "On the server, from the database", "In localStorage", "In the Zod schema"],
+      answer: 1,
+      explain: "Anything from the browser can be changed by the user (What's next).",
+    },
+  ]}
+/>

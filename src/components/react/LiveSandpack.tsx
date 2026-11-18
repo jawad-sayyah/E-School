@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   SandpackCodeEditor,
   SandpackConsole,
@@ -11,7 +11,8 @@ import {
 } from '@codesandbox/sandpack-react';
 import { summarizeSpecs, type SpecResult, type SpecSummary } from './specs';
 import { dependenciesFor } from './packages';
-import { TEST_PRELUDE, VITEST_SHIM } from './sandboxFiles';
+import { reactTemplate, TEST_PRELUDE, VITEST_SHIM } from './sandboxFiles';
+import { PanelBoundary } from './PanelBoundary';
 import { sandpackTheme } from './theme';
 
 /*
@@ -19,7 +20,7 @@ import { sandpackTheme } from './theme';
  * iframes) only load on lessons that actually use a React playground or exercise.
  */
 
-export type SandboxTemplate = 'react' | 'vanilla';
+export type SandboxTemplate = 'react' | 'react-ts' | 'vanilla';
 
 interface LiveProps {
   /** 'react' (default) or 'vanilla': a plain HTML page with /index.html and /index.js. */
@@ -52,13 +53,14 @@ export function LivePlayground({
   height = 340,
   showConsole = false,
 }: LiveProps & { showConsole?: boolean }) {
+  const sandbox = template === 'react' ? reactTemplate(files) : template;
   // Read once: a new setup object would make Sandpack restart the bundler.
   const [setup] = useState(() =>
-    template === 'react' ? { dependencies: dependenciesFor(files) } : undefined,
+    sandbox === 'vanilla' ? undefined : { dependencies: dependenciesFor(files) },
   );
   return (
     <SandpackProvider
-      template={template}
+      template={sandbox}
       theme={sandpackTheme}
       files={toSandpackFiles(files)}
       customSetup={setup}
@@ -89,6 +91,21 @@ function SyncFiles({ files, version }: { files: Record<string, string>; version:
   return null;
 }
 
+/** Reports the code of the given files whenever the student edits them. */
+function TrackFiles({
+  paths,
+  onChange,
+}: {
+  paths: string[];
+  onChange: (files: Record<string, string>) => void;
+}) {
+  const { sandpack } = useSandpack();
+  useEffect(() => {
+    onChange(Object.fromEntries(paths.map((p) => [p, sandpack.files[p]?.code ?? ''])));
+  }, [sandpack.files, paths, onChange]);
+  return null;
+}
+
 /** Editor + preview + the hidden tests, with results reported back. */
 export function LiveExercise({
   files,
@@ -105,31 +122,49 @@ export function LiveExercise({
   onResult: (summary: SpecSummary) => void;
 }) {
   // The provider only reads its files and setup once; later changes go through SyncFiles.
-  const [initial] = useState(() => toSandpackFiles(files, hiddenFiles));
+  const [initial, setInitial] = useState(() => toSandpackFiles(files, hiddenFiles));
+  // If Sandpack's test panel crashes, the sandbox is rebuilt (a new key) from the latest code.
+  const [instance, setInstance] = useState(0);
+  const [paths] = useState(() => Object.keys(files));
+  const latestFiles = useRef(files);
+  const rememberFiles = useCallback((code: Record<string, string>) => {
+    latestFiles.current = code;
+  }, []);
+  const rebuild = () => {
+    setInitial(toSandpackFiles(latestFiles.current, hiddenFiles));
+    setInstance((n) => n + 1);
+  };
   const [setup] = useState(() => ({
     dependencies: dependenciesFor({ ...files, ...hiddenFiles, ...dependencyFiles }),
   }));
+  const [template] = useState(() => reactTemplate({ ...files, ...dependencyFiles }));
   return (
     <SandpackProvider
-      template="react"
+      key={instance}
+      template={template}
       theme={sandpackTheme}
       files={initial}
       customSetup={setup}
       options={{ activeFile, recompileMode: 'delayed', recompileDelay: 500 }}
     >
       <SyncFiles files={files} version={version} />
+      <TrackFiles paths={paths} onChange={rememberFiles} />
       <SandpackLayout>
         <SandpackCodeEditor showLineNumbers showTabs style={{ height }} />
         <SandpackPreview style={{ height }} showOpenInCodeSandbox={false} showRefreshButton />
       </SandpackLayout>
-      <SandpackTests
-        style={{ height: 230 }}
-        verbose
-        showWatchButton={false}
-        onComplete={(specs) =>
-          onResult(summarizeSpecs(specs as unknown as Record<string, SpecResult>))
-        }
-      />
+      <PanelBoundary onCrash={rebuild}>
+        <SandpackTests
+          style={{ height: 230 }}
+          verbose
+          showWatchButton={false}
+          onComplete={(specs) => {
+            const summary = summarizeSpecs(specs as unknown as Record<string, SpecResult>);
+            // Sandpack calls this while rendering its panel: report after that render.
+            setTimeout(() => onResult(summary), 0);
+          }}
+        />
+      </PanelBoundary>
     </SandpackProvider>
   );
 }
@@ -139,7 +174,7 @@ export function LiveTarget({ files, height = 260 }: LiveProps) {
   const [setup] = useState(() => ({ dependencies: dependenciesFor(files) }));
   return (
     <SandpackProvider
-      template="react"
+      template={reactTemplate(files)}
       theme={sandpackTheme}
       files={toSandpackFiles(files)}
       customSetup={setup}

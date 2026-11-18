@@ -14,8 +14,9 @@ import { parseFrontmatter } from '@/search/extract';
 import { COURSES } from './courses';
 import { findMissingLessons } from './lessons';
 import { COMPONENT_KINDS } from '@/components/questions/kinds';
+import { inlineParts } from '@/lib/inline';
 import { fillBlanks, parseBlanks } from '@/questions/blanks';
-import { transpile, typeCheck } from '../../test/tsChecker';
+import { transpile, typeCheck, typeCheckProject } from '../../test/tsChecker';
 
 const isTs = (lang?: string | null) => lang === 'ts' || lang === 'tsx';
 /** Code that runs in the worker: TypeScript is compiled first. */
@@ -94,6 +95,7 @@ test('every course with lessons has at least one exercise (PROMPT.md §10)', () 
           'Exercise',
           'ReactExercise',
           'BuildUI',
+          'ProjectStep',
           'TSExercise',
           'TestExercise',
           'ReactTestExercise',
@@ -407,4 +409,125 @@ describe.each(testExerciseLessons)('$course/$file test exercises', ({ abs }) => 
       expect((await checkTests(code, bugs, starter, run)).passed).toBe(false);
     },
   );
+});
+
+/* ── MiniShop (PROMPT.md §11): each step starts from the previous step's finished code ── */
+
+const fileOf = (meta: string) => {
+  const named = /(?:^|\s)file=(\S+)/.exec(meta)?.[1];
+  return named ? (named.startsWith('/') ? named : `/${named}`) : undefined;
+};
+const hasWord = (b: Node, w: string) => (b.meta ?? '').split(/\s+/).includes(w);
+
+/** Sandpack code components in document order. */
+function walk(node: Node, names: string[], out: Node[] = []): Node[] {
+  if (node.type === 'mdxJsxFlowElement' && names.includes(node.name ?? '')) out.push(node);
+  node.children?.forEach((c) => walk(c, names, out));
+  return out;
+}
+
+function filesOf(node: Node, word?: string): Record<string, string> {
+  const files: Record<string, string> = {};
+  for (const b of codeIn(node)) {
+    const file = fileOf(b.meta ?? '');
+    if (file && (!word || hasWord(b, word))) files[file] = String(b.value);
+  }
+  return files;
+}
+
+const steps = lessonFiles
+  .filter((l) => l.course === 'minishop' && /^\d+-/.test(l.file))
+  .sort((a, b) => a.file.localeCompare(b.file))
+  .map(({ file, abs }) => {
+    const tree = parser.parse(fs.readFileSync(abs, 'utf8')) as Node;
+    const code = walk(tree, ['ProjectStep', 'ReactExercise', 'ReactPlayground']).filter(
+      (n) => n.name !== 'ReactPlayground' || attr(n, 'final') === true,
+    );
+    const first = code.find((n) => n.name === 'ProjectStep');
+    const last = code.at(-1);
+    const starter = first ? filesOf(first, 'starter') : {};
+    const updated = first
+      ? codeIn(first)
+          .filter((b) => hasWord(b, 'starter') && hasWord(b, 'updated'))
+          .map((b) => fileOf(b.meta ?? ''))
+      : [];
+    const final = !last
+      ? {}
+      : last.name === 'ReactPlayground'
+        ? filesOf(last)
+        : { ...filesOf(last, 'starter'), ...filesOf(last, 'solution') };
+    const testIt = walk(tree, ['ReactTestExercise', 'TestExercise']).length;
+    // Every TypeScript project in the step: finished code, and Test it code + example tests.
+    const tsProjects = [
+      ...code.map((n) =>
+        n.name === 'ReactPlayground'
+          ? filesOf(n)
+          : { ...filesOf(n, 'starter'), ...filesOf(n, 'solution'), ...filesOf(n, 'tests') },
+      ),
+      ...walk(tree, ['ReactTestExercise']).map((n) => ({
+        ...filesOf(n, 'code'),
+        ...filesOf(n, 'solution'),
+      })),
+    ].filter((files) => Object.keys(files).some((f) => /\.tsx?$/.test(f)));
+    return { file, starter, updated, final, testIt, tsProjects };
+  });
+
+describe('MiniShop steps', () => {
+  test.each(steps.slice(1).map((step, i) => ({ step, prev: steps[i], name: step.file })))(
+    "$name starts from the previous step's finished code",
+    ({ step, prev }) => {
+      if (Object.keys(step.starter).length === 0 || Object.keys(prev.final).length === 0) return;
+      for (const [file, code] of Object.entries(step.starter)) {
+        if (step.updated.includes(file) || !(file in prev.final)) continue;
+        expect(code, `${step.file} ${file}`).toBe(prev.final[file]);
+      }
+    },
+  );
+
+  test.each(
+    steps.flatMap((s) => s.tsProjects.map((files, i) => ({ files, name: `${s.file} #${i + 1}` }))),
+  )('$name: the TypeScript code compiles', ({ files }) => {
+    expect(typeCheckProject(files)).toEqual([]);
+  });
+
+  test('every step from step 3 on has a "Test it" task', () => {
+    const missing = steps
+      .filter((s) => Number(s.file.slice(0, 2)) >= 3 && Number(s.file.slice(0, 2)) <= 14)
+      .filter((s) => s.testIt === 0)
+      .map((s) => s.file);
+    expect(missing).toEqual([]);
+  });
+});
+
+/* ── Inline markup in strings (hints, tasks, options…) renders cleanly ── */
+
+function stringsIn(value: unknown, out: string[] = []): string[] {
+  if (typeof value === 'string') out.push(value);
+  else if (Array.isArray(value)) value.forEach((v) => stringsIn(v, out));
+  else if (value && typeof value === 'object')
+    Object.values(value).forEach((v) => stringsIn(v, out));
+  return out;
+}
+
+function elementsIn(node: Node, out: Node[] = []): Node[] {
+  if (node.type === 'mdxJsxFlowElement' || node.type === 'mdxJsxTextElement') out.push(node);
+  node.children?.forEach((c) => elementsIn(c, out));
+  return out;
+}
+
+describe.each(lessonFiles)('$course/$file inline markup', ({ abs }) => {
+  const tree = parser.parse(fs.readFileSync(abs, 'utf8')) as Node;
+  test('every backtick in a string attribute is part of a code span', () => {
+    // Code that itself contains backticks (a template literal) needs ``double backticks``;
+    // otherwise it splits into pieces, leaving a stray ` or ${…} in the prose.
+    const broken = elementsIn(tree)
+      .flatMap((el) => (el.attributes ?? []).map((a) => attr(el, String(a.name))))
+      .flatMap((value) => stringsIn(value))
+      .filter((text) =>
+        inlineParts(text).some(
+          (p) => p.kind === 'text' && (p.value.includes('`') || p.value.includes('${')),
+        ),
+      );
+    expect(broken).toEqual([]);
+  });
 });

@@ -38,7 +38,7 @@ export const router = createBrowserRouter([
       },
       {
         path: 'project/*',
-        lazy: async () => ({ Component: (await import('@/pages/ComingSoonPage')).ProjectPage }),
+        lazy: async () => ({ Component: (await import('@/pages/ProjectPage')).default }),
       },
       {
         path: 'reference',

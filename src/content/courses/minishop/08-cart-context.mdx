@@ -1,0 +1,883 @@
+---
+id: cart-context
+title: "Step 8: Share the cart with context"
+summary: Move the cart into a CartProvider with a useCart() hook, so a header badge (and any future page) can read the cart without passing props through every layer.
+minutes: 35
+tags: [MiniShop, project, context, useContext, custom hooks, prop drilling, provider, state management]
+---
+
+The shop needs a **cart badge** in the header. The header sits far from `App`'s cart state, and soon there will be pages (step 10) between them. Passing `items` and `dispatch` down through every component in between is called **prop drilling**, and it makes every middle component carry props it doesn't use.
+
+**Context** lets a component provide a value to its whole subtree, and any component below can read it directly. You'll build two pieces:
+
+- **`CartProvider`**: owns the cart (the `useReducer` and the saving effect move here from `App`) and provides it.
+- **`useCart()`**: a custom hook that reads the context and returns a friendly API: `items`, `count`, `total`, `add`, `remove`, `setQty` and `clear`.
+
+After this step, `ProductList`, `Cart` and `Header` take **no props** for the cart at all.
+
+<ProjectStep
+  id="cart-context"
+  title="CartProvider, useCart and a header badge"
+  goal="A header badge shows the number of items, and every component gets the cart from useCart() instead of props."
+  practice={[
+    ["useContext", "/courses/hooks/use-context"],
+    ["Custom hooks", "/courses/hooks/custom-hooks"],
+    ["State management", "/courses/react-ecosystem/state-management"],
+    ["Testing hooks and context", "/courses/testing/hooks-context"],
+  ]}
+  tasks={[
+    "In `CartContext.js`, move the `useReducer` and the saving `useEffect` from `App` into `CartProvider`, and provide `{ items, dispatch }`.",
+    "Make `useCart()` throw `useCart must be used inside <CartProvider>` when there's no provider.",
+    "Return `{ items, count, total, add, remove, setQty, clear }` from `useCart()`.",
+    "Show the badge in `Header`: ``<span aria-label={`Cart: ${count} items`}>🛒 {count}</span>``.",
+    "Remove the cart props: `ProductList` and `Cart` call `useCart()`, and `App` renders `<CartProvider>` around `Header` and `main`.",
+  ]}
+  hints={[
+    "In React 19 the context object is the provider: `return <CartContext value={{ items, dispatch }}>{children}</CartContext>;`.",
+    "In `useCart`: `const context = useContext(CartContext); if (!context) throw new Error(\"useCart must be used inside <CartProvider>\");`, then build the object from `context.items` and `context.dispatch`.",
+    "`count: cartCount(items)`, `total: cartTotal(items)`, `add: (product) => dispatch({ type: \"add\", product })`, and the same idea for the others.",
+  ]}
+  explain={[
+    "`CartProvider` is now the only place that knows about the reducer and storage. Components just call `useCart()`.",
+    "The error in `useCart` turns a confusing `Cannot destructure property of null` into a message that says exactly what's wrong.",
+    "`count` and `total` are computed in the hook, so every component gets the same numbers, and none of them is stored.",
+  ]}
+>
+
+`CartContext.js` and `Header.js` are ready to fill in. Move the cart out of `App`, and make every component read it with `useCart()`.
+
+```js starter file=/cartUtils.js
+export function formatPrice(amount) {
+  return "$" + amount.toFixed(2);
+}
+
+export function cartTotal(items) {
+  return items.reduce((sum, item) => sum + item.price * item.qty, 0);
+}
+
+export function cartCount(items) {
+  return items.reduce((sum, item) => sum + item.qty, 0);
+}
+
+export function addToCart(items, product) {
+  const existing = items.find((item) => item.id === product.id);
+  if (existing) {
+    return items.map((item) => (item.id === product.id ? { ...item, qty: item.qty + 1 } : item));
+  }
+  return [...items, { ...product, qty: 1 }];
+}
+
+export function renderCart(items) {
+  if (items.length === 0) return "<li>Your cart is empty.</li>";
+  return items
+    .map((item) => `<li>${item.name} × ${item.qty}: ${formatPrice(item.price * item.qty)}</li>`)
+    .join("");
+}
+```
+
+```js starter file=/products.js
+export const products = [
+  { id: 1, name: "Coffee beans", price: 12 },
+  { id: 2, name: "Green tea", price: 8 },
+  { id: 3, name: "Travel mug", price: 15 },
+];
+```
+
+```js starter file=/api.js
+import { products } from "./products";
+
+// A pretend server: it answers after a short delay, like a real network request.
+export const api = {
+  fetchProducts() {
+    return new Promise((resolve) => setTimeout(() => resolve(products), 600));
+  },
+};
+```
+
+```js starter file=/useProducts.js
+import { useQuery } from "@tanstack/react-query";
+import { api } from "./api";
+
+export function useProducts() {
+  return useQuery({ queryKey: ["products"], queryFn: () => api.fetchProducts() });
+}
+```
+
+```js starter file=/cartReducer.js
+import { addToCart } from "./cartUtils";
+
+export function cartReducer(items, action) {
+  switch (action.type) {
+    case "add":
+      return addToCart(items, action.product);
+    case "remove":
+      return items.filter((item) => item.id !== action.id);
+    case "setQty":
+      if (action.qty < 1) return items.filter((item) => item.id !== action.id);
+      return items.map((item) => (item.id === action.id ? { ...item, qty: action.qty } : item));
+    case "clear":
+      return [];
+    default:
+      throw new Error(`Unknown action: ${action.type}`);
+  }
+}
+```
+
+```js starter file=/storage.js
+const KEY = "minishop-cart";
+
+export function loadCart() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(KEY));
+    return Array.isArray(saved) ? saved : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveCart(items) {
+  try {
+    localStorage.setItem(KEY, JSON.stringify(items));
+  } catch {
+    // Storage is full or blocked (private mode): the cart still works, it just isn't saved.
+  }
+}
+```
+
+```jsx starter file=/CartContext.js
+import { createContext, useContext, useEffect, useReducer } from "react";
+import { cartReducer } from "./cartReducer";
+import { cartCount, cartTotal } from "./cartUtils";
+import { loadCart, saveCart } from "./storage";
+
+const CartContext = createContext(null);
+
+export function CartProvider({ children }) {
+  // TODO: move the cart's useReducer and useEffect here from App, and provide them
+  return children;
+}
+
+export function useCart() {
+  // TODO: read the context, throw a helpful error without a provider,
+  // and return { items, count, total, add, remove, setQty, clear }
+  return useContext(CartContext);
+}
+```
+
+```jsx starter file=/Header.js
+import { useCart } from "./CartContext";
+
+export default function Header() {
+  // TODO: show the number of items in the cart, from useCart()
+  return (
+    <header>
+      <strong>MiniShop</strong>
+    </header>
+  );
+}
+```
+
+```jsx starter file=/App.js
+import { useEffect, useReducer, useState } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { cartReducer } from "./cartReducer";
+import { loadCart, saveCart } from "./storage";
+import ProductList from "./ProductList";
+import Cart from "./Cart";
+
+export default function App() {
+  const [queryClient] = useState(
+    () => new QueryClient({ defaultOptions: { queries: { retry: false } } }),
+  );
+  const [cart, dispatch] = useReducer(cartReducer, undefined, loadCart);
+
+  useEffect(() => {
+    saveCart(cart);
+  }, [cart]);
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <main>
+        <h1>MiniShop</h1>
+        <ProductList onAdd={(product) => dispatch({ type: "add", product })} />
+        <Cart
+          items={cart}
+          onChangeQty={(id, qty) => dispatch({ type: "setQty", id, qty })}
+          onRemove={(id) => dispatch({ type: "remove", id })}
+          onClear={() => dispatch({ type: "clear" })}
+        />
+      </main>
+    </QueryClientProvider>
+  );
+}
+```
+
+```jsx starter file=/ProductList.js
+import { formatPrice } from "./cartUtils";
+import { useProducts } from "./useProducts";
+
+export default function ProductList({ onAdd }) {
+  const { status, data: products, refetch } = useProducts();
+
+  return (
+    <section>
+      <h2>Products</h2>
+      {status === "pending" && <p role="status">Loading products…</p>}
+      {status === "error" && (
+        <p role="alert">
+          Couldn't load the products. <button onClick={() => refetch()}>Try again</button>
+        </p>
+      )}
+      {status === "success" && (
+        <ul>
+          {products.map((product) => (
+            <li key={product.id}>
+              {product.name} {formatPrice(product.price)}{" "}
+              <button aria-label={`Add ${product.name}`} onClick={() => onAdd(product)}>
+                Add
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+```
+
+```jsx starter file=/Cart.js
+import { cartTotal, formatPrice } from "./cartUtils";
+
+export default function Cart({ items, onChangeQty, onRemove, onClear }) {
+  return (
+    <section>
+      <h2>Your cart</h2>
+      {items.length === 0 ? (
+        <p>Your cart is empty.</p>
+      ) : (
+        <ul>
+          {items.map((item) => (
+            <li key={item.id}>
+              <span>
+                {item.name} × {item.qty}: {formatPrice(item.price * item.qty)}
+              </span>{" "}
+              <button
+                aria-label={`Decrease ${item.name}`}
+                onClick={() => onChangeQty(item.id, item.qty - 1)}
+              >
+                −
+              </button>
+              <button
+                aria-label={`Increase ${item.name}`}
+                onClick={() => onChangeQty(item.id, item.qty + 1)}
+              >
+                +
+              </button>
+              <button aria-label={`Remove ${item.name}`} onClick={() => onRemove(item.id)}>
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p>Total: {formatPrice(cartTotal(items))}</p>
+      {items.length > 0 && <button onClick={onClear}>Clear cart</button>}
+    </section>
+  );
+}
+```
+
+```jsx tests file=/context.test.js
+import { fireEvent, render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import { vi } from "vitest";
+import App from "./App";
+import Cart from "./Cart";
+import Header from "./Header";
+import { CartProvider } from "./CartContext";
+import { api } from "./api";
+import { products } from "./products";
+
+beforeEach(() => {
+  localStorage.clear();
+  vi.spyOn(api, "fetchProducts").mockResolvedValue(products);
+});
+afterEach(() => vi.restoreAllMocks());
+
+test("the header badge counts every item and updates on Add", async () => {
+  render(<App />);
+  expect(screen.getByLabelText("Cart: 0 items")).toBeInTheDocument();
+  fireEvent.click(await screen.findByRole("button", { name: "Add Green tea" }));
+  fireEvent.click(screen.getByRole("button", { name: "Add Green tea" }));
+  fireEvent.click(screen.getByRole("button", { name: "Add Coffee beans" }));
+  expect(screen.getByLabelText("Cart: 3 items")).toBeInTheDocument();
+  expect(screen.getByText("Total: $28.00")).toBeInTheDocument();
+});
+
+test("Cart reads the cart from context, with no props", () => {
+  localStorage.setItem("minishop-cart", JSON.stringify([{ ...products[2], qty: 1 }]));
+  render(
+    <CartProvider>
+      <Header />
+      <Cart />
+    </CartProvider>,
+  );
+  expect(screen.getByText("Travel mug × 1: $15.00")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Increase Travel mug" }));
+  expect(screen.getByText("Travel mug × 2: $30.00")).toBeInTheDocument();
+  expect(screen.getByLabelText("Cart: 2 items")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Clear cart" }));
+  expect(screen.getByText("Your cart is empty.")).toBeInTheDocument();
+});
+
+test("useCart outside a CartProvider explains the mistake", () => {
+  vi.spyOn(console, "error").mockImplementation(() => {});
+  expect(() => render(<Header />)).toThrow("useCart must be used inside <CartProvider>");
+});
+
+test("the cart is still saved", async () => {
+  render(<App />);
+  fireEvent.click(await screen.findByRole("button", { name: "Add Coffee beans" }));
+  expect(JSON.parse(localStorage.getItem("minishop-cart"))).toEqual([{ ...products[0], qty: 1 }]);
+});
+```
+
+```jsx solution file=/CartContext.js
+import { createContext, useContext, useEffect, useReducer } from "react";
+import { cartReducer } from "./cartReducer";
+import { cartCount, cartTotal } from "./cartUtils";
+import { loadCart, saveCart } from "./storage";
+
+const CartContext = createContext(null);
+
+export function CartProvider({ children }) {
+  const [items, dispatch] = useReducer(cartReducer, undefined, loadCart);
+
+  useEffect(() => {
+    saveCart(items);
+  }, [items]);
+
+  return <CartContext value={{ items, dispatch }}>{children}</CartContext>;
+}
+
+export function useCart() {
+  const context = useContext(CartContext);
+  if (!context) throw new Error("useCart must be used inside <CartProvider>");
+  const { items, dispatch } = context;
+  return {
+    items,
+    count: cartCount(items),
+    total: cartTotal(items),
+    add: (product) => dispatch({ type: "add", product }),
+    remove: (id) => dispatch({ type: "remove", id }),
+    setQty: (id, qty) => dispatch({ type: "setQty", id, qty }),
+    clear: () => dispatch({ type: "clear" }),
+  };
+}
+```
+
+```jsx solution file=/Header.js
+import { useCart } from "./CartContext";
+
+export default function Header() {
+  const { count } = useCart();
+  return (
+    <header>
+      <strong>MiniShop</strong> <span aria-label={`Cart: ${count} items`}>🛒 {count}</span>
+    </header>
+  );
+}
+```
+
+```jsx solution file=/App.js
+import { useState } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { CartProvider } from "./CartContext";
+import Header from "./Header";
+import ProductList from "./ProductList";
+import Cart from "./Cart";
+
+export default function App() {
+  const [queryClient] = useState(
+    () => new QueryClient({ defaultOptions: { queries: { retry: false } } }),
+  );
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <CartProvider>
+        <Header />
+        <main>
+          <h1>MiniShop</h1>
+          <ProductList />
+          <Cart />
+        </main>
+      </CartProvider>
+    </QueryClientProvider>
+  );
+}
+```
+
+```jsx solution file=/ProductList.js
+import { useCart } from "./CartContext";
+import { formatPrice } from "./cartUtils";
+import { useProducts } from "./useProducts";
+
+export default function ProductList() {
+  const { add } = useCart();
+  const { status, data: products, refetch } = useProducts();
+
+  return (
+    <section>
+      <h2>Products</h2>
+      {status === "pending" && <p role="status">Loading products…</p>}
+      {status === "error" && (
+        <p role="alert">
+          Couldn't load the products. <button onClick={() => refetch()}>Try again</button>
+        </p>
+      )}
+      {status === "success" && (
+        <ul>
+          {products.map((product) => (
+            <li key={product.id}>
+              {product.name} {formatPrice(product.price)}{" "}
+              <button aria-label={`Add ${product.name}`} onClick={() => add(product)}>
+                Add
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+```
+
+```jsx solution file=/Cart.js
+import { useCart } from "./CartContext";
+import { formatPrice } from "./cartUtils";
+
+export default function Cart() {
+  const { items, total, setQty, remove, clear } = useCart();
+
+  return (
+    <section>
+      <h2>Your cart</h2>
+      {items.length === 0 ? (
+        <p>Your cart is empty.</p>
+      ) : (
+        <ul>
+          {items.map((item) => (
+            <li key={item.id}>
+              <span>
+                {item.name} × {item.qty}: {formatPrice(item.price * item.qty)}
+              </span>{" "}
+              <button
+                aria-label={`Decrease ${item.name}`}
+                onClick={() => setQty(item.id, item.qty - 1)}
+              >
+                −
+              </button>
+              <button
+                aria-label={`Increase ${item.name}`}
+                onClick={() => setQty(item.id, item.qty + 1)}
+              >
+                +
+              </button>
+              <button aria-label={`Remove ${item.name}`} onClick={() => remove(item.id)}>
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p>Total: {formatPrice(total)}</p>
+      {items.length > 0 && <button onClick={clear}>Clear cart</button>}
+    </section>
+  );
+}
+```
+
+</ProjectStep>
+
+<HowItWorks title="Who re-renders when the cart changes?">
+
+When `CartProvider`'s state changes, it renders again and passes a **new** `{ items, dispatch }` object to `value`. React then re-renders every component that reads that context with `useContext`, wherever it is in the tree, even if the components in between skipped rendering.
+
+For MiniShop that's exactly right: the badge, the product list and the cart all show cart data. In a big app with a context read by hundreds of components, you'd split it (for example one context for `items` and one for the stable `dispatch`), or use a store like **Zustand**, where each component subscribes only to the slice it uses:
+
+```js
+const count = useCartStore((state) => cartCount(state.items));
+```
+
+Context is built into React and perfect for app-wide values that change now and then (the cart, the theme, the signed-in user). Reach for a store when updates are frequent and many components read small pieces.
+
+</HowItWorks>
+
+<Practice>
+
+<SpotTheBug
+  id="bug-provider-placement"
+  bug={4}
+  prompt="The page crashes with 'useCart must be used inside <CartProvider>'. Click the line with the bug."
+  explain="`Header` calls `useCart()`, but it's rendered outside the provider, so `useContext` returns the default value (`null`). Move `<Header />` inside `<CartProvider>`."
+>
+
+```jsx
+export default function App() {
+  return (
+    <>
+      <Header />
+      <CartProvider>
+        <ProductList />
+        <Cart />
+      </CartProvider>
+    </>
+  );
+}
+```
+
+</SpotTheBug>
+
+<SortBuckets
+  id="buckets-context"
+  prompt="Is each value a good fit for MiniShop's CartContext?"
+  buckets={["Good fit", "Keep it elsewhere"]}
+  items={[
+    ["The cart's items", 0],
+    ["`add`, `remove` and `setQty`", 0],
+    ["The text in the checkout form's name field", 1],
+    ["The list of products from the server", 1],
+    ["Whether a single product's details are expanded", 1],
+  ]}
+  explain="The cart is app-wide state many components need. Form fields and expanded/collapsed flags are local UI state; server data already has a shared cache in TanStack Query."
+/>
+
+<Choice
+  id="choice-null-default"
+  q="Why does `CartContext` use `createContext(null)` instead of a default cart?"
+  options={["`null` is faster", "So `useCart` can tell 'no provider' apart from 'empty cart' and throw a clear error", "React requires `null`", "To save memory"]}
+  answer={1}
+  explain="A default empty cart would make a missing provider fail silently: the badge would show 0 forever, and adding would do nothing."
+/>
+
+</Practice>
+
+<ReactTestExercise
+  id="test-cart-context"
+  title="Test it: the badge and useCart"
+  hints={[
+    "Render `<CartProvider><Header /><AddTea /></CartProvider>`, click **Add tea** twice, and check `screen.getByLabelText(\"Cart: 2 items\")`.",
+    "Put a cart in storage **before** rendering: `localStorage.setItem(\"minishop-cart\", JSON.stringify([{ ...tea, qty: 3 }]))`. The badge should start at 3.",
+    "Without a provider: `expect(() => render(<Header />)).toThrow(\"useCart must be used inside <CartProvider>\")`. Silence React's error log with `vi.spyOn(console, \"error\").mockImplementation(() => {})`.",
+  ]}
+>
+
+Test `CartProvider`, `useCart` and the `Header` badge. The starter has a tiny `AddTea` component that adds a product through `useCart()`, so your tests can change the cart. Your tests must catch every buggy version of `CartContext.js`.
+
+```jsx code file=/CartContext.js
+import { createContext, useContext, useEffect, useReducer } from "react";
+import { cartReducer } from "./cartReducer";
+import { cartCount, cartTotal } from "./cartUtils";
+import { loadCart, saveCart } from "./storage";
+
+const CartContext = createContext(null);
+
+export function CartProvider({ children }) {
+  const [items, dispatch] = useReducer(cartReducer, undefined, loadCart);
+
+  useEffect(() => {
+    saveCart(items);
+  }, [items]);
+
+  return <CartContext value={{ items, dispatch }}>{children}</CartContext>;
+}
+
+export function useCart() {
+  const context = useContext(CartContext);
+  if (!context) throw new Error("useCart must be used inside <CartProvider>");
+  const { items, dispatch } = context;
+  return {
+    items,
+    count: cartCount(items),
+    total: cartTotal(items),
+    add: (product) => dispatch({ type: "add", product }),
+    remove: (id) => dispatch({ type: "remove", id }),
+    setQty: (id, qty) => dispatch({ type: "setQty", id, qty }),
+    clear: () => dispatch({ type: "clear" }),
+  };
+}
+```
+
+```jsx code file=/Header.js
+import { useCart } from "./CartContext";
+
+export default function Header() {
+  const { count } = useCart();
+  return (
+    <header>
+      <strong>MiniShop</strong> <span aria-label={`Cart: ${count} items`}>🛒 {count}</span>
+    </header>
+  );
+}
+```
+
+```js code file=/cartReducer.js
+import { addToCart } from "./cartUtils";
+
+export function cartReducer(items, action) {
+  switch (action.type) {
+    case "add":
+      return addToCart(items, action.product);
+    case "remove":
+      return items.filter((item) => item.id !== action.id);
+    case "setQty":
+      if (action.qty < 1) return items.filter((item) => item.id !== action.id);
+      return items.map((item) => (item.id === action.id ? { ...item, qty: action.qty } : item));
+    case "clear":
+      return [];
+    default:
+      throw new Error(`Unknown action: ${action.type}`);
+  }
+}
+```
+
+```js code file=/cartUtils.js
+export function cartTotal(items) {
+  return items.reduce((sum, item) => sum + item.price * item.qty, 0);
+}
+
+export function cartCount(items) {
+  return items.reduce((sum, item) => sum + item.qty, 0);
+}
+
+export function addToCart(items, product) {
+  const existing = items.find((item) => item.id === product.id);
+  if (existing) {
+    return items.map((item) => (item.id === product.id ? { ...item, qty: item.qty + 1 } : item));
+  }
+  return [...items, { ...product, qty: 1 }];
+}
+```
+
+```js code file=/storage.js
+const KEY = "minishop-cart";
+
+export function loadCart() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(KEY));
+    return Array.isArray(saved) ? saved : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveCart(items) {
+  try {
+    localStorage.setItem(KEY, JSON.stringify(items));
+  } catch {
+    // Storage is full or blocked (private mode): the cart still works, it just isn't saved.
+  }
+}
+```
+
+```jsx starter file=/Header.test.js
+import { fireEvent, render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import { beforeEach, expect, test } from "vitest";
+import Header from "./Header";
+import { CartProvider, useCart } from "./CartContext";
+
+const tea = { id: 2, name: "Green tea", price: 8 };
+
+function AddTea() {
+  const { add } = useCart();
+  return <button onClick={() => add(tea)}>Add tea</button>;
+}
+
+beforeEach(() => localStorage.clear());
+
+test("the badge starts at 0", () => {
+  render(
+    <CartProvider>
+      <Header />
+      <AddTea />
+    </CartProvider>,
+  );
+  expect(screen.getByLabelText("Cart: 0 items")).toBeInTheDocument();
+});
+```
+
+```jsx bug file=/CartContext.js title="The badge counts lines, not items" hint="Add the same product twice. The badge should say 2."
+import { createContext, useContext, useEffect, useReducer } from "react";
+import { cartReducer } from "./cartReducer";
+import { cartTotal } from "./cartUtils";
+import { loadCart, saveCart } from "./storage";
+
+const CartContext = createContext(null);
+
+export function CartProvider({ children }) {
+  const [items, dispatch] = useReducer(cartReducer, undefined, loadCart);
+
+  useEffect(() => {
+    saveCart(items);
+  }, [items]);
+
+  return <CartContext value={{ items, dispatch }}>{children}</CartContext>;
+}
+
+export function useCart() {
+  const context = useContext(CartContext);
+  if (!context) throw new Error("useCart must be used inside <CartProvider>");
+  const { items, dispatch } = context;
+  return {
+    items,
+    count: items.length,
+    total: cartTotal(items),
+    add: (product) => dispatch({ type: "add", product }),
+    remove: (id) => dispatch({ type: "remove", id }),
+    setQty: (id, qty) => dispatch({ type: "setQty", id, qty }),
+    clear: () => dispatch({ type: "clear" }),
+  };
+}
+```
+
+```jsx bug file=/CartContext.js title="The saved cart is ignored" hint="Save a cart in localStorage before rendering, and check the badge."
+import { createContext, useContext, useEffect, useReducer } from "react";
+import { cartReducer } from "./cartReducer";
+import { cartCount, cartTotal } from "./cartUtils";
+import { saveCart } from "./storage";
+
+const CartContext = createContext(null);
+
+export function CartProvider({ children }) {
+  const [items, dispatch] = useReducer(cartReducer, []);
+
+  useEffect(() => {
+    saveCart(items);
+  }, [items]);
+
+  return <CartContext value={{ items, dispatch }}>{children}</CartContext>;
+}
+
+export function useCart() {
+  const context = useContext(CartContext);
+  if (!context) throw new Error("useCart must be used inside <CartProvider>");
+  const { items, dispatch } = context;
+  return {
+    items,
+    count: cartCount(items),
+    total: cartTotal(items),
+    add: (product) => dispatch({ type: "add", product }),
+    remove: (id) => dispatch({ type: "remove", id }),
+    setQty: (id, qty) => dispatch({ type: "setQty", id, qty }),
+    clear: () => dispatch({ type: "clear" }),
+  };
+}
+```
+
+```jsx bug file=/CartContext.js title="No helpful error without a provider" hint="Render Header with no CartProvider and expect the exact error message."
+import { createContext, useContext, useEffect, useReducer } from "react";
+import { cartReducer } from "./cartReducer";
+import { cartCount, cartTotal } from "./cartUtils";
+import { loadCart, saveCart } from "./storage";
+
+const CartContext = createContext(null);
+
+export function CartProvider({ children }) {
+  const [items, dispatch] = useReducer(cartReducer, undefined, loadCart);
+
+  useEffect(() => {
+    saveCart(items);
+  }, [items]);
+
+  return <CartContext value={{ items, dispatch }}>{children}</CartContext>;
+}
+
+export function useCart() {
+  const { items, dispatch } = useContext(CartContext);
+  return {
+    items,
+    count: cartCount(items),
+    total: cartTotal(items),
+    add: (product) => dispatch({ type: "add", product }),
+    remove: (id) => dispatch({ type: "remove", id }),
+    setQty: (id, qty) => dispatch({ type: "setQty", id, qty }),
+    clear: () => dispatch({ type: "clear" }),
+  };
+}
+```
+
+```jsx solution file=/Header.test.js
+import { fireEvent, render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import { beforeEach, expect, test, vi } from "vitest";
+import Header from "./Header";
+import { CartProvider, useCart } from "./CartContext";
+
+const tea = { id: 2, name: "Green tea", price: 8 };
+
+function AddTea() {
+  const { add } = useCart();
+  return <button onClick={() => add(tea)}>Add tea</button>;
+}
+
+function renderShop() {
+  render(
+    <CartProvider>
+      <Header />
+      <AddTea />
+    </CartProvider>,
+  );
+}
+
+beforeEach(() => localStorage.clear());
+
+test("the badge starts at 0", () => {
+  renderShop();
+  expect(screen.getByLabelText("Cart: 0 items")).toBeInTheDocument();
+});
+
+test("the badge counts items, not lines", () => {
+  renderShop();
+  fireEvent.click(screen.getByRole("button", { name: "Add tea" }));
+  fireEvent.click(screen.getByRole("button", { name: "Add tea" }));
+  expect(screen.getByLabelText("Cart: 2 items")).toBeInTheDocument();
+});
+
+test("a saved cart is loaded on start", () => {
+  localStorage.setItem("minishop-cart", JSON.stringify([{ ...tea, qty: 3 }]));
+  renderShop();
+  expect(screen.getByLabelText("Cart: 3 items")).toBeInTheDocument();
+});
+
+test("useCart without a provider throws a helpful error", () => {
+  vi.spyOn(console, "error").mockImplementation(() => {});
+  expect(() => render(<Header />)).toThrow("useCart must be used inside <CartProvider>");
+  vi.restoreAllMocks();
+});
+```
+
+</ReactTestExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "What problem does `CartContext` solve?",
+      options: ["Slow renders", "Prop drilling: passing the cart through components that don't use it", "Saving to localStorage", "Fetching products"],
+      answer: 1,
+      explain: "Any component under the provider reads the cart directly with `useCart()`.",
+    },
+    {
+      q: "What does `useContext(CartContext)` return when there's no `CartProvider` above?",
+      options: ["An empty cart", "The default passed to `createContext`, here `null`", "It throws", "undefined, always"],
+      answer: 1,
+      explain: "That's why `useCart` checks for `null` and throws its own clear error.",
+    },
+    {
+      q: "Why put `count` and `total` in `useCart` instead of storing them in the provider's state?",
+      options: ["Hooks can't hold state", "They're derived from `items`, so computing them keeps them always correct", "It's required by context", "For TypeScript"],
+      answer: 1,
+      explain: "Same rule as step 4: derive, don't duplicate.",
+    },
+  ]}
+/>

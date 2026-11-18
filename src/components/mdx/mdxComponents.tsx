@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils';
 import { BossChallenge } from './BossChallenge';
 import { BuildUI, ReactExercise } from './ReactExercise';
 import { ReactPlayground } from './ReactPlayground';
+import { ProjectStep, StepIntro } from './ProjectStep';
 import { TSExercise } from './TSExercise';
 import { TestExercise } from './TestExercise';
 import { ReactTestExercise } from './ReactTestExercise';
@@ -148,6 +149,8 @@ export const mdxComponents: MDXComponents = {
   ReactPlayground,
   ReactExercise,
   BuildUI,
+  ProjectStep,
+  StepIntro,
   TSPlayground,
   TSExercise,
   TestExercise,

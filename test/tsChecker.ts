@@ -91,3 +91,41 @@ export function transpile(code: string, tsx = false): string {
   });
   return cleanEmit(out.outputText);
 }
+
+/**
+ * Type-checks a whole multi-file project (e.g. one MiniShop step: `/App.tsx`, `/types.ts`…)
+ * with the shared options. Files live in a virtual folder inside the project, so imports of
+ * `react`, `@tanstack/react-query` or `vitest` resolve from node_modules. Returns
+ * "file:line message" strings; empty means it compiles.
+ */
+export function typeCheckProject(files: Record<string, string>): string[] {
+  const root = path.resolve(__dirname, '../src/content/.virtual-project');
+  // A real project loads jest-dom's matcher types in its Vitest setup file.
+  const setup = { '/vitest-setup.d.ts': 'import "@testing-library/jest-dom/vitest";' };
+  const virtual = new Map(
+    Object.entries({ ...setup, ...files }).map(([file, code]) => [
+      path.normalize(path.join(root, file.replace(/^\//, ''))),
+      code,
+    ]),
+  );
+  const projectHost = ts.createCompilerHost(OPTIONS);
+  const get = (fileName: string) => virtual.get(path.normalize(fileName));
+  projectHost.fileExists = (f) => get(f) !== undefined || ts.sys.fileExists(f);
+  projectHost.readFile = (f) => get(f) ?? ts.sys.readFile(f);
+  projectHost.directoryExists = (dir) =>
+    path.normalize(dir).startsWith(root) || ts.sys.directoryExists(dir);
+  projectHost.getSourceFile = (fileName, languageVersion, onError, shouldCreate) => {
+    const code = get(fileName);
+    if (code !== undefined) return ts.createSourceFile(fileName, code, languageVersion, true);
+    return host.getSourceFile(fileName, languageVersion, onError, shouldCreate);
+  };
+  // Only TypeScript files are roots (a styles.css is part of the project, not compiled).
+  const roots = [...virtual.keys()].filter((f) => /\.tsx?$/.test(f));
+  const program = ts.createProgram(roots, OPTIONS, projectHost);
+  return ts.getPreEmitDiagnostics(program).map((d) => {
+    const where = d.file
+      ? `${path.relative(root, d.file.fileName)}:${d.file.getLineAndCharacterOfPosition(d.start ?? 0).line + 1}`
+      : 'project';
+    return `${where} ${ts.flattenDiagnosticMessageText(d.messageText, '\n')}`;
+  });
+}

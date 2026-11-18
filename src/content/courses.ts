@@ -289,6 +289,36 @@ export const COURSES: CourseInfo[] = [
     ],
     phase: 9,
   },
+
+  // ── Track: Build a real website with React ────────────────────────
+  {
+    id: 'minishop',
+    title: 'MiniShop',
+    badge: '🛒',
+    color: 'testing',
+    description:
+      'Grow a vanilla-JS cart into a deployed React and TypeScript shop: state, reducers, fetching, context, routing, a validated checkout, tests and deployment.',
+    lessons: [
+      'static-cart',
+      'add-to-cart',
+      'move-to-react',
+      'cart-state',
+      'cart-reducer',
+      'persistence',
+      'fetching',
+      'cart-context',
+      'typescript',
+      'routing',
+      'checkout',
+      'polish',
+      'test-minishop',
+      'deploy',
+      'whats-next',
+      'review',
+      'boss',
+    ],
+    phase: 10,
+  },
 ];
 
 export function getCourse(id: string | undefined): CourseInfo | undefined {

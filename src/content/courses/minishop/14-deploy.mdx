@@ -1,0 +1,351 @@
+---
+id: deploy
+title: "Step 14: Deploy to Vercel"
+summary: Put MiniShop on the internet. Build it, configure environment variables, add the SPA rewrite so every URL works, and get a preview deployment for every pull request.
+minutes: 30
+tags: [MiniShop, project, deploy, Vercel, build, vite build, environment variables, import.meta.env, SPA rewrites, preview deployments, CI]
+---
+
+MiniShop runs on your machine. Deploying it means three things: **building** it into plain files a server can send, **configuring** what differs between your laptop and production (like the API address), and telling the host how to answer for URLs that aren't files. Vercel is a host built for exactly this kind of app, with a free tier and one-click Git integration.
+
+<StepIntro
+  goal="MiniShop live on a public URL: every page works even after a refresh, the API address comes from the environment, and each pull request gets its own preview."
+  practice={[
+    ["Modules and the build", "/courses/modern-js/modules"],
+    ["React Router (why URLs need the server)", "/courses/react-ecosystem/react-router"],
+    ["End-to-end tests", "/courses/testing/playwright-e2e"],
+  ]}
+  tasks={[
+    "Run `npm run build` and look inside `dist/`: one `index.html` and hashed files in `assets/`.",
+    "Read the API base address from `import.meta.env.VITE_API_URL`, with a default for local development.",
+    "Add a `vercel.json` with a rewrite that sends every app route to `/index.html`.",
+    "Import the repository on vercel.com (or run `npx vercel`), and set `VITE_API_URL` in the project's settings.",
+    "Open a pull request and check its preview URL; merge it to deploy to production.",
+  ]}
+/>
+
+## 1. Build
+
+`npm run build` runs `tsc -b && vite build`: TypeScript checks every file (a type error stops the build), then Vite bundles, minifies and fingerprints the app:
+
+```text file=terminal
+$ npm run build
+
+> minishop@1.0.0 build
+> tsc -b && vite build
+
+vite v7 building for production...
+✓ 112 modules transformed.
+dist/index.html                   0.46 kB │ gzip:  0.30 kB
+dist/assets/index-B4xk1Qe8.css    1.21 kB │ gzip:  0.58 kB
+dist/assets/index-DqP3fG2a.js   212.40 kB │ gzip: 68.12 kB
+✓ built in 1.84s
+```
+
+The hash in each file name (`DqP3fG2a`) changes whenever the content changes. That lets the host tell browsers to cache `assets/` forever: a new version is a new file name. `npm run preview` serves `dist/` locally, so you can click through the real build before deploying it.
+
+## 2. Environment variables
+
+The API lives at `/api` on your machine but at `https://api.minishop.example` in production. Vite exposes environment variables that start with `VITE_` on `import.meta.env`, and **bakes their values into the bundle at build time**:
+
+```ts file=src/config.ts
+export const API_URL = (import.meta.env.VITE_API_URL ?? "/api").replace(/\/+$/, "");
+```
+
+```text file=.env.production
+VITE_API_URL=https://api.minishop.example
+```
+
+Because the value ends up inside the JavaScript that every visitor downloads, a `VITE_` variable must never hold a secret: no API keys for payment providers, no database passwords. Secrets live on the server only (you'll meet that again in "What's next").
+
+<Exercise
+  id="api-url"
+  title="Build API URLs from the environment"
+  hints={[
+    "Start from `env.VITE_API_URL ?? \"/api\"`, then remove trailing slashes with `.replace(/\\/+$/, \"\")`.",
+    "Make sure the path starts with exactly one slash: `path.startsWith(\"/\") ? path : \"/\" + path`.",
+  ]}
+>
+
+Write `apiUrl(env, path)`: it joins the API base (`env.VITE_API_URL`, or `/api` when it isn't set) with a path, always with exactly one `/` between them.
+
+```js starter
+function apiUrl(env, path) {
+  return env.VITE_API_URL + path;
+}
+
+console.log(apiUrl({}, "/products"));
+console.log(apiUrl({ VITE_API_URL: "https://api.minishop.example/" }, "products/2"));
+```
+
+```js tests
+test("defaults to /api", () => {
+  expect(apiUrl({}, "/products")).toBe("/api/products");
+});
+test("uses VITE_API_URL when it's set", () => {
+  expect(apiUrl({ VITE_API_URL: "https://api.minishop.example" }, "/products")).toBe(
+    "https://api.minishop.example/products",
+  );
+});
+test("never doubles or drops the slash", () => {
+  expect(apiUrl({ VITE_API_URL: "https://api.minishop.example/" }, "/products")).toBe(
+    "https://api.minishop.example/products",
+  );
+  expect(apiUrl({}, "products/2")).toBe("/api/products/2");
+});
+```
+
+```js solution
+function apiUrl(env, path) {
+  const base = (env.VITE_API_URL ?? "/api").replace(/\/+$/, "");
+  return base + (path.startsWith("/") ? path : "/" + path);
+}
+
+console.log(apiUrl({}, "/products"));
+console.log(apiUrl({ VITE_API_URL: "https://api.minishop.example/" }, "products/2"));
+```
+
+</Exercise>
+
+## 3. Rewrites: make every URL work
+
+Remember step 10: when someone opens `/products/2` directly, the **server** is asked for that path, and `dist/` has no such file. The fix is one rule in `vercel.json` at the root of the project:
+
+```json file=vercel.json
+{
+  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+}
+```
+
+Vercel always serves real files first, so `/assets/index-DqP3fG2a.js` still gets the JavaScript. Only paths that aren't files fall through to the rewrite and get `index.html`, where React Router reads the URL and shows the right page. (It's a **rewrite**, not a redirect: the address bar keeps `/products/2`.)
+
+<Exercise
+  id="spa-rewrite"
+  title="Which file does the host send?"
+  hints={[
+    "Real files win: `if (files.includes(path)) return path;`.",
+    "A missing path that looks like a file has a dot in its last segment: `/\\.[a-z0-9]+$/i.test(path)`. That's a real 404, not an app route.",
+    "Everything else is an app route: return `\"/index.html\"`.",
+  ]}
+>
+
+Write `servedFile(path, files)`, the logic a static host with an SPA rewrite follows. `files` lists what's in `dist/`. Return the path when it's a real file, `"404"` for a missing path that looks like a file (it has an extension, like `/logo.png`), and `"/index.html"` for anything else, so the app's router can handle it.
+
+```js starter
+const files = ["/index.html", "/assets/index-DqP3fG2a.js", "/favicon.svg"];
+
+function servedFile(path, files) {
+  return files.includes(path) ? path : "404";
+}
+
+console.log(servedFile("/products/2", files));
+```
+
+```js tests
+const files = ["/index.html", "/assets/index-DqP3fG2a.js", "/favicon.svg"];
+
+test("real files are sent as they are", () => {
+  expect(servedFile("/assets/index-DqP3fG2a.js", files)).toBe("/assets/index-DqP3fG2a.js");
+  expect(servedFile("/favicon.svg", files)).toBe("/favicon.svg");
+});
+test("app routes get index.html", () => {
+  expect(servedFile("/", files)).toBe("/index.html");
+  expect(servedFile("/products/2", files)).toBe("/index.html");
+  expect(servedFile("/checkout", files)).toBe("/index.html");
+});
+test("a missing file is a real 404", () => {
+  expect(servedFile("/logo.png", files)).toBe("404");
+  expect(servedFile("/assets/old-1234.js", files)).toBe("404");
+});
+```
+
+```js solution
+const files = ["/index.html", "/assets/index-DqP3fG2a.js", "/favicon.svg"];
+
+function servedFile(path, files) {
+  if (files.includes(path)) return path;
+  if (/\.[a-z0-9]+$/i.test(path)) return "404";
+  return "/index.html";
+}
+
+console.log(servedFile("/products/2", files));
+```
+
+</Exercise>
+
+## 4. Deploy, and preview every change
+
+The usual setup takes five minutes and then never needs touching:
+
+```bash file=terminal
+git push origin main          # your code on GitHub (or GitLab, Bitbucket)
+# On vercel.com: Add New → Project → import the repository.
+# Vercel detects Vite: build command "npm run build", output directory "dist".
+# Settings → Environment Variables: VITE_API_URL = https://api.minishop.example
+```
+
+From then on:
+
+- Every push to **`main`** builds and deploys to **production** (`minishop.vercel.app`, or your own domain).
+- Every **pull request** gets its own **preview deployment** with its own URL, posted as a comment on the PR. Reviewers click through the real change before it's merged, and your Playwright test can run against the preview URL in CI.
+- Every deployment is kept, so rolling back is one click: "Promote to Production" on an older one.
+
+Prefer the terminal? `npx vercel` deploys a preview from your folder, and `npx vercel --prod` deploys to production.
+
+<HowItWorks title="Why build-time variables are baked in">
+
+Your React code runs in the visitor's browser, which has no access to your server's environment. So Vite does the only thing it can: during `vite build`, it **replaces** `import.meta.env.VITE_API_URL` with the actual string, as if you'd typed it into the code.
+
+Two consequences follow. Changing a variable in Vercel's settings needs a **new build** to take effect (Vercel offers "Redeploy"). And anything in a `VITE_` variable is public: open DevTools on any Vite site, search the JavaScript, and there it is. That's fine for an API address; it's never fine for a secret key.
+
+</HowItWorks>
+
+<Practice>
+
+<OrderLines
+  id="order-deploy"
+  prompt="Order the steps from a new feature to production."
+  explain="Build and test locally, push a branch, review the preview deployment, then merge: production deploys from main."
+>
+
+```bash
+npm test && npm run build
+git push origin feature/wishlist
+# open a pull request; Vercel posts its preview URL
+# click through the preview, then merge the PR into main
+# Vercel builds main and deploys it to production
+```
+
+</OrderLines>
+
+<FillBlanks
+  id="blanks-vercel-json"
+  run="false"
+  prompt="Fill in the blanks so every app route on Vercel gets index.html."
+  explain="A rewrite keeps the URL and serves another file. Real files are matched first, so only app routes reach this rule."
+>
+
+```json
+{
+  "__[rewrites]__": [{ "source": "/(.*)", "destination": "__[/index.html]__" }]
+}
+```
+
+</FillBlanks>
+
+<SortBuckets
+  id="buckets-env"
+  prompt="Can each value go in a VITE_ environment variable?"
+  buckets={["Fine in VITE_", "Never in VITE_ (server only)"]}
+  items={[
+    ["The public API's base URL", 0],
+    ["The name of the shop shown in the header", 0],
+    ["A Stripe secret key", 1],
+    ["The database password", 1],
+    ["A feature flag that shows the wishlist", 0],
+  ]}
+  explain="Everything in a VITE_ variable ends up in the JavaScript every visitor downloads. Public settings are fine; secrets must stay on a server."
+/>
+
+</Practice>
+
+<TestExercise
+  id="test-served-file"
+  title="Test it: the rewrite rule"
+  hints={[
+    "Cover all three answers: a real file, an app route like `/products/2`, and a missing file like `/logo.png`.",
+    "One bug only breaks the home page `/`. Another only breaks real files inside `assets/`.",
+    "A missing **old** asset (`/assets/old-1234.js`) must be a 404, not `index.html`: serving HTML as JavaScript breaks the page in a confusing way.",
+  ]}
+>
+
+Write tests for `servedFile(path, files)`. They must pass on the correct version and catch every buggy one.
+
+```js code file=servedFile.js
+function servedFile(path, files) {
+  if (files.includes(path)) return path;
+  if (/\.[a-z0-9]+$/i.test(path)) return "404";
+  return "/index.html";
+}
+```
+
+```js starter
+const files = ["/index.html", "/assets/index-DqP3fG2a.js", "/favicon.svg"];
+
+test("an app route gets index.html", () => {
+  expect(servedFile("/products/2", files)).toBe("/index.html");
+});
+```
+
+```js bug title="Missing files get index.html" hint="Ask for /assets/old-1234.js, a file that isn't in the build."
+function servedFile(path, files) {
+  if (files.includes(path)) return path;
+  return "/index.html";
+}
+```
+
+```js bug title="The home page is a 404" hint="Ask for /."
+function servedFile(path, files) {
+  if (files.includes(path)) return path;
+  if (path === "/" || /\.[a-z0-9]+$/i.test(path)) return "404";
+  return "/index.html";
+}
+```
+
+```js bug title="Only top-level files are served" hint="Ask for a real file inside /assets/."
+function servedFile(path, files) {
+  if (files.includes(path) && path.split("/").length === 2) return path;
+  if (/\.[a-z0-9]+$/i.test(path)) return "404";
+  return "/index.html";
+}
+```
+
+```js solution
+const files = ["/index.html", "/assets/index-DqP3fG2a.js", "/favicon.svg"];
+
+test("real files are sent as they are", () => {
+  expect(servedFile("/assets/index-DqP3fG2a.js", files)).toBe("/assets/index-DqP3fG2a.js");
+  expect(servedFile("/favicon.svg", files)).toBe("/favicon.svg");
+});
+
+test("app routes, including /, get index.html", () => {
+  expect(servedFile("/", files)).toBe("/index.html");
+  expect(servedFile("/products/2", files)).toBe("/index.html");
+});
+
+test("missing files are a 404", () => {
+  expect(servedFile("/assets/old-1234.js", files)).toBe("404");
+  expect(servedFile("/logo.png", files)).toBe("404");
+});
+```
+
+</TestExercise>
+
+<Quiz
+  questions={[
+    {
+      q: "Without the rewrite, what happens when someone refreshes on `/products/2`?",
+      options: ["React Router handles it", "The host looks for a file called products/2, finds none, and answers 404", "It redirects to /", "The browser caches the page"],
+      answer: 1,
+      explain: "The refresh goes to the server before any of your JavaScript runs.",
+    },
+    {
+      q: "Where should a Stripe **secret** key go?",
+      options: ["In `VITE_STRIPE_KEY`", "In the source code", "Only on a server (for example a serverless function's environment), never in the browser bundle", "In localStorage"],
+      answer: 2,
+      explain: "VITE_ variables are baked into the public JavaScript.",
+    },
+    {
+      q: "What is a preview deployment?",
+      options: ["A screenshot of the site", "A full, live deployment of a branch or pull request on its own URL", "The production site with a banner", "A local build"],
+      answer: 1,
+      explain: "Reviewers try the real change before it's merged.",
+    },
+    {
+      q: "Why do the built files have hashes like `index-DqP3fG2a.js`?",
+      options: ["For security", "So they can be cached forever: new content means a new name", "Vercel requires it", "To hide the code"],
+      answer: 1,
+      explain: "Old names never change content, so browsers can keep them; a deploy simply points `index.html` at new names.",
+    },
+  ]}
+/>
