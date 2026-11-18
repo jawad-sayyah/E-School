@@ -1,4 +1,5 @@
-import { motion, useReducedMotion } from 'motion/react';
+import { m, useReducedMotion } from 'motion/react';
+import { useEntranceAllowed } from '@/lib/entrance';
 import { AwardIcon, FlameIcon, LockIcon, ZapIcon } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
@@ -71,14 +72,15 @@ export function StatsRow() {
 export function BadgeGrid() {
   const { badges } = useGamification();
   const reduce = useReducedMotion();
+  const entrance = useEntranceAllowed();
   return (
     <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
       {badges.map((b, i) => {
         const Icon = BADGE_ICONS[b.icon];
         return (
-          <motion.li
+          <m.li
             key={b.id}
-            initial={reduce ? false : { opacity: 0, y: 6 }}
+            initial={reduce || !entrance ? false : { opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: Math.min(i * 0.03, 0.4) }}
             className={cn(
@@ -103,7 +105,7 @@ export function BadgeGrid() {
               <span className="block text-xs text-muted-foreground">{b.description}</span>
               <span className="sr-only">{b.isEarned ? '(earned)' : '(not earned yet)'}</span>
             </span>
-          </motion.li>
+          </m.li>
         );
       })}
     </ul>

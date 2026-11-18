@@ -1,5 +1,5 @@
 import { useId, useState, type ReactNode } from 'react';
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import { AnimatePresence, m, useReducedMotion } from 'motion/react';
 import { ChevronDownIcon, CogIcon, MicroscopeIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -35,7 +35,7 @@ export function GoDeeper({ title, children }: { title: string; children?: ReactN
       </button>
       <AnimatePresence initial={false}>
         {open && (
-          <motion.div
+          <m.div
             id={contentId}
             key="content"
             initial={reduce ? false : { height: 0, opacity: 0 }}
@@ -44,7 +44,7 @@ export function GoDeeper({ title, children }: { title: string; children?: ReactN
             transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
           >
             <div className="border-t border-border px-4 pt-1 pb-4">{children}</div>
-          </motion.div>
+          </m.div>
         )}
       </AnimatePresence>
     </div>

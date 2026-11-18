@@ -1,4 +1,5 @@
-import { lazy, Suspense, useState, type ReactNode } from 'react';
+import { lazy, useState, type ReactNode } from 'react';
+import { ClientOnly } from '@/components/ClientOnly';
 import { Link } from 'react-router';
 import { BookOpenIcon, EyeIcon, ListTodoIcon, TargetIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -6,6 +7,7 @@ import { Card } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { TextWithCode } from '@/components/InlineCode';
 import { filesFrom } from '@/components/react/specs';
+import { useHydrated } from '@/hooks/useHydrated';
 import { cn } from '@/lib/utils';
 import { getCodeBlocks } from './codeBlocks';
 import { useLessonRef } from './LessonContext';
@@ -50,7 +52,10 @@ function writeTicks(key: string, ticks: boolean[]) {
 export function StepIntro({ goal, practice = [], tasks, previewFiles }: StepIntroProps) {
   const lesson = useLessonRef();
   const storageKey = `e-school:tasks:${lesson.course}/${lesson.lesson}`;
-  const [ticks, setTicks] = useState(() => readTicks(storageKey));
+  const hydrated = useHydrated();
+  // Saved ticks are read once the page is hydrated (the prerendered HTML shows none).
+  const [picked, setTicks] = useState<boolean[] | null>(null);
+  const ticks = picked ?? (hydrated ? readTicks(storageKey) : []);
   const [showPreview, setShowPreview] = useState(false);
   const done = tasks.filter((_, i) => ticks[i]).length;
 
@@ -81,9 +86,11 @@ export function StepIntro({ goal, practice = [], tasks, previewFiles }: StepIntr
                 <p className="border-b border-ed-line px-3 py-1.5 text-xs font-semibold tracking-wide text-faint uppercase">
                   The finished step
                 </p>
-                <Suspense fallback={<p className="p-4 text-sm text-faint">Loading the preview…</p>}>
+                <ClientOnly
+                  fallback={<p className="p-4 text-sm text-faint">Loading the preview…</p>}
+                >
                   <LiveTarget files={previewFiles} />
-                </Suspense>
+                </ClientOnly>
               </div>
             ) : (
               <Button variant="outline" size="sm" onClick={() => setShowPreview(true)}>

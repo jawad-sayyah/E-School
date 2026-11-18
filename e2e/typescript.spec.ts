@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 
 /* Monaco loads from a CDN, so these tests need the network. Set OFFLINE=1 to skip them. */
 test.skip(Boolean(process.env.OFFLINE), 'Monaco needs the network');

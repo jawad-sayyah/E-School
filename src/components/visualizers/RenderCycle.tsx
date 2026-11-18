@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { motion, useReducedMotion } from 'motion/react';
+import { m, useReducedMotion } from 'motion/react';
 import { EditorFrame } from '@/editor/EditorFrame';
 import { getCodeBlocks } from '@/components/mdx/codeBlocks';
 import { TextWithCode } from '@/components/InlineCode';
@@ -102,7 +102,7 @@ export function RenderCycle({
                 {(frame?.tree ?? []).map((node) => {
                   const status = node.status ? STATUS[node.status] : undefined;
                   return (
-                    <motion.li
+                    <m.li
                       key={node.name}
                       layout={!reduce}
                       style={{ marginLeft: node.depth * 18 }}
@@ -120,7 +120,7 @@ export function RenderCycle({
                           {status.label}
                         </span>
                       )}
-                    </motion.li>
+                    </m.li>
                   );
                 })}
               </ul>

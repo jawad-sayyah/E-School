@@ -460,5 +460,5 @@ It ends with a "What's next" page: a real backend, authentication and payments.
 **Phase 10 — Build a real website with React** ✅
 - All MiniShop steps through deployment, with checks, "Test it" tasks and solutions.
 
-**Phase 11 — Polish**
+**Phase 11 — Polish** ✅
 - Responsive pass, accessibility, Lighthouse, animations review, README and deploy configuration.

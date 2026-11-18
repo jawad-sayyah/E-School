@@ -44,7 +44,8 @@ export function DocsLayout({
             variant="ghost"
             size="sm"
             onClick={() => setDrawerOpen(true)}
-            aria-label={drawerButtonLabel}
+            // Starts with the visible text, so voice control users can say what they see.
+            aria-label={`${drawerLabel}: ${drawerButtonLabel}`}
           >
             <PanelLeftIcon aria-hidden />
             {drawerLabel}

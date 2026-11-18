@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import { AnimatePresence, m, useReducedMotion } from 'motion/react';
 import { ArrowRightIcon } from 'lucide-react';
 import { TOKEN_CLASS, VALUE_CLASS, tokenize, tokenizeValue } from '@/editor/highlight';
 import { TextWithCode } from '@/components/InlineCode';
@@ -87,7 +87,7 @@ export function StepNote({ step, note }: { step: number; note?: string }) {
   return (
     <AnimatePresence mode="wait" initial={false}>
       {note && (
-        <motion.figcaption
+        <m.figcaption
           key={step}
           initial={reduce ? false : { opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -97,7 +97,7 @@ export function StepNote({ step, note }: { step: number; note?: string }) {
           aria-live="polite"
         >
           <TextWithCode text={note} />
-        </motion.figcaption>
+        </m.figcaption>
       )}
     </AnimatePresence>
   );

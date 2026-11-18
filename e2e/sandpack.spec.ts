@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 
 /*
  * Sandpack runs the React code in CodeSandbox's in-browser bundler, so these tests

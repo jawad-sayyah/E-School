@@ -6,7 +6,7 @@ export function InlineCode({ className, ...props }: ComponentProps<'code'>) {
   return (
     <code
       className={cn(
-        'rounded-[5px] border border-border bg-muted px-1.5 py-px font-mono text-[0.88em] font-medium',
+        'rounded-[5px] border border-border bg-muted px-1.5 py-px font-mono text-[0.88em] font-medium [overflow-wrap:anywhere]',
         className,
       )}
       {...props}

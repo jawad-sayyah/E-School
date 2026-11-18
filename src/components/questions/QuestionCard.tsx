@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import { AnimatePresence, m, useReducedMotion } from 'motion/react';
 import { CheckIcon, EyeIcon, LightbulbIcon, RotateCcwIcon, SparklesIcon } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -79,7 +79,7 @@ export function QuestionCard({
         <div aria-live="polite">
           <AnimatePresence mode="wait" initial={false}>
             {q.status !== 'idle' && (
-              <motion.div
+              <m.div
                 key={q.status + q.attempts}
                 initial={reduce ? false : { opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -97,14 +97,14 @@ export function QuestionCard({
                   {q.status === 'wrong' && <span className="text-danger">Not yet.</span>}
                   {q.status === 'revealed' && <span>Here’s the answer.</span>}
                   {q.status === 'correct' && q.xpEarned > 0 && (
-                    <motion.span
+                    <m.span
                       initial={reduce ? false : { scale: 0.6, opacity: 0 }}
                       animate={{ scale: 1, opacity: 1 }}
                       transition={{ type: 'spring', stiffness: 500, damping: 18 }}
                       className="ml-auto inline-flex items-center gap-1 rounded-full bg-js px-2 py-0.5 text-xs font-bold text-on-light"
                     >
                       <SparklesIcon aria-hidden className="size-3" />+{q.xpEarned} XP
-                    </motion.span>
+                    </m.span>
                   )}
                 </div>
                 {q.status === 'wrong' && (
@@ -131,7 +131,7 @@ export function QuestionCard({
                 {answered && explain && (
                   <div className="text-muted-foreground [&_p]:my-0">{renderText(explain)}</div>
                 )}
-              </motion.div>
+              </m.div>
             )}
           </AnimatePresence>
         </div>

@@ -1,4 +1,5 @@
-import { lazy, Suspense, useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { lazy, useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { ClientOnly } from '@/components/ClientOnly';
 import {
   CheckIcon,
   CircleCheckIcon,
@@ -222,7 +223,7 @@ export function TSExercise({
             </>
           }
         >
-          <Suspense
+          <ClientOnly
             fallback={
               <CodeEditor
                 value={code}
@@ -242,7 +243,7 @@ export function TSExercise({
               onRun={() => void runChecks()}
               onProblems={setProblems}
             />
-          </Suspense>
+          </ClientOnly>
           <Problems problems={problems} />
           <div className="border-t border-ed-line bg-con-bg">
             <div className="flex h-8 items-center gap-2 border-b border-ed-bg px-3.5 text-[11px] font-semibold tracking-[0.06em] text-ed-gutter uppercase">

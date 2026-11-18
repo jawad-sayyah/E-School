@@ -1,4 +1,5 @@
-import { lazy, Suspense, useState, type ReactNode } from 'react';
+import { lazy, useState, type ReactNode } from 'react';
+import { ClientOnly } from '@/components/ClientOnly';
 import {
   CheckIcon,
   CircleCheckIcon,
@@ -141,15 +142,15 @@ export function ReactExercise({
               Target: make yours look and work like this
             </p>
             <div className="overflow-hidden rounded-xl border border-ed-line">
-              <Suspense fallback={<p className="p-4 text-sm text-faint">Loading the target…</p>}>
+              <ClientOnly fallback={<p className="p-4 text-sm text-faint">Loading the target…</p>}>
                 <LiveTarget files={{ ...starter, ...solution }} />
-              </Suspense>
+              </ClientOnly>
             </div>
           </div>
         )}
 
         <div className="overflow-hidden rounded-xl border border-ed-line">
-          <Suspense
+          <ClientOnly
             fallback={<SandpackFallback files={files} note="Loading the live editor and tests…" />}
           >
             <LiveExercise
@@ -161,7 +162,7 @@ export function ReactExercise({
               activeFile={Object.keys(files)[0]}
               onResult={onResult}
             />
-          </Suspense>
+          </ClientOnly>
         </div>
 
         <p

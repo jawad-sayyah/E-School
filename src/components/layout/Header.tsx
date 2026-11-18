@@ -25,11 +25,7 @@ const NAV = [
 
 export function Logo() {
   return (
-    <Link
-      to="/"
-      className="flex shrink-0 items-center gap-2.5 rounded-md"
-      aria-label="E School home"
-    >
+    <Link to="/" className="flex shrink-0 items-center gap-2.5 rounded-md">
       <span
         aria-hidden="true"
         className="grid size-8 place-items-center rounded-lg bg-js font-mono text-[13px] font-bold text-on-light"

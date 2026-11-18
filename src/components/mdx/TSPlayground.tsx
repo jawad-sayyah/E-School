@@ -1,4 +1,5 @@
-import { lazy, Suspense, useId, useState, type ReactNode } from 'react';
+import { lazy, useId, useState, type ReactNode } from 'react';
+import { ClientOnly } from '@/components/ClientOnly';
 import { PlayIcon, RotateCcwIcon } from 'lucide-react';
 import { RUNNER_MESSAGES } from '@/runner';
 import { CodeEditor } from '@/editor/CodeEditor';
@@ -95,7 +96,7 @@ export function TSPlayground({
         </>
       }
     >
-      <Suspense
+      <ClientOnly
         fallback={
           <CodeEditor value={code} onChange={() => undefined} label={`Code: ${file}`} readOnly />
         }
@@ -109,7 +110,7 @@ export function TSPlayground({
           onRun={() => void runIt()}
           onProblems={setProblems}
         />
-      </Suspense>
+      </ClientOnly>
       <Problems problems={problems} />
       {!checkOnly && (
         <ConsoleView

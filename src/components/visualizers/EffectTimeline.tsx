@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import { AnimatePresence, m, useReducedMotion } from 'motion/react';
 import { EditorFrame } from '@/editor/EditorFrame';
 import { getCodeBlocks } from '@/components/mdx/codeBlocks';
 import { TextWithCode } from '@/components/InlineCode';
@@ -167,7 +167,7 @@ export function EffectTimeline({
               <ol className="space-y-1" aria-label="What has happened so far">
                 <AnimatePresence initial={false}>
                   {timeline.map((t, i) => (
-                    <motion.li
+                    <m.li
                       key={`${i}-${t.log}`}
                       initial={reduce ? false : { opacity: 0, x: -6 }}
                       animate={{ opacity: 1, x: 0 }}
@@ -178,7 +178,7 @@ export function EffectTimeline({
                         className={cn('size-2 shrink-0 rounded-full', DOT[t.stage])}
                       />
                       <TextWithCode text={t.log} />
-                    </motion.li>
+                    </m.li>
                   ))}
                 </AnimatePresence>
                 {timeline.length === 0 && (

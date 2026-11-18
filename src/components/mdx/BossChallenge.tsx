@@ -1,5 +1,5 @@
 import { Children, isValidElement, useEffect, type ReactNode } from 'react';
-import { motion, useReducedMotion } from 'motion/react';
+import { m, useReducedMotion } from 'motion/react';
 import { SwordsIcon, TrophyIcon } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { useProgress, useProgressStore } from '@/progress/ProgressContext';
@@ -76,7 +76,7 @@ export function BossChallenge({ children }: { children?: ReactNode }) {
       {children}
 
       {won && (
-        <motion.div
+        <m.div
           role="status"
           initial={reduce ? false : { opacity: 0, scale: 0.95, y: 10 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -92,7 +92,7 @@ export function BossChallenge({ children }: { children?: ReactNode }) {
               The lesson is complete. Finish every lesson in the track to unlock your certificate.
             </p>
           </div>
-        </motion.div>
+        </m.div>
       )}
     </section>
   );

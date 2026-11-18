@@ -24,6 +24,7 @@
     "src/search/extract.ts",
     "src/lib/slug.ts",
     "src/content/types.ts",
+    "src/content/courses.ts",
     "src/content/reference/parse.ts"
   ]
 }

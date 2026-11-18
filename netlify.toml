@@ -5,8 +5,15 @@
 [build.environment]
   NODE_VERSION = "22"
 
-# Single-page app: every route is served by index.html.
+# Every page is prerendered to its own .html file (Netlify serves /courses/react at
+# courses/react.html). Anything else gets the empty app shell, and the app shows its 404.
 [[redirects]]
   from = "/*"
-  to = "/index.html"
+  to = "/app.html"
   status = 200
+
+# Built files have content hashes in their names, so they can be cached forever.
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"

@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import { motion, useReducedMotion } from 'motion/react';
+import { m, useReducedMotion } from 'motion/react';
 import { TextWithCode } from '@/components/InlineCode';
 import { checkMatch } from '@/questions/check';
 import { shuffledIndexes } from '@/questions/shuffle';
@@ -114,7 +114,7 @@ export function MatchPairs({
           <ul className="space-y-2">
             {pairs.map(([left], i) => (
               <li key={i}>
-                <motion.button
+                <m.button
                   type="button"
                   layout={!reduce}
                   onClick={() => pickLeft(i)}
@@ -142,7 +142,7 @@ export function MatchPairs({
                       {marks[i] ? '✓' : '✗'}
                     </span>
                   )}
-                </motion.button>
+                </m.button>
               </li>
             ))}
           </ul>
@@ -156,7 +156,7 @@ export function MatchPairs({
               const owner = pairOfRight(r);
               return (
                 <li key={r}>
-                  <motion.button
+                  <m.button
                     type="button"
                     layout={!reduce}
                     onClick={() => pickRight(r)}
@@ -175,7 +175,7 @@ export function MatchPairs({
                     <span className="flex-1">
                       <TextWithCode text={pairs[r][1]} />
                     </span>
-                  </motion.button>
+                  </m.button>
                 </li>
               );
             })}

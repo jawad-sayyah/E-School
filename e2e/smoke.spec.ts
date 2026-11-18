@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 
 const GET_TOTAL = `function getTotal(cart) {
   return cart.reduce((sum, item) => sum + item.price * item.qty, 0);
@@ -93,7 +93,7 @@ test.describe('on a phone', () => {
   test('the lesson list opens as a drawer', async ({ page }) => {
     await page.goto('/courses/js-basics/functions');
     await expect(page.getByRole('heading', { level: 1, name: 'Functions' })).toBeVisible();
-    await page.getByRole('button', { name: 'Open the lesson list' }).click();
+    await page.getByRole('button', { name: /Open the lesson list/ }).click();
     const drawer = page.getByRole('dialog');
     await expect(drawer.getByRole('link', { name: /Loops/ })).toBeVisible();
     await drawer.getByRole('link', { name: /Strings/ }).click();

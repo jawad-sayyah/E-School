@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 
 /* Sandpack needs the network. Set OFFLINE=1 to skip. */
 test.skip(Boolean(process.env.OFFLINE), 'Sandpack needs the network');

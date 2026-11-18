@@ -90,7 +90,7 @@
   --color-syn-num: #f78c6c;
   --color-syn-tag: #f07178;
   --color-syn-type: #ffcb6b;
-  --color-syn-cm: #7f86a8;
+  --color-syn-cm: #8b92b4; /* 4.9:1 on the editor background */
 
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
@@ -205,6 +205,8 @@
   h3,
   h4 {
     @apply font-heading;
+    /* Long API names (useSyncExternalStore) must wrap on a 320px phone. */
+    overflow-wrap: break-word;
   }
   /* JetBrains Mono would draw === as ≡ and => as ⇒: beginners must see the real characters. */
   code,
@@ -224,5 +226,23 @@
     html {
       scroll-behavior: auto;
     }
+  }
+}
+
+
+/*
+ * The visitor asked their system for less motion: no smooth scrolling, and CSS animations and
+ * transitions finish at once (Motion animations follow MotionConfig reducedMotion="user").
+ */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

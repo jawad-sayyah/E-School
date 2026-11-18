@@ -1,4 +1,5 @@
-import { lazy, Suspense, useState, type ReactNode } from 'react';
+import { lazy, useState, type ReactNode } from 'react';
+import { ClientOnly } from '@/components/ClientOnly';
 import {
   BugIcon,
   CheckIcon,
@@ -127,7 +128,7 @@ export function ReactTestExercise({ id, title, hints = [], children }: ReactTest
       </CardHeader>
       <CardContent className="space-y-4 py-4">
         <div className="overflow-hidden rounded-xl border border-ed-line">
-          <Suspense
+          <ClientOnly
             fallback={
               <SandpackFallback
                 files={{ [testFile]: tests, ...codeFiles }}
@@ -143,7 +144,7 @@ export function ReactTestExercise({ id, title, hints = [], children }: ReactTest
               version={version}
               onResult={onResult}
             />
-          </Suspense>
+          </ClientOnly>
         </div>
         <p className="text-xs text-faint">
           The test panel also runs your tests against hidden buggy copies (check-1, check-2…).

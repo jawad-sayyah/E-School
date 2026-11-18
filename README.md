@@ -22,7 +22,7 @@ npm run dev          # http://localhost:5173
 | Command | What it does |
 | --- | --- |
 | `npm run dev` | Dev server with hot reload |
-| `npm run build` | Type-check and build to `dist/` |
+| `npm run build` | Type-check, build to `dist/`, and prerender every page to static HTML |
 | `npm run preview` | Serve the production build |
 | `npm test` | Unit tests (runner, checker, progress, search, every lesson's examples, and every React exercise solution and playground) |
 | `npm run test:e2e` | Playwright smoke tests against the production build (set `OFFLINE=1` to skip the Sandpack ones, which need the network) |
@@ -45,7 +45,9 @@ src/
   progress/                    ProgressStore interface + localStorage implementation
   search/                      build-time index extraction + MiniSearch
   pages/                       one file per route
-plugins/                       Vite plugins: code-fence → <CodeBlock>, lesson metadata + search index
+plugins/                       Vite plugins: code-fence → <CodeBlock>, lesson metadata + search index,
+                               font-display, the preview server's 404 fallback
+src/entry-server.tsx           renders one URL to HTML at build time (scripts/prerender.mjs)
 e2e/                           Playwright smoke tests
 ```
 
@@ -277,9 +279,32 @@ Flags: `react` (Used in React badge), `warn` (Watch out badge), `static` (needs 
 
 Components only talk to the `ProgressStore` interface (`src/progress/ProgressStore.ts`). The app uses `LocalProgressStore` (localStorage, wrapped in try/catch so blocked storage never breaks the page). To move to a backend, write another class that implements the interface, load its snapshot, call the subscribers, and pass it to `<ProgressProvider>` in `src/main.tsx`.
 
+## Prerendering and performance
+
+`npm run build` builds the app, then builds `src/entry-server.tsx` for Node and runs `scripts/prerender.mjs`, which renders every page (home, tracks, courses, all lessons, about 176 pages) to its own HTML file with its title and description, and the CSS inlined. The browser shows that HTML at once, and React **hydrates** it (`hydrateRoot` in `src/main.tsx`) once the page's code and lesson have loaded.
+
+Hydration needs the first browser render to match the HTML exactly, so:
+
+- Anything read from the browser during render (saved progress, the theme, MiniShop task ticks, the certificate name, dates) waits for `useHydrated()`; the prerendered HTML always shows a new visitor's view. `useProgress()` returns empty progress while hydrating.
+- Browser-only islands (Sandpack, Monaco) are wrapped in `<ClientOnly fallback>`: the HTML holds the fallback (the code), and the editor loads in the browser.
+- Entrance animations are off for the first render (`useEntranceAllowed`), so prerendered text is never hidden.
+- A page that throws while prerendering fails the build. `e2e/hydration.spec.ts` fails on any hydration mismatch, for new and returning visitors.
+
+Fonts use `font-display: optional` (no late reflow), Motion's animation engine loads after the first paint (`LazyMotion`), and toasts load lazily.
+
+Lighthouse (local production build, mobile = Moto G with 4x CPU and slow 4G):
+
+| Page | Desktop | Mobile | Accessibility |
+| --- | --- | --- | --- |
+| Home | 99 | 93 (applied throttling) | 100 |
+| Lesson (`/courses/js-basics/variables`) | 97 | ~73 | 96+ |
+
+On mobile, lessons paint fast (first paint ~1.1 s, largest paint ~2 s, no layout shift) but score lower on Total Blocking Time: laying out and hydrating a long lesson on a 4x-slowed CPU. Splitting lessons or hydrating below-the-fold sections lazily is the next step if that matters. (Measure with real throttling, `--throttling-method=devtools`: Lighthouse's default simulation misjudges prerendered pages served from localhost.)
+
 ## Deploy
 
-It's a static site: `npm run build` writes `dist/`. Every route must serve `index.html`; the configs for that are already in the repo.
+It's a static site: `npm run build` writes `dist/`: one HTML file per page, plus `app.html`, an empty app shell for any other URL (the app shows its 404). The configs are in the repo.
 
-- **Vercel:** import the repository. `vercel.json` sets the build and the SPA rewrite.
-- **Netlify:** import the repository. `netlify.toml` sets the build, Node 22 and the SPA redirect.
+- **Vercel:** import the repository. `vercel.json` sets the build, `cleanUrls` (so `/courses/react` serves `courses/react.html`), the fallback rewrite to `/app.html`, and long-term caching for the hashed files in `assets/`.
+- **Netlify:** import the repository. `netlify.toml` sets the build, Node 22, the fallback to `/app.html` and the same caching (Netlify serves `.html` files at clean URLs by default).
+- Anywhere else: serve `dist/`, map `/path` to `/path.html` when that file exists, and fall back to `/app.html`.

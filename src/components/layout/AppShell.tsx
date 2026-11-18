@@ -1,10 +1,19 @@
+import { lazy, Suspense } from 'react';
 import { Outlet, ScrollRestoration } from 'react-router';
 import { SearchProvider } from '@/components/search/SearchContext';
 import { scrollKey } from '@/lib/scrollKey';
-import { GamificationNotifier } from '@/components/gamification/GamificationNotifier';
+import { useHydrated } from '@/hooks/useHydrated';
 import { Header } from './Header';
 
+// Toasts (sonner) aren't needed for the first paint: load them after it.
+const GamificationNotifier = lazy(() =>
+  import('@/components/gamification/GamificationNotifier').then((m) => ({
+    default: m.GamificationNotifier,
+  })),
+);
+
 export function AppShell() {
+  const hydrated = useHydrated();
   return (
     <SearchProvider>
       <div className="min-h-screen bg-background">
@@ -16,8 +25,10 @@ export function AppShell() {
         </a>
         <Header />
         <Outlet />
-        <ScrollRestoration getKey={scrollKey} />
-        <GamificationNotifier />
+        {hydrated && <ScrollRestoration getKey={scrollKey} />}
+        <Suspense fallback={null}>
+          <GamificationNotifier />
+        </Suspense>
       </div>
     </SearchProvider>
   );

@@ -36,6 +36,17 @@ export function getAdjacentLessons(courseId: string, lessonId: string) {
   };
 }
 
+/** One promise per lesson file, so React's use() can suspend on it (and main.tsx can preload it). */
+const lessonPromises = new Map<string, Promise<LessonModule>>();
+export function lessonPromise(meta: LessonMeta): Promise<LessonModule> {
+  let promise = lessonPromises.get(meta.file);
+  if (!promise) {
+    promise = loadLesson(meta);
+    lessonPromises.set(meta.file, promise);
+  }
+  return promise;
+}
+
 export function loadLesson(meta: LessonMeta): Promise<LessonModule> {
   const load = loaders[meta.file];
   if (!load) return Promise.reject(new Error(`No lesson file for ${meta.file}`));

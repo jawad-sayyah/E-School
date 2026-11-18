@@ -71,7 +71,6 @@ export function SpotTheBug({
                     setPicked(n);
                   }}
                   aria-pressed={picked === n}
-                  aria-label={`Line ${n}: ${line.trim() || 'empty'}`}
                   className={cn(
                     'flex w-full items-stretch text-left text-ed-text transition-colors hover:bg-ed-hover focus-visible:bg-ed-hover focus-visible:outline-none disabled:hover:bg-transparent',
                     picked === n && q.status === 'idle' && 'bg-syn-fn/15',
@@ -80,6 +79,7 @@ export function SpotTheBug({
                   )}
                 >
                   <span className="w-11 shrink-0 border-r border-ed-line pr-3 text-right text-ed-gutter select-none">
+                    <span className="sr-only">Line </span>
                     {n}
                   </span>
                   <code className="flex-1 overflow-x-auto px-4 whitespace-pre">

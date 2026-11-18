@@ -1,4 +1,5 @@
-import { lazy, Suspense, type ReactNode } from 'react';
+import { lazy, type ReactNode } from 'react';
+import { ClientOnly } from '@/components/ClientOnly';
 import { AtomIcon } from 'lucide-react';
 import { CodeView } from '@/components/questions/CodeView';
 import { fileName } from '@/components/react/specs';
@@ -49,7 +50,7 @@ export function ReactPlayground({
   const activeFile = blocks[0] ? fileName(blocks[0], fallbackFile) : fallbackFile;
   return (
     <div className="my-5 overflow-hidden rounded-xl border border-ed-line">
-      <Suspense fallback={<SandpackFallback files={files} note="Loading the live editor…" />}>
+      <ClientOnly fallback={<SandpackFallback files={files} note="Loading the live editor…" />}>
         <LivePlayground
           template={template}
           files={files}
@@ -57,7 +58,7 @@ export function ReactPlayground({
           height={height}
           showConsole={showConsole}
         />
-      </Suspense>
+      </ClientOnly>
     </div>
   );
 }

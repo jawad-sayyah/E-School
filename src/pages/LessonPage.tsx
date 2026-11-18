@@ -10,12 +10,7 @@ import { OnThisPage, type TocItem } from '@/components/layout/OnThisPage';
 import { LessonContext } from '@/components/mdx/LessonContext';
 import { mdxComponents } from '@/components/mdx/mdxComponents';
 import { getCourse } from '@/content/courses';
-import {
-  getAdjacentLessons,
-  getLessonMeta,
-  loadLesson,
-  type LessonModule,
-} from '@/content/lessons';
+import { getAdjacentLessons, getLessonMeta, lessonPromise } from '@/content/lessons';
 import type { LessonMeta } from '@/content/types';
 import { useProgress, useProgressStore } from '@/progress/ProgressContext';
 import { lessonKey } from '@/progress/ProgressStore';
@@ -23,17 +18,6 @@ import { scrollToHash } from '@/hooks/scrollToHash';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 import { cn } from '@/lib/utils';
 import NotFoundPage from './NotFoundPage';
-
-/** One promise per lesson file, so React's use() can suspend on it. */
-const lessonPromises = new Map<string, Promise<LessonModule>>();
-function lessonPromise(meta: LessonMeta) {
-  let promise = lessonPromises.get(meta.file);
-  if (!promise) {
-    promise = loadLesson(meta);
-    lessonPromises.set(meta.file, promise);
-  }
-  return promise;
-}
 
 function LessonBody({
   meta,
@@ -58,7 +42,7 @@ function LessonBody({
   }, [hash]);
 
   return (
-    <div ref={ref}>
+    <div ref={ref} className="lesson-body">
       <Content components={mdxComponents} />
     </div>
   );

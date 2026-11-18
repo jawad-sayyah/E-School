@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 
 /*
  * Opt-in: runs React exercise solutions inside real Sandpack (its test runner differs

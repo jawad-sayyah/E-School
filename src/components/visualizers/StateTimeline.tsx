@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import { AnimatePresence, m, useReducedMotion } from 'motion/react';
 import { LockIcon } from 'lucide-react';
 import { EditorFrame } from '@/editor/EditorFrame';
 import { getCodeBlocks } from '@/components/mdx/codeBlocks';
@@ -88,13 +88,13 @@ export function StateTimeline({
                     >
                       <span className="text-ed-text">{name}</span>
                       <span className="text-ed-gutter">=</span>
-                      <motion.span
+                      <m.span
                         key={`${frame?.render}-${value}`}
                         initial={reduce ? false : { opacity: 0, y: -4 }}
                         animate={{ opacity: 1, y: 0 }}
                       >
                         <Value text={value} />
-                      </motion.span>
+                      </m.span>
                     </li>
                   ))}
                 </ul>
@@ -108,7 +108,7 @@ export function StateTimeline({
                 <ol className="space-y-1">
                   <AnimatePresence initial={false}>
                     {queue.map((q, i) => (
-                      <motion.li
+                      <m.li
                         key={`${i}-${q.update}`}
                         initial={reduce ? false : { opacity: 0, x: -8 }}
                         animate={{ opacity: 1, x: 0 }}
@@ -118,7 +118,7 @@ export function StateTimeline({
                         <span className="text-ed-gutter">{i + 1}. </span>
                         {q.update}
                         {q.result && <span className="text-ed-text"> → {q.result}</span>}
-                      </motion.li>
+                      </m.li>
                     ))}
                   </AnimatePresence>
                   {queue.length === 0 && <li className="text-xs text-ed-gutter italic">empty</li>}

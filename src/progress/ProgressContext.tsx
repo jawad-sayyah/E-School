@@ -1,5 +1,5 @@
 import { createContext, use, useSyncExternalStore, type ReactNode } from 'react';
-import type { ProgressSnapshot, ProgressStore } from './ProgressStore';
+import { EMPTY_PROGRESS, type ProgressSnapshot, type ProgressStore } from './ProgressStore';
 
 const ProgressContext = createContext<ProgressStore | null>(null);
 
@@ -22,5 +22,6 @@ export function useProgressStore(): ProgressStore {
 /** The current progress snapshot; re-renders whenever progress changes. */
 export function useProgress(): ProgressSnapshot {
   const store = useProgressStore();
-  return useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
+  // Prerendered pages show a new visitor's view; saved progress appears right after hydration.
+  return useSyncExternalStore(store.subscribe, store.getSnapshot, () => EMPTY_PROGRESS);
 }

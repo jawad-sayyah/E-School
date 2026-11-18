@@ -9,6 +9,8 @@ import remarkMdxFrontmatter from 'remark-mdx-frontmatter';
 import remarkGfm from 'remark-gfm';
 import { remarkCodeBlocks } from './plugins/remark-code-blocks.ts';
 import { contentPlugin } from './plugins/content-plugin.ts';
+import { previewFallback } from './plugins/preview-fallback.ts';
+import { fontDisplayOptional } from './plugins/font-display.ts';
 
 export default defineConfig({
   plugins: [
@@ -21,6 +23,8 @@ export default defineConfig({
     react({ include: /\.(mdx|js|jsx|ts|tsx)$/ }),
     tailwindcss(),
     contentPlugin(),
+    previewFallback(),
+    fontDisplayOptional(),
   ],
   resolve: {
     alias: { '@': path.resolve(import.meta.dirname, './src') },

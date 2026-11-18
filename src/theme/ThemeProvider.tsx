@@ -1,4 +1,5 @@
 import { createContext, use, useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useHydrated } from '@/hooks/useHydrated';
 
 export type Theme = 'dark' | 'light';
 
@@ -26,16 +27,20 @@ function readTheme(): Theme {
  * theme before the first paint, so this only keeps <html class> in sync afterwards.
  */
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>(readTheme);
+  const hydrated = useHydrated();
+  // null until the user picks a theme in this tab; until then the saved one is used.
+  const [picked, setThemeState] = useState<Theme | null>(null);
+  const theme: Theme = picked ?? (hydrated ? readTheme() : 'dark');
 
   useEffect(() => {
+    if (!hydrated) return;
     const root = document.documentElement;
     root.classList.remove(theme === 'dark' ? 'light' : 'dark');
     root.classList.add(theme);
     document
       .querySelector('meta[name="theme-color"]')
       ?.setAttribute('content', theme === 'dark' ? '#12152A' : '#FFFFFF');
-  }, [theme]);
+  }, [theme, hydrated]);
 
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {

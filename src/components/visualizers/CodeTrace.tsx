@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { motion, useReducedMotion } from 'motion/react';
+import { m, useReducedMotion } from 'motion/react';
 import { EditorFrame } from '@/editor/EditorFrame';
 import { getCodeBlocks } from '@/components/mdx/codeBlocks';
 import { cn } from '@/lib/utils';
@@ -72,7 +72,7 @@ export function CodeTrace({
                   const changed = prev?.vars?.[name] !== value;
                   const ref = /^#\w+$/.test(value);
                   return (
-                    <motion.li
+                    <m.li
                       key={name}
                       initial={reduce ? false : { opacity: 0, x: -4 }}
                       animate={{ opacity: 1, x: 0 }}
@@ -90,7 +90,7 @@ export function CodeTrace({
                       ) : (
                         <Value text={value} />
                       )}
-                    </motion.li>
+                    </m.li>
                   );
                 })}
                 {Object.keys(frame?.vars ?? {}).length === 0 && (

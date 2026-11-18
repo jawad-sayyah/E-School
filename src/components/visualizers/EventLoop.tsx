@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from 'motion/react';
+import { AnimatePresence, LayoutGroup, m, useReducedMotion } from 'motion/react';
 import { EditorFrame } from '@/editor/EditorFrame';
 import { getCodeBlocks } from '@/components/mdx/codeBlocks';
 import { cn } from '@/lib/utils';
@@ -96,7 +96,7 @@ export function EventLoop({
                       <ul className="flex flex-col gap-1">
                         <AnimatePresence initial={false}>
                           {items.map((item) => (
-                            <motion.li
+                            <m.li
                               key={item}
                               layoutId={reduce ? undefined : `loop-${item}`}
                               initial={reduce ? false : { opacity: 0, scale: 0.9 }}
@@ -109,7 +109,7 @@ export function EventLoop({
                               )}
                             >
                               {item}
-                            </motion.li>
+                            </m.li>
                           ))}
                         </AnimatePresence>
                       </ul>

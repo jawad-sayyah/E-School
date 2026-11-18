@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 
 test('a "write the tests" exercise reports caught bugs and passes with good tests', async ({
   page,

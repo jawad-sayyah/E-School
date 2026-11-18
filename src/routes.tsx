@@ -1,0 +1,57 @@
+import type { RouteObject } from 'react-router';
+import { AppShell } from '@/components/layout/AppShell';
+import { RouteError } from '@/pages/RouteError';
+
+/** Every page is its own chunk, loaded when its route is first visited. */
+export const routes: RouteObject[] = [
+  {
+    element: <AppShell />,
+    errorElement: <RouteError />,
+    children: [
+      {
+        index: true,
+        lazy: async () => ({ Component: (await import('@/pages/HomePage')).default }),
+      },
+      {
+        path: 'tracks',
+        lazy: async () => ({ Component: (await import('@/pages/TracksPage')).default }),
+      },
+      {
+        path: 'tracks/:track',
+        lazy: async () => ({ Component: (await import('@/pages/TrackPage')).default }),
+      },
+      {
+        path: 'certificates/:track',
+        lazy: async () => ({ Component: (await import('@/pages/CertificatePage')).default }),
+      },
+      {
+        path: 'courses',
+        lazy: async () => ({ Component: (await import('@/pages/CoursesPage')).default }),
+      },
+      {
+        path: 'courses/:course',
+        lazy: async () => ({ Component: (await import('@/pages/CoursePage')).default }),
+      },
+      {
+        path: 'courses/:course/:lesson',
+        lazy: async () => ({ Component: (await import('@/pages/LessonPage')).default }),
+      },
+      {
+        path: 'project/*',
+        lazy: async () => ({ Component: (await import('@/pages/ProjectPage')).default }),
+      },
+      {
+        path: 'reference',
+        lazy: async () => ({ Component: (await import('@/pages/ReferencePage')).default }),
+      },
+      {
+        path: 'progress',
+        lazy: async () => ({ Component: (await import('@/pages/ProgressPage')).default }),
+      },
+      {
+        path: '*',
+        lazy: async () => ({ Component: (await import('@/pages/NotFoundPage')).default }),
+      },
+    ],
+  },
+];

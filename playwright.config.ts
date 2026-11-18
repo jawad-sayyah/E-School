@@ -19,7 +19,9 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'npx vite build && npx vite preview --port 4173 --strictPort',
+    // The production build, prerendered pages included (see "build" in package.json).
+    command:
+      'npx vite build && npx vite build --ssr src/entry-server.tsx --outDir dist-ssr && node scripts/prerender.mjs && npx vite preview --port 4173 --strictPort',
     url: 'http://localhost:4173',
     reuseExistingServer: !process.env.CI,
     timeout: 180_000,

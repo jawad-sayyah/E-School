@@ -10,6 +10,7 @@ import { trackStatus } from '@/gamification/rules';
 import { COURSE_REFS } from '@/gamification/useGamification';
 import { useProgress } from '@/progress/ProgressContext';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
+import { useHydrated } from '@/hooks/useHydrated';
 import { cn } from '@/lib/utils';
 import NotFoundPage from './NotFoundPage';
 
@@ -28,7 +29,9 @@ export default function CertificatePage() {
   const { track: trackId } = useParams();
   const track = getTrack(trackId);
   const snapshot = useProgress();
-  const [name, setName] = useState(readName);
+  const hydrated = useHydrated();
+  const [typed, setName] = useState<string | null>(null);
+  const name = typed ?? (hydrated ? readName() : '');
   useDocumentTitle(track ? `${track.title} certificate` : 'Certificate not found');
   if (!track) return <NotFoundPage />;
 
@@ -39,11 +42,14 @@ export default function CertificatePage() {
       .filter(([key, l]) => l.completed && track.courses.includes(key.split('/')[0]))
       .map(([, l]) => l.completedAt ?? 0),
   );
-  const date = new Date(lastDone).toLocaleDateString('en-GB', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  });
+  // Formatted in the visitor's time zone, so only in the browser (never in the prerendered HTML).
+  const date = !hydrated
+    ? ''
+    : new Date(lastDone).toLocaleDateString('en-GB', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      });
 
   const saveName = (value: string) => {
     setName(value);
